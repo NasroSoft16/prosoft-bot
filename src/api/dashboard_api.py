@@ -52,6 +52,14 @@ class DashboardAPI:
                 dash_path = os.path.abspath(os.path.join(os.getcwd(), 'dashboard.html'))
             return send_file(dash_path)
 
+        @self.app.route('/mobile', methods=['GET'])
+        def mobile():
+            # Dedicated mobile view
+            mob_path = get_resource_path('mobile.html')
+            if not os.path.exists(mob_path):
+                mob_path = os.path.abspath(os.path.join(os.getcwd(), 'mobile.html'))
+            return send_file(mob_path)
+
         @self.app.route('/api/login', methods=['POST'])
         def login():
             data = request.json

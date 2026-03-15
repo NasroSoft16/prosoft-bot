@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PROSOFT MOBILE NEXUS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --secondary: #7000ff;
+            --bg: #050505;
+            --card-bg: rgba(20, 20, 25, 0.8);
+            --accent: #ff00c8;
+            --success: #00ff88;
+            --danger: #ff3333;
+            --text: #e0e0e0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Cairo', sans-serif;
+            overflow-x: hidden;
+            background: radial-gradient(circle at top right, #101020, #050505);
+            min-height: 100vh;
+        }
+
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+
+        /* Mobile Header */
+        header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 242, 255, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.2rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: var(--primary);
+            text-shadow: 0 0 10px var(--primary);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+            display: inline-block;
+            margin-left: 8px;
+        }
+
+        /* Main Container */
+        main {
+            padding: 15px;
+            padding-bottom: 80px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 15px;
+            border-radius: 15px;
+            text-align: center;
+            border-left: 3px solid var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        /* Active Trade Plate */
+        .trade-active {
+            background: linear-gradient(135deg, rgba(0, 242, 255, 0.1), rgba(112, 0, 255, 0.1));
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .trade-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .symbol { font-size: 1.3rem; font-weight: bold; color: var(--primary); }
+        .pnl { font-size: 1.4rem; font-weight: 800; }
+        .pnl.plus { color: var(--success); }
+        .pnl.minus { color: var(--danger); }
+
+        .progress-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin: 10px 0;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--success);
+            border-radius: 3px;
+            box-shadow: 0 0 10px var(--success);
+            transition: width 0.5s ease-in-out;
+        }
+
+        /* Logs Section */
+        .section-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .log-item {
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .log-time { color: #666; font-size: 0.7rem; }
+
+        /* AI Thoughts */
+        .ai-box {
+            background: rgba(112, 0, 255, 0.05);
+            border-right: 4px solid var(--secondary);
+            font-style: italic;
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        /* Navbar Bottom */
+        .nav-bottom {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: rgba(5, 5, 5, 0.9);
+            backdrop-filter: blur(20px);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+        }
+
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #666;
+            font-size: 0.7rem;
+            transition: 0.3s;
+        }
+
+        .nav-btn.active {
+            color: var(--primary);
+        }
+
+        .nav-icon {
+            font-size: 1.2rem;
+            margin-bottom: 4px;
+        }
+
+        .btn-action {
+            background: var(--primary);
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #555;
+        }
+
+        .glow-text {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo orbitron">PROSOFT <span style="color:#fff">NEXUS</span></div>
+        <div id="connection-status">
+            <span id="status-text">متصل</span>
+            <div class="status-dot"></div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Quick Stats -->
+        <div class="stats-grid">
+            <div class="stat-box">
+                <span class="stat-label">رأس المال الكلي</span>
+                <span id="equity-val" class="stat-value orbitron">$0.00</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">ربح اليوم</span>
+                <span id="profit-val" class="stat-value orbitron" style="color:var(--success)">+$0.00</span>
+            </div>
+        </div>
+
+        <!-- Active Position Panel -->
+        <div class="section-title">⚡ التداول القتالي المباشر</div>
+        <div id="active-trades-container">
+            <div class="empty-state">لا يوجد تداول نشط حالياً.. بانتظار إشارة قوية</div>
+        </div>
+
+        <!-- AI Strategist -->
+        <div class="section-title">🧠 العقل الاصطناعي (Gemini)</div>
+        <div class="card ai-box" id="ai-insight">
+            "أقوم حالياً بتحليل تدفق السيولة والـ Market Heatmap. الوضع يتطلب الصبر المؤسسي."
+        </div>
+
+        <!-- Records -->
+        <div class="section-title">📜 ذاكرة النظام (Neural Memory)</div>
+        <div class="card" id="trade-history">
+            <div id="history-container">
+                <center style="opacity:0.3">بانتظار تنفيذ أول صفقة للتوثيق</center>
+            </div>
+        </div>
+    </main>
+
+    <div class="nav-bottom">
+        <div class="nav-btn active">
+            <span class="nav-icon">🏠</span>
+            <span>الرئيسية</span>
+        </div>
+        <div class="nav-btn">
+            <span class="nav-icon">📊</span>
+            <span>السوق</span>
+        </div>
+        <div class="nav-btn" onclick="location.reload()">
+            <span class="nav-icon">🔄</span>
+            <span>تحديث</span>
+        </div>
+        <div class="nav-btn" onclick="window.location.href='/'">
+            <span class="nav-icon">🖥️</span>
+            <span>نسخة PC</span>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        socket.on('connect', () => {
+            document.getElementById('status-text').innerText = 'متصل';
+            document.querySelector('.status-dot').style.background = '#00ff88';
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('status-text').innerText = 'انقطع الاتصال';
+            document.querySelector('.status-dot').style.background = '#ff3333';
+        });
+
+        // Handle Status Updates
+        socket.on('status_update', (data) => {
+            // Update Equity
+            if(data.equity) {
+                document.getElementById('equity-val').innerText = '$' + data.equity.toFixed(2);
+            }
+            
+            // Update Active Trades
+            const container = document.getElementById('active-trades-container');
+            if (data.active_trades && data.active_trades.length > 0) {
+                container.innerHTML = '';
+                data.active_trades.forEach(trade => {
+                    const isPlus = trade.pnl >= 0;
+                    const card = `
+                        <div class="card trade-active">
+                            <div class="trade-header">
+                                <span class="symbol orbitron">${trade.symbol}</span>
+                                <span class="pnl orbitron ${isPlus ? 'plus' : 'minus'}">${isPlus ? '+' : ''}${trade.pnl.toFixed(2)}%</span>
+                            </div>
+                            <div class="stat-label">سعر الدخول: ${trade.entry_price}</div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${Math.min(Math.max(trade.pnl + 50, 0), 100)}%; background: ${isPlus ? 'var(--success)' : 'var(--danger)'}"></div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#888">
+                                <span>SL: ${trade.stop_loss}</span>
+                                <span>TP: ${trade.take_profit}</span>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += card;
+                });
+            } else {
+                container.innerHTML = '<div class="empty-state">لا يوجد تداول نشط حالياً.. بانتظار إشارة قوية</div>';
+            }
+        });
+
+        // Handle Logs/Neural Memory
+        socket.on('new_log', (log) => {
+            if (log.includes('TRADE_CLOSED') || log.includes('PROFIT')) {
+                // Simplified display for mobile logs
+                refreshHistory();
+            }
+        });
+
+        function refreshHistory() {
+            // Fetch via AJAX if needed, or rely on socket history
+        }
+
+        // Set direction based on language (detect automatically if needed)
+        // For now forced Arabic layout as requested
+    </script>
+</body>
+</html>
