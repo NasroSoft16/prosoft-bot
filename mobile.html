@@ -3,378 +3,629 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PROSOFT MOBILE NEXUS</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <title>PROSOFT MOBILE QUANTUM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Cairo:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #00f2ff;
             --secondary: #7000ff;
-            --bg: #050505;
-            --card-bg: rgba(20, 20, 25, 0.8);
+            --bg-base: #050507;
+            --bg-panel: rgba(18, 18, 24, 0.95);
             --accent: #ff00c8;
             --success: #00ff88;
             --danger: #ff3333;
-            --text: #e0e0e0;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
         }
 
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
             -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            background: var(--bg);
-            color: var(--text);
+            background-color: var(--bg-base);
+            color: var(--text-main);
             font-family: 'Cairo', sans-serif;
             overflow-x: hidden;
-            background: radial-gradient(circle at top right, #101020, #050505);
-            min-height: 100vh;
-        }
-
-        .orbitron { font-family: 'Orbitron', sans-serif; }
-
-        /* Mobile Header */
-        header {
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(0, 242, 255, 0.2);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .logo {
-            font-size: 1.2rem;
-            font-weight: bold;
-            letter-spacing: 2px;
-            color: var(--primary);
-            text-shadow: 0 0 10px var(--primary);
-        }
-
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--success);
-            box-shadow: 0 0 10px var(--success);
-            display: inline-block;
-            margin-left: 8px;
-        }
-
-        /* Main Container */
-        main {
-            padding: 15px;
+            margin: 0;
             padding-bottom: 80px;
         }
 
-        .card {
-            background: var(--card-bg);
-            border-radius: 20px;
-            padding: 20px;
-            margin-bottom: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(15px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            animation: slideUp 0.5s ease-out;
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        .glass-card {
+            background: var(--bg-panel);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
 
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
+        .neo-glow {
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+        }
+
+        /* News Ticker */
+        .marquee-container {
+            background: rgba(0, 242, 255, 0.05);
+            border-bottom: 1px solid var(--border);
+            height: 35px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+        }
+
+        .marquee-content {
+            display: flex;
+            white-space: nowrap;
+            animation: marquee 30s linear infinite;
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* Tabs System */
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 15px;
-        }
-
-        .stat-box {
-            background: rgba(255, 255, 255, 0.03);
-            padding: 15px;
-            border-radius: 15px;
-            text-align: center;
-            border-left: 3px solid var(--primary);
-        }
-
-        .stat-label {
-            font-size: 0.75rem;
-            color: #888;
-            margin-bottom: 5px;
-            display: block;
-        }
-
-        .stat-value {
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: #fff;
-        }
-
-        /* Active Trade Plate */
-        .trade-active {
-            background: linear-gradient(135deg, rgba(0, 242, 255, 0.1), rgba(112, 0, 255, 0.1));
-            border: 1px solid rgba(0, 242, 255, 0.3);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .trade-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .symbol { font-size: 1.3rem; font-weight: bold; color: var(--primary); }
-        .pnl { font-size: 1.4rem; font-weight: 800; }
-        .pnl.plus { color: var(--success); }
-        .pnl.minus { color: var(--danger); }
-
-        .progress-bar {
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            margin: 10px 0;
-            position: relative;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: var(--success);
-            border-radius: 3px;
-            box-shadow: 0 0 10px var(--success);
-            transition: width 0.5s ease-in-out;
-        }
-
-        /* Logs Section */
-        .section-title {
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .log-item {
-            padding: 10px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            font-size: 0.85rem;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .log-time { color: #666; font-size: 0.7rem; }
-
-        /* AI Thoughts */
-        .ai-box {
-            background: rgba(112, 0, 255, 0.05);
-            border-right: 4px solid var(--secondary);
-            font-style: italic;
-            color: #ccc;
-            line-height: 1.6;
-        }
-
-        /* Navbar Bottom */
+        /* Bottom Nav */
         .nav-bottom {
+            background: rgba(10, 10, 15, 0.95);
+            backdrop-filter: blur(30px);
+            border-top: 1px solid var(--border);
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            height: 70px;
-            background: rgba(5, 5, 5, 0.9);
-            backdrop-filter: blur(20px);
+            z-index: 1000;
+            height: 75px;
             display: flex;
             justify-content: space-around;
-            align-items: center;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 1000;
+            padding-top: 10px;
         }
 
-        .nav-btn {
+        .nav-link {
             display: flex;
             flex-direction: column;
             align-items: center;
-            color: #666;
-            font-size: 0.7rem;
-            transition: 0.3s;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            width: 20%;
+            transition: all 0.3s;
         }
 
-        .nav-btn.active {
+        .nav-link.active {
             color: var(--primary);
         }
 
-        .nav-icon {
-            font-size: 1.2rem;
-            margin-bottom: 4px;
+        .nav-link i {
+            font-size: 1.4rem;
+            margin-bottom: 3px;
         }
 
-        .btn-action {
-            background: var(--primary);
-            color: #000;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 10px;
-            font-weight: bold;
+        .nav-link.active i {
+            text-shadow: 0 0 12px var(--primary);
+            transform: scale(1.1);
+        }
+
+        /* Custom Gauges */
+        .gauge-ring {
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+
+        .pnl-badge {
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-weight: 700;
             font-size: 0.8rem;
         }
 
-        /* Empty state */
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #555;
+        /* Header */
+        header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
         }
 
-        .glow-text {
-            animation: pulse 2s infinite;
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
         }
 
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
+        /* Order Flow Pressure */
+        .pressure-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .pressure-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <div class="logo orbitron">PROSOFT <span style="color:#fff">NEXUS</span></div>
-        <div id="connection-status">
-            <span id="status-text">متصل</span>
-            <div class="status-dot"></div>
-        </div>
-    </header>
-
-    <main>
-        <!-- Quick Stats -->
-        <div class="stats-grid">
-            <div class="stat-box">
-                <span class="stat-label">رأس المال الكلي</span>
-                <span id="equity-val" class="stat-value orbitron">$0.00</span>
-            </div>
-            <div class="stat-box">
-                <span class="stat-label">ربح اليوم</span>
-                <span id="profit-val" class="stat-value orbitron" style="color:var(--success)">+$0.00</span>
-            </div>
-        </div>
-
-        <!-- Active Position Panel -->
-        <div class="section-title">⚡ التداول القتالي المباشر</div>
-        <div id="active-trades-container">
-            <div class="empty-state">لا يوجد تداول نشط حالياً.. بانتظار إشارة قوية</div>
-        </div>
-
-        <!-- AI Strategist -->
-        <div class="section-title">🧠 العقل الاصطناعي (Gemini)</div>
-        <div class="card ai-box" id="ai-insight">
-            "أقوم حالياً بتحليل تدفق السيولة والـ Market Heatmap. الوضع يتطلب الصبر المؤسسي."
-        </div>
-
-        <!-- Records -->
-        <div class="section-title">📜 ذاكرة النظام (Neural Memory)</div>
-        <div class="card" id="trade-history">
-            <div id="history-container">
-                <center style="opacity:0.3">بانتظار تنفيذ أول صفقة للتوثيق</center>
-            </div>
-        </div>
-    </main>
-
-    <div class="nav-bottom">
-        <div class="nav-btn active">
-            <span class="nav-icon">🏠</span>
-            <span>الرئيسية</span>
-        </div>
-        <div class="nav-btn">
-            <span class="nav-icon">📊</span>
-            <span>السوق</span>
-        </div>
-        <div class="nav-btn" onclick="location.reload()">
-            <span class="nav-icon">🔄</span>
-            <span>تحديث</span>
-        </div>
-        <div class="nav-btn" onclick="window.location.href='/'">
-            <span class="nav-icon">🖥️</span>
-            <span>نسخة PC</span>
+    <!-- Top News Ticker -->
+    <div class="marquee-container">
+        <div class="marquee-content" id="news-ticker">
+            <span class="mx-6 text-[10px] text-primary/80">⚡ [PROSOFT AI] جاري مزامنة تدفق السيولة...</span>
+            <span class="mx-6 text-[10px] text-white/60">BTC/USDT ميزان القوى لصالح المشترين</span>
+            <span class="mx-6 text-[10px] text-danger/80">⚠️ تحذير: ارتفاع ضغط البيع على TAO</span>
         </div>
     </div>
 
+    <header>
+        <div>
+            <h1 class="orbitron text-primary text-xl font-black tracking-widest">PROSOFT</h1>
+            <p class="text-[9px] text-white/40 tracking-[4px]">QUANTUM ENTITY</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-full px-3 py-1 flex items-center gap-2">
+            <span id="conn-text" class="text-[10px] text-muted font-bold uppercase">Linking...</span>
+            <div id="conn-dot" class="connection-dot bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]"></div>
+        </div>
+    </header>
+
+    <main class="px-4 pt-2">
+        
+        <!-- ================= HOME TAB ================= -->
+        <div id="tab-home" class="tab-content active">
+            <!-- Equity Hub -->
+            <div class="glass-card p-5 mb-5 neo-glow relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-primary opacity-30"></div>
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-[10px] text-muted font-bold uppercase tracking-wider mb-1">إجمالي التمويل الصافي</p>
+                        <h2 id="total-equity" class="orbitron text-3xl font-bold tracking-tight">$0.00</h2>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] text-muted font-bold uppercase tracking-wider mb-1">الربح اليومي</p>
+                        <h2 id="daily-profit" class="orbitron text-xl font-bold text-success">+$0.00</h2>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2">
+                    <div class="flex-1 bg-white/5 p-3 rounded-xl border border-white/5">
+                        <p class="text-[8px] text-muted uppercase font-black mb-1">Yield Farming</p>
+                        <p id="yield-val" class="text-xs font-bold text-primary">--</p>
+                    </div>
+                    <div class="flex-1 bg-white/5 p-3 rounded-xl border border-white/5">
+                        <p class="text-[8px] text-muted uppercase font-black mb-1">Launchpool</p>
+                        <p id="pool-val" class="text-xs font-bold text-primary">--</p>
+                    </div>
+                    <div class="flex-1 bg-white/5 p-3 rounded-xl border border-white/5">
+                        <p class="text-[8px] text-muted uppercase font-black mb-1">Sniper Hits</p>
+                        <p id="sniper-hits" class="text-xs font-bold text-primary">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Trade (Responsive Container) -->
+            <div id="active-trade-zone">
+                <!-- Placeholder for dynamic insertion -->
+                <div class="glass-card p-10 flex flex-col items-center justify-center border-dashed border-white/10 opacity-30">
+                    <p class="text-xs">بانتظار اصطياد فرصة ذهبية</p>
+                    <div class="mt-4 flex gap-1">
+                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce"></div>
+                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Macro Health & Shield -->
+            <div class="grid grid-cols-2 gap-4 mt-5">
+                <div class="glass-card p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-[10px] font-bold text-muted uppercase underline decoration-primary/30">دقة الـ AI</span>
+                        <span id="ai-conf" class="orbitron text-xs text-primary">0%</span>
+                    </div>
+                    <canvas id="miniConfChart" height="60"></canvas>
+                </div>
+                <div class="glass-card p-4 flex flex-col justify-center">
+                    <p class="text-[10px] font-bold text-muted uppercase mb-2">درع التحوط (Hedge)</p>
+                    <div class="flex items-center gap-3">
+                        <div class="flex-1 bg-white/5 h-1.5 rounded-full overflow-hidden">
+                            <div id="hedge-bar" class="h-full bg-success w-0 shadow-[0_0_10px_var(--success)]"></div>
+                        </div>
+                        <span id="hedge-status" class="text-[10px] font-black text-white px-2 bg-success/20 rounded">READY</span>
+                    </div>
+                    <p id="crash-risk-text" class="text-[8px] text-white/30 italic mt-2">مستوى مخاطرة الانهيار: 0%</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= ANALYTICS TAB ================= -->
+        <div id="tab-analytics" class="tab-content px-1">
+            <h3 class="section-title text-sm border-r-2 border-primary pr-3 mb-4 font-bold uppercase tracking-wider">الذكاء العملياتي (Operational Intelligence)</h3>
+            
+            <div class="glass-card p-5 mb-4">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-xs font-bold">تدفق الطلبات (Order Flow)</span>
+                    <span id="flow-bias" class="pnl-badge bg-primary/20 text-primary">NEUTRAL</span>
+                </div>
+                <div class="flex justify-between text-[10px] text-muted mb-1">
+                    <span>ضغط البيع</span>
+                    <span>ضغط الشراء</span>
+                </div>
+                <div class="pressure-bar">
+                    <div id="pressure-fill" class="pressure-fill bg-gradient-to-l from-primary to-secondary" style="width: 50%"></div>
+                </div>
+                <div class="mt-4 grid grid-cols-3 gap-2">
+                    <div class="text-center">
+                        <p class="text-[8px] text-muted uppercase">سبريد السوق</p>
+                        <p id="flow-spread" class="text-xs font-bold font-mono">0.00%</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-[8px] text-muted uppercase">توازن القوى</p>
+                        <p id="flow-imbalance" class="text-xs font-bold font-mono">0.0</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-[8px] text-muted uppercase">جودة السيولة</p>
+                        <p class="text-xs font-bold text-success">HIGH</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Macro State -->
+            <div class="glass-card p-5">
+                <p class="text-xs font-bold mb-4">المؤشرات الكلية (Macro Guards)</p>
+                <div class="flex gap-4">
+                    <div class="flex-1 text-center border-l border-white/10">
+                        <p class="text-[8px] text-muted uppercase mb-1">مؤشر الخوف</p>
+                        <p id="macro-fgi" class="orbitron text-xl font-bold">--</p>
+                        <p class="text-[7px] text-muted">Fear & Greed</p>
+                    </div>
+                    <div class="flex-1 text-center">
+                        <p class="text-[8px] text-muted uppercase mb-1">نظام السوق</p>
+                        <p id="macro-regime" class="text-xs font-bold text-primary">--</p>
+                        <p class="text-[7px] text-muted">Regime Filter</p>
+                    </div>
+                    <div class="flex-1 text-center border-r border-white/10">
+                        <p class="text-[8px] text-muted uppercase mb-1">حالة المخاطرة</p>
+                        <p id="macro-risk" class="text-xs font-bold text-success">--</p>
+                        <p class="text-[7px] text-muted">Global Risk</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= INTELLIGENCE TAB ================= -->
+        <div id="tab-intel" class="tab-content px-1">
+            <!-- AI Strategist Voice -->
+            <div class="glass-card mb-5 p-5 border-r-4 border-secondary">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center text-secondary">🧠</div>
+                    <span class="text-xs font-bold">تحليل الاستراتيجي (Gemini)</span>
+                </div>
+                <p id="ai-insight-long" class="text-xs leading-relaxed text-slate-300 italic">
+                    "جاري معالجة بيانات الـ Heatmap ونقاط تمركز السيولة لمنصات الدرجة الأولى. ننتظر اختراق مستوى الـ Resistance القادم لتأكيد الاتجاه."
+                </p>
+            </div>
+
+            <!-- AI Nodes Status -->
+            <div class="grid grid-cols-2 gap-3 mb-5" id="ai-nodes-grid">
+                <!-- Nodes dynamically inserted -->
+            </div>
+
+            <!-- Whale Alerts & News -->
+            <h4 class="text-[10px] font-black text-muted uppercase tracking-widest mb-3 opacity-60">تنبيهات الحيتان والسيولة</h4>
+            <div id="intel-feed" class="space-y-3">
+                <!-- Sample Feed Item -->
+                <div class="bg-white/3 border-r-2 border-primary/20 p-3 rounded-lg text-[11px]">
+                    <span class="text-primary font-bold">Whale Alert:</span> تحرك 500 BTC من محفظة مجهولة إلى Binance.
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= LOGS TAB ================= -->
+        <div id="tab-terminal" class="tab-content h-[calc(100vh-180px)] flex flex-col">
+            <div class="flex justify-between items-center mb-3">
+                <span class="text-xs font-bold mono text-primary">QUANTUM_TERMINAL >_</span>
+                <button onclick="clearLogs()" class="text-[9px] bg-white/5 border border-white/10 px-2 py-1 rounded">Clear</button>
+            </div>
+            <div id="terminal-screen" class="glass-card flex-1 p-3 overflow-y-auto font-mono text-[10px] leading-relaxed">
+                <!-- Logs will be streamed here -->
+                <div class="text-muted">SYSTEM BOOT SEQUENCES COMPLETE...</div>
+                <div class="text-primary">ESTABLISHING ENCRYPTED LINK...</div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="nav-bottom">
+        <a href="javascript:void(0)" class="nav-link active" onclick="switchTab('home', this)">
+            <i class="nav-icon">🏠</i>
+            <span>الرئيسية</span>
+        </a>
+        <a href="javascript:void(0)" class="nav-link" onclick="switchTab('analytics', this)">
+            <i class="nav-icon">📊</i>
+            <span>التحليلات</span>
+        </a>
+        <a href="javascript:void(0)" class="nav-link" onclick="switchTab('intel', this)">
+            <i class="nav-icon">🧠</i>
+            <span>الذكاء</span>
+        </a>
+        <a href="javascript:void(0)" class="nav-link" onclick="switchTab('terminal', this)">
+            <i class="nav-icon">⌨️</i>
+            <span>السجلات</span>
+        </a>
+        <a href="/" class="nav-link">
+            <i class="nav-icon">🖥️</i>
+            <span>Desktop</span>
+        </a>
+    </nav>
+
+    <!-- Emergency Controls Overlay (Optional trigger via long press or swipe) -->
+    <div id="quick-actions" class="hidden fixed inset-0 bg-black/80 backdrop-filter blur-md z-[2000] flex items-center justify-center p-6">
+        <div class="glass-card w-full max-w-sm p-6 text-center">
+            <h3 class="orbitron text-danger text-lg font-black mb-6">OMEGA EMERGENCY PROTOCOL</h3>
+            <button onclick="omegaKill()" class="w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]">KILL ALL POSITIONS</button>
+            <button onclick="toggleBot()" id="bot-toggle-btn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl mb-6">STOP TRADING BOT</button>
+            <button onclick="document.getElementById('quick-actions').classList.add('hidden')" class="text-muted text-sm uppercase">Cancel / Back</button>
+        </div>
+    </div>
+    
+    <!-- Float Action Button for Emergency -->
+    <button onclick="document.getElementById('quick-actions').classList.remove('hidden')" 
+            class="fixed bottom-24 right-4 w-12 h-12 bg-danger rounded-full shadow-2xl z-[500] flex items-center justify-center text-white font-black border-2 border-white/20 active:scale-90 transition">
+        ⚡
+    </button>
+
     <script>
         const socket = io();
+        let lastStats = null;
+        let confChart = null;
 
-        socket.on('connect', () => {
-            document.getElementById('status-text').innerText = 'متصل';
-            document.querySelector('.status-dot').style.background = '#00ff88';
-        });
-
-        socket.on('disconnect', () => {
-            document.getElementById('status-text').innerText = 'انقطع الاتصال';
-            document.querySelector('.status-dot').style.background = '#ff3333';
-        });
-
-        // Handle Status Updates
-        socket.on('status_update', (data) => {
-            // Update Equity
-            if(data.equity) {
-                document.getElementById('equity-val').innerText = '$' + data.equity.toFixed(2);
-            }
+        // --- Tab Management ---
+        function switchTab(tabName, el) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.getElementById('tab-' + tabName).classList.add('active');
+            el.classList.add('active');
             
-            // Update Active Trades
-            const container = document.getElementById('active-trades-container');
-            if (data.active_trades && data.active_trades.length > 0) {
-                container.innerHTML = '';
-                data.active_trades.forEach(trade => {
-                    const isPlus = trade.pnl >= 0;
-                    const card = `
-                        <div class="card trade-active">
-                            <div class="trade-header">
-                                <span class="symbol orbitron">${trade.symbol}</span>
-                                <span class="pnl orbitron ${isPlus ? 'plus' : 'minus'}">${isPlus ? '+' : ''}${trade.pnl.toFixed(2)}%</span>
-                            </div>
-                            <div class="stat-label">سعر الدخول: ${trade.entry_price}</div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${Math.min(Math.max(trade.pnl + 50, 0), 100)}%; background: ${isPlus ? 'var(--success)' : 'var(--danger)'}"></div>
-                            </div>
-                            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#888">
-                                <span>SL: ${trade.stop_loss}</span>
-                                <span>TP: ${trade.take_profit}</span>
-                            </div>
-                        </div>
-                    `;
-                    container.innerHTML += card;
-                });
-            } else {
-                container.innerHTML = '<div class="empty-state">لا يوجد تداول نشط حالياً.. بانتظار إشارة قوية</div>';
-            }
-        });
-
-        // Handle Logs/Neural Memory
-        socket.on('new_log', (log) => {
-            if (log.includes('TRADE_CLOSED') || log.includes('PROFIT')) {
-                // Simplified display for mobile logs
-                refreshHistory();
-            }
-        });
-
-        function refreshHistory() {
-            // Fetch via AJAX if needed, or rely on socket history
+            if (tabName === 'home' && !confChart) initChart();
         }
 
-        // Set direction based on language (detect automatically if needed)
-        // For now forced Arabic layout as requested
+        function initChart() {
+            const ctx = document.getElementById('miniConfChart').getContext('2d');
+            confChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(10).fill(''),
+                    datasets: [{
+                        label: 'AI Confidence',
+                        data: Array(10).fill(85),
+                        borderColor: '#00f2ff',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        fill: true,
+                        backgroundColor: 'rgba(0, 242, 255, 0.1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { display: false, min: 0, max: 100 }
+                    }
+                }
+            });
+        }
+
+        // --- Socket Integration ---
+        socket.on('connect', () => {
+            document.getElementById('conn-text').innerText = 'Online';
+            document.getElementById('conn-dot').className = 'connection-dot bg-success shadow-[0_0_8px_rgba(0,255,136,0.5)]';
+        });
+
+        socket.on('status_update', (data) => {
+            updateUI(data);
+        });
+
+        socket.on('new_log', (log) => {
+            addTerminalLog(log);
+        });
+
+        async function fetchStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                updateUI(data);
+            } catch(e) {}
+        }
+
+        function updateUI(data) {
+            const s = data.bot_stats;
+            if (!s) return;
+
+            // Global Home Stats
+            document.getElementById('total-equity').innerText = '$' + (s.total_equity || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('yield-val').innerText = s.yield_amount ? '$' + s.yield_amount.toFixed(4) : '--';
+            document.getElementById('pool-val').innerText = s.pool_amount ? '$' + s.pool_amount.toFixed(2) : '--';
+            document.getElementById('sniper-hits').innerText = s.sniper_hits || 0;
+            document.getElementById('ai-conf').innerText = (s.ai_conf * 100).toFixed(0) + '%';
+            
+            // Confidence Chart
+            if (confChart) {
+                confChart.data.datasets[0].data.push(s.ai_conf * 100);
+                confChart.data.datasets[0].data.shift();
+                confChart.update('none');
+            }
+
+            // Crash Shield
+            const risk = s.crash_risk || 0;
+            const bar = document.getElementById('hedge-bar');
+            bar.style.width = risk + '%';
+            bar.className = risk > 60 ? 'h-full bg-danger shadow-[0_0_10px_#ff3333]' : 'h-full bg-success shadow-[0_0_10px_#00ff88]';
+            document.getElementById('crash-risk-text').innerText = `مستوى مخاطرة الانهيار: ${risk}%`;
+
+            // Active Trade Section
+            const tradeZone = document.getElementById('active-trade-zone');
+            if (data.active_trade) {
+                const t = data.active_trade;
+                const pnl = ((s.price - t.entry_price) * t.qty);
+                const pnlPct = ((s.price / t.entry_price - 1) * 100);
+                const isPlus = pnl >= 0;
+
+                tradeZone.innerHTML = `
+                    <div class="glass-card p-5 border-l-4 ${isPlus ? 'border-success' : 'border-danger'} animate-pulse">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="orbitron text-lg font-bold text-white">${t.symbol} <span class="text-[10px] text-muted">${t.side}</span></h4>
+                            <span class="pnl-badge ${isPlus ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'}">${isPlus ? '+' : ''}${pnlPct.toFixed(2)}%</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 text-[10px]">
+                            <div>
+                                <p class="text-muted uppercase">محصلة P&L</p>
+                                <p class="font-bold text-sm ${isPlus ? 'text-success' : 'text-danger'}">$${pnl.toFixed(2)}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-muted uppercase">سعر الدخول</p>
+                                <p class="font-bold text-sm">$${t.entry_price.toFixed(2)}</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex gap-4">
+                            <div class="flex-1 bg-white/5 p-2 rounded text-center border border-white/5">
+                                <p class="text-[8px] text-muted uppercase">Stop Loss</p>
+                                <p class="text-[10px] font-bold">$${t.sl.toFixed(2)}</p>
+                            </div>
+                            <div class="flex-1 bg-white/5 p-2 rounded text-center border border-white/5">
+                                <p class="text-[8px] text-muted uppercase">Take Profit</p>
+                                <p class="text-[10px] font-bold">$${t.tp.toFixed(2)}</p>
+                            </div>
+                        </div>
+                        <button onclick="closeActiveTrade()" class="w-full mt-4 bg-danger/10 hover:bg-danger/20 text-danger border border-danger/30 text-[10px] font-black py-2 rounded-lg transition">إغلاق الصفقة فوراً</button>
+                    </div>
+                `;
+            } else {
+                tradeZone.innerHTML = `
+                <div class="glass-card p-10 flex flex-col items-center justify-center border-dashed border-white/10 opacity-30 text-center">
+                    <p class="text-xs">بانتظار اصطياد فرصة ذهبية</p>
+                    <div class="mt-4 flex gap-1">
+                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce"></div>
+                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    </div>
+                </div>`;
+            }
+
+            // Order Flow
+            if (s.order_flow) {
+                const flow = s.order_flow;
+                document.getElementById('pressure-fill').style.width = flow.pressure_score + '%';
+                document.getElementById('flow-bias').innerText = (flow.bias || 'NEUTRAL').replace('_', ' ');
+                document.getElementById('flow-spread').innerText = (flow.spread_pct || 0).toFixed(4) + '%';
+                document.getElementById('flow-imbalance').innerText = (flow.imbalance || 0).toFixed(2);
+            }
+
+            // Macro States
+            if (s.macro_state) {
+                const m = s.macro_state;
+                document.getElementById('macro-fgi').innerText = m.fear_greed_index || '--';
+                document.getElementById('macro-regime').innerText = m.market_regime || '--';
+                const rEl = document.getElementById('macro-risk');
+                rEl.innerText = m.risk_level || '--';
+                const riskColors = {'CRITICAL': 'text-red-500', 'HIGH': 'text-red-400', 'MEDIUM': 'text-amber-400', 'LOW': 'text-green-400'};
+                rEl.className = `text-xs font-bold ${riskColors[m.risk_level] || 'text-muted'}`;
+            }
+
+            // AI Nodes List
+            if (s.ai_cluster && document.getElementById('tab-intel').classList.contains('active')) {
+                const nodesGrid = document.getElementById('ai-nodes-grid');
+                nodesGrid.innerHTML = s.ai_cluster.map(n => `
+                    <div class="glass-card p-3 border-l-2 ${n.status === 'ONLINE' ? 'border-success' : 'border-danger'}">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[9px] font-bold text-muted">NODE #0${n.id}</span>
+                            <div class="w-1.5 h-1.5 rounded-full ${n.status === 'ONLINE' ? 'bg-success animate-pulse' : 'bg-danger'}"></div>
+                        </div>
+                        <p class="text-[10px] font-bold ${n.active ? 'text-primary' : 'text-white'}">${n.requests} REQS</p>
+                    </div>
+                `).join('');
+            }
+
+            // Ticker News
+            if (s.market_pulse && s.market_pulse.feed.length > 0) {
+                const newsItems = s.market_pulse.feed.slice(0, 5).map(f => {
+                    return `<span class="mx-6 text-[10px] text-white/70"><strong>[${f.source}]</strong> ${f.title}</span>`;
+                }).join('');
+                document.getElementById('news-ticker').innerHTML = newsItems;
+            }
+        }
+
+        // --- Terminal Helper ---
+        function addTerminalLog(msg) {
+            const screen = document.getElementById('terminal-screen');
+            const div = document.createElement('div');
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            
+            let colorClass = 'text-muted';
+            if (msg.includes('ERROR')) colorClass = 'text-danger';
+            if (msg.includes('SUCCESS') || msg.includes('BUY') || msg.includes('SELL')) colorClass = 'text-success';
+            if (msg.includes('AI') || msg.includes('GEMINI')) colorClass = 'text-primary';
+            
+            div.className = `mb-1 ${colorClass}`;
+            div.innerHTML = `<span class="opacity-30 inline-block w-14">${time}</span> ${msg}`;
+            
+            screen.appendChild(div);
+            // Auto-scroll
+            screen.scrollTop = screen.scrollHeight;
+            
+            // Limit log items
+            if(screen.children.length > 100) screen.removeChild(screen.firstChild);
+        }
+
+        function clearLogs() {
+            document.getElementById('terminal-screen').innerHTML = '';
+        }
+
+        // --- Bot Commands ---
+        async function omegaKill() {
+            if(!confirm("⚠️ بروتوكول أوميغا: إغلاق جميع الصفقات والهروب فوراً؟")) return;
+            try { await fetch('/api/omega_kill', {method: 'POST'}); } catch(e) {}
+            document.getElementById('quick-actions').classList.add('hidden');
+        }
+
+        async function closeActiveTrade() {
+            if(!confirm("تأكيد إغلاق الصفقة النشطة؟")) return;
+            try { await fetch('/api/close_active', {method: 'POST'}); } catch(e) {}
+        }
+
+        // Initial Stats load
+        fetchStats();
+        setInterval(fetchStats, 5000);
+        window.onload = initChart;
+
     </script>
 </body>
 </html>
