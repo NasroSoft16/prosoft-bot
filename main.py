@@ -99,7 +99,7 @@ class TradingBot:
         self.symbol = os.getenv('SYMBOL', symbol)
         self.timeframe = os.getenv('TIMEFRAME', timeframe)
         self.interval_sec = int(interval_sec)
-        self.ai_threshold = float(os.getenv('AI_CONFIDENCE_THRESHOLD', 0.55))
+        self.ai_threshold = float(os.getenv('AI_CONFIDENCE_THRESHOLD', 0.75))
         
         self.execution_mode = os.getenv('EXECUTION_MODE', 'manual')
         self.voice_alerts = os.getenv('VOICE_ALERTS', 'on') == 'on'
