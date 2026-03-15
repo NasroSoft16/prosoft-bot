@@ -144,9 +144,12 @@ class BinanceClientWrapper:
         """Phase 12.0: Fetches interest rewards from Flexible Simple Earn."""
         if not self.client: return []
         try:
-            # SAPI endpoint for Simple Earn rewards
-            rewards = self.client.get_simple_earn_flexible_rewards_history(asset=asset, size=limit)
-            return rewards.get('rows', [])
+            # Check if method exists (compatibility with different python-binance versions)
+            method_name = 'get_simple_earn_flexible_reward_history'
+            if hasattr(self.client, method_name):
+                rewards = getattr(self.client, method_name)(asset=asset, size=limit)
+                return rewards.get('rows', [])
+            return []
         except Exception as e:
             app_logger.error(f"Error fetching Simple Earn Rewards: {e}")
             return []
@@ -168,10 +171,10 @@ class BinanceClientWrapper:
         """Subscribes asset to Flexible Simple Earn."""
         if not self.client: return False
         try:
-            # Note: The endpoint in python-binance might vary. 
-            # For Flexible: SAPI /sapi/v1/simple-earn/flexible/subscribe
-            res = self.client.simple_earn_flexible_subscribe(productId=f"{asset}001", amount=amount)
-            return True
+            if hasattr(self.client, 'simple_earn_flexible_subscribe'):
+                res = self.client.simple_earn_flexible_subscribe(productId=f"{asset}001", amount=amount)
+                return True
+            return False
         except Exception as e:
             app_logger.error(f"Simple Earn Subscribe Error: {e}")
             return False
@@ -180,11 +183,10 @@ class BinanceClientWrapper:
         """Redeems asset from Flexible Simple Earn."""
         if not self.client: return False
         try:
-            # If amount is None, we need to find the total held. 
-            # For simplicity, we assume the caller provides amount or we redeem a large chunk.
-            # ProductId usually follows asset + '001' for flexible.
-            res = self.client.simple_earn_flexible_redeem(productId=f"{asset}001", amount=amount)
-            return True
+            if hasattr(self.client, 'simple_earn_flexible_redeem'):
+                res = self.client.simple_earn_flexible_redeem(productId=f"{asset}001", amount=amount)
+                return True
+            return False
         except Exception as e:
             app_logger.error(f"Simple Earn Redeem Error: {e}")
             return False

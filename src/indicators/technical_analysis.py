@@ -31,7 +31,7 @@ class TechnicalAnalysis:
             # Smart Fill: Don't drop all rows if history is short.
             # Fill NaNs with current values or 0s to keep the dataframe size stable
             df.ffill(inplace=True)
-            df.fillna(method='bfill', inplace=True) # Backfill the remaining 
+            df.bfill(inplace=True) # Backfill the remaining 
             
             return df
         except Exception as e:
