@@ -802,7 +802,11 @@ class TradingBot:
                         target_signal = signal
                         
                         if target_signal['signal'] == 'WAIT':
-                            self.add_log(f"Market Scan: {self.symbol} is currently in a noise zone. AI is waiting for high-velocity momentum.")
+                            import time as _t
+                            _now = _t.time()
+                            if not hasattr(self, '_last_noise_log') or (_now - self._last_noise_log) > 300:
+                                self.add_log(f"Market Scan: {self.symbol} is currently in a noise zone. AI is waiting for high-velocity momentum.")
+                                self._last_noise_log = _now
                         
                         # Single Symbol Focus Mode (Manual Selection only)
                         if target_signal['signal'] == 'BUY':

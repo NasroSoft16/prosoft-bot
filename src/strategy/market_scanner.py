@@ -9,7 +9,7 @@ class MarketScanner:
         self.intel = QuantumIntelligence()
         
         # Load user-defined blacklist from env, or use default stablecoin list
-        env_blacklist = os.getenv('BLACKLISTED_COINS', 'USDC,FDUSD,TUSD,USDP,EUR,BUSD')
+        env_blacklist = os.getenv('BLACKLISTED_COINS', 'USDC,FDUSD,TUSD,USDP,EUR,BUSD,USD1,DAI,USDD,PYUSD,AEUR,GBP,EURI')
         self.blacklist = [coin.strip().upper() for coin in env_blacklist.split(',')]
 
     def get_top_pairs(self, limit=20):
