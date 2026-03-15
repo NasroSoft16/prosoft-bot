@@ -1,0 +1,2068 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PROSOFT QUANTUM PRIME - AI TRADING ENTITY</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0d14;
+            --bg-panel: #111520;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --accent-blue: #2563eb;
+            --accent-gold: #d4af37;
+            --border-subtle: rgba(255, 255, 255, 0.06);
+        }
+
+        html {
+            font-size: 14px;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding-bottom: 2rem;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Institutional Panels */
+        .prime-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            padding: 1.25rem;
+            transition: border-color 0.2s;
+        }
+
+        .prime-panel:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .panel-header {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 0.5rem;
+        }
+
+        /* Official Inputs */
+        .official-input {
+            width: 100%;
+            background: #06080c;
+            border: 1px solid #1f2937;
+            color: #fff;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .official-input:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+
+        .official-label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* News Ticker (Scrolling) */
+        .ticker-wrap {
+            width: 100%;
+            overflow: hidden;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 0.5rem 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            position: relative;
+            z-index: 50;
+        }
+
+        .ticker-content {
+            display: inline-flex;
+            white-space: nowrap;
+            animation: ticker-scroll 180s linear infinite; /* Slowed down from 120s to 180s */
+            padding-left: 100%; /* Start items from the far right */
+        }
+
+        .ticker-content:hover {
+            animation-play-state: paused;
+        }
+
+        .ticker-item {
+            padding: 0 4rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .ticker-tag {
+            font-size: 9px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .tag-market { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+        .tag-twitter { background: rgba(29, 161, 242, 0.15); color: #1da1f2; border: 1px solid rgba(29, 161, 242, 0.3); }
+
+        /* Omega Kill Switch */
+        .btn-omega {
+            background: linear-gradient(45deg, #7f1d1d, #b91c1c);
+            color: white;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 15px rgba(185, 28, 28, 0.4);
+            animation: glow-red 2s infinite alternate;
+        }
+
+        .btn-omega:hover {
+            background: #ef4444;
+            box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+            transform: scale(1.05);
+        }
+
+        @keyframes glow-red {
+            from { box-shadow: 0 0 10px rgba(185, 28, 28, 0.3); }
+            to { box-shadow: 0 0 20px rgba(239, 68, 68, 0.6); }
+        }
+
+        .chart-container-mini {
+            height: 100px;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .ticker-item strong {
+            color: var(--accent-gold);
+            margin-right: 0.2rem;
+        }
+
+        @keyframes ticker-scroll {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+
+        /* Chat Widget */
+        #chat-window {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 350px;
+            height: 500px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        #chat-window.hidden {
+            transform: translateY(20px);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .chat-header {
+            background: #06080c;
+            border-bottom: 1px solid var(--border-subtle);
+            color: #fff;
+            padding: 1rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            font-size: 0.85rem;
+        }
+
+        .msg {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            max-width: 85%;
+            line-height: 1.5;
+            margin-bottom: 0.75rem;
+        }
+
+        .msg-ai {
+            background: rgba(37, 99, 235, 0.1);
+            color: #e5e7eb;
+            align-self: flex-start;
+            border-left: 3px solid var(--accent-blue);
+        }
+
+        .msg-user {
+            background: #1f2937;
+            color: #fff;
+            align-self: flex-end;
+        }
+
+        .thinking-dots {
+            display: inline-flex;
+            gap: 3px;
+            align-items: center;
+        }
+
+        .dot {
+            width: 4px;
+            height: 4px;
+            background: var(--accent-blue);
+            border-radius: 50%;
+            animation: pulse 1s infinite alternate;
+        }
+
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes pulse {
+            to {
+                opacity: 0.2;
+                transform: scale(0.8);
+            }
+        }
+
+        #chat-toggle {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 3.5rem;
+            height: 3.5rem;
+            background: var(--accent-blue);
+            color: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+            transition: transform 0.2s;
+        }
+
+        #chat-toggle:hover {
+            transform: scale(1.05);
+        }
+
+        /* Settings Modal styling */
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        body.lang-ar {
+            direction: rtl;
+        }
+
+        /* Licensing UI */
+        #activation-overlay {
+            background: rgba(5, 7, 12, 0.98);
+            backdrop-filter: blur(20px);
+        }
+
+        .license-badge {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .trial-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #f59e0b;
+        }
+
+        /* Floating Explainer Tooltips */
+        #explainer-tooltip {
+            position: fixed;
+            z-index: 10000;
+            max-width: 250px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(37, 99, 235, 0.1);
+            color: #e2e8f0;
+            font-size: 0.75rem;
+            line-height: 1.6;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(10px) scale(0.95);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        #explainer-tooltip.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .explainer-title {
+            display: block;
+            font-weight: 800;
+            color: #60a5fa;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+            font-size: 0.7rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 0.3rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ACTIVATION OVERLAY (GLASSMORPHISM V2) -->
+    <div id="activation-overlay" class="fixed inset-0 z-[9999] flex items-center justify-center p-6 hidden">
+        <div
+            class="max-w-md w-full bg-[#0a0d14]/80 backdrop-blur-3xl border border-blue-500/20 rounded-3xl p-10 text-center shadow-[0_0_100px_rgba(37,99,235,0.1)] relative overflow-hidden">
+            <!-- Close Button for Early Activation -->
+            <button id="close-activation"
+                class="absolute top-6 right-6 text-slate-500 hover:text-white transition hidden text-2xl font-bold">&times;</button>
+
+            <!-- Decorative Glow -->
+            <div class="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/20 blur-[80px] rounded-full"></div>
+            <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-blue-500/10 blur-[80px] rounded-full"></div>
+
+            <div class="relative z-10">
+                <div
+                    class="w-16 h-16 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg rotate-3">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                </div>
+
+                <h2 class="text-3xl font-black text-white mb-2 uppercase tracking-tighter" data-en="Quantum Access"
+                    data-ar="وصول كوانتوم">Quantum Access</h2>
+                <p class="text-blue-400/60 text-[10px] font-bold uppercase tracking-[0.3em] mb-10"
+                    data-en="Institutional License Verification" data-ar="التحقق من التراخيص المؤسسية">Institutional
+                    License Verification</p>
+
+                <div class="space-y-6">
+                    <div class="group">
+                        <label
+                            class="text-[9px] font-bold text-slate-500 uppercase block mb-2 text-left tracking-widest opacity-60">Machine
+                            Fingerprint (HWID)</label>
+                        <div
+                            class="bg-white/5 p-4 rounded-xl font-mono text-blue-400 text-xs text-center border border-white/5 relative group-hover:border-blue-500/30 transition-all">
+                            <span id="display-hwid" class="select-all">FETCHING...</span>
+                            <div
+                                class="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative pt-4">
+                        <input type="text" id="license-key-input" placeholder="LICENSE KEY"
+                            class="w-full bg-white/5 border border-white/10 text-white text-center text-lg py-5 px-4 rounded-2xl focus:border-blue-500 focus:bg-white/10 outline-none transition-all placeholder:text-white/10 font-black tracking-widest">
+                    </div>
+
+                    <button id="activate-btn"
+                        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-900/20 active:scale-[0.98] uppercase tracking-widest text-xs"
+                        data-en="Sync with Quantum Core" data-ar="مزامنة مع النواة العصبية">Sync with Quantum
+                        Core</button>
+
+                    <div id="activation-msg" class="text-[10px] font-bold uppercase tracking-widest pt-2 h-4"></div>
+                </div>
+
+                <div class="mt-12 flex items-center justify-center gap-4 border-t border-white/5 pt-8">
+                    <p class="text-[8px] text-slate-600 uppercase tracking-widest font-bold">&copy; 2026 PROSOFT AI
+                        ENTITY</p>
+                    <div class="w-1 h-1 bg-white/10 rounded-full"></div>
+                    <p class="text-[8px] text-slate-600 uppercase tracking-widest font-bold"
+                        data-en="Sovereign Shield Active" data-ar="الدرع السيادي نشط">Sovereign Shield Active</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="fixed inset-0 z-[200] flex items-center justify-center"
+        style="background: linear-gradient(135deg, #0a0d14 0%, #111827 50%, #0a0d14 100%)">
+        <div class="bg-[#111520] border border-[#1f2937] rounded-xl p-10 w-[400px] shadow-2xl text-center">
+            <div
+                class="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-3xl mx-auto mb-5 shadow-lg">
+                P</div>
+            <h1 class="text-xl font-bold text-white uppercase tracking-widest mb-1">PROSOFT QUANTUM PRIME</h1>
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-8">Institutional Access Control</p>
+            <div class="space-y-4">
+                <input type="text" id="login-user" placeholder="Username" value="admin"
+                    class="w-full bg-[#0a0d14] border border-[#1f2937] text-white text-sm px-4 py-3 rounded focus:border-blue-500 outline-none transition">
+                <input type="password" id="login-pass" placeholder="Password"
+                    class="w-full bg-[#0a0d14] border border-[#1f2937] text-white text-sm px-4 py-3 rounded focus:border-blue-500 outline-none transition">
+                <p id="login-error" class="text-red-500 text-[10px] font-bold hidden">INVALID CREDENTIALS</p>
+                <button id="login-btn"
+                    class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded text-xs uppercase tracking-widest transition shadow-lg">AUTHORIZE
+                    ACCESS</button>
+            </div>
+            <p class="text-[8px] text-slate-600 mt-6">&copy; 2026 PROSOFT AI &times; NASRO</p>
+        </div>
+    </div>
+
+    <!-- SCROLLING NEWS TICKER -->
+    <div class="ticker-wrap">
+        <div class="ticker-content" id="pulse-ticker">
+            <div class="ticker-item"><strong data-en="SYSTEM:" data-ar="النظام:">SYSTEM:</strong> <span
+                    data-en="Initializing Quantum Prime Engine..."
+                    data-ar="جارٍ تشغيل محرك كوانتوم برايم...">Initializing Quantum Prime Engine...</span></div>
+        </div>
+    </div>
+
+    <!-- GLOBAL EXPLAINER TOOLTIP -->
+    <div id="explainer-tooltip">
+        <span class="explainer-title" id="ext-title">Feature Intelligence</span>
+        <p id="ext-body">Institutional data processing details.</p>
+    </div>
+
+    <!-- OFFICIAL HEADER -->
+        <header class="flex justify-between items-center prime-panel py-4">
+            <div class="flex items-center gap-5">
+                <div
+                    class="w-12 h-12 bg-blue-600 rounded flex items-center justify-center text-white font-black text-2xl shadow-lg">
+                    Q</div>
+                <div>
+                    <h1 class="text-xl font-bold text-white tracking-wide uppercase flex items-center gap-2"
+                        data-en="PROSOFT QUANTUM PRIME" data-ar="برو سوفت كوانتوم برايم"
+                        data-hint-en="PROSOFT QUANTUM PRIME: The master AI engine coordinating all trading nodes, sentiment analysis, and risk management subsystems in real-time."
+                        data-hint-ar="برو سوفت كوانتوم برايم: المحرك الرئيسي للذكاء الاصطناعي الذي ينسق جميع عقد التداول وتحليل المشاعر وأنظمة إدارة المخاطر في الوقت الفعلي.">
+                        <span class="text-blue-500 font-black">PROSOFT</span> QUANTUM PRIME
+                    </h1>
+                    <p
+                        class="text-[10px] font-semibold text-blue-400 uppercase tracking-widest mt-1 flex items-center gap-1.5">
+                        Institutional Trading Core
+                        <span class="text-slate-600 mx-1">|</span>
+                        <span
+                            class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></span>
+                        <span class="text-green-500/80 mr-2" data-en="SYSTEM PULSE" data-ar="نبض النظام">SYSTEM
+                            PULSE</span>
+                        <span class="text-slate-600 mx-1">|</span>
+                        <span class="text-slate-400">Powered by</span>
+                        <span class="text-white font-black">NASRO</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-8">
+                <div class="flex items-center gap-6">
+                    <div id="trial-badge"
+                        class="hidden trial-warning px-4 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-2 cursor-pointer hover:bg-yellow-500/20 transition-all active:scale-95"
+                        title="Click to Activate Permanent License">
+                        <span class="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse"></span>
+                        <span id="trial-days-text">3 DAYS REMAINING</span>
+                    </div>
+                    <div id="license-badge"
+                        class="license-badge px-4 py-1.5 rounded-full text-white text-[10px] font-bold tracking-widest uppercase hidden">
+                        Active</div>
+                </div>
+                <div class="flex gap-8">
+                    <div class="text-center">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-1" data-en="Total Equity"
+                            data-ar="إجمالي الأصول">Total Equity</p>
+                        <p id="balance" class="text-xl font-black text-white">$0.00</p>
+                    </div>
+                    <div class="text-center border-l border-white/10 pl-8">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-1" data-en="Execution Mode"
+                            data-ar="نظام التنفيذ">Execution Mode</p>
+                        <p id="mode-val" class="text-sm font-bold text-blue-400 uppercase tracking-widest mt-1">MANUAL
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 border-l border-white/10 pl-8">
+                    <button id="lang-toggle"
+                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold hover:bg-[#374151] transition border border-transparent hover:border-white/10">EN/AR</button>
+                    <button id="memory-btn"
+                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-purple-400 hover:bg-purple-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-purple-500"
+                        data-en="SUBCONSCIOUS" data-ar="العقل الباطن">
+                        🧠 SUBCONSCIOUS
+                    </button>
+                    <button id="settings-btn"
+                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold hover:bg-blue-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-blue-500"
+                        data-en="PROTOCOLS" data-ar="البروتوكولات">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        PROTOCOLS
+                    </button>
+                    <button onclick="triggerOmega()" class="btn-omega px-4 py-2 rounded text-[10px] flex items-center gap-2 transition-all">
+                        <span>🚨</span> OMEGA
+                    </button>
+                    <button id="export-pdf" onclick="exportPDF()"
+                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-green-400 hover:bg-green-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-green-500"
+                        title="Export Intelligence PDF" data-en="EXPORT" data-ar="تصدير">
+                        📄
+                    </button>
+                    <button id="sync-btn"
+                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-blue-400 hover:bg-blue-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-blue-500"
+                        title="Deep Sync (Refresh Memory)" data-en="SYNC" data-ar="مزامنة">
+                        🔄 SYNC
+                    </button>
+                    <button id="clean-dust-btn" onclick="cleanDust()"
+                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-amber-400 hover:bg-amber-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-amber-500"
+                        title="Convert Dust to BNB" data-en="CLEAN DUST" data-ar="تصفية المحفظة">
+                        ✨ CLEAN DUST
+                    </button>
+                    <button onclick="logout()"
+                        class="bg-red-500/10 text-red-500 px-4 py-2.5 rounded text-xs font-semibold hover:bg-red-600 hover:text-white transition border border-red-500/20"
+                        data-en="EXIT TERMINAL" data-ar="خروج">EXIT TERMINAL</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN TERMINAL GRID -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- LEFT: MARKET INTELLIGENCE -->
+            <div class="lg:col-span-3 space-y-6">
+                <!-- AI SUGGESTIONS -->
+                <div class="prime-panel h-[340px] flex flex-col">
+                    <div class="panel-header" data-hint-en="Scans the entire exchange for high-probability setups and relative arbitrage gaps."
+                        data-hint-ar="يفحص المنصة بالكامل بحثاً عن إعدادات عالية الاختمال وفجوات مراجحة نسبية.">
+                        <span data-en="Quantum Opportunities" data-ar="فرص كوانتوم المتاحة">Quantum Opportunities</span>
+                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    </div>
+                    <div id="scanner-list" class="space-y-2 flex-1 overflow-y-auto pr-1">
+                        <p class="text-xs text-slate-500 text-center mt-4 italic">Scanning blockchain...</p>
+                    </div>
+                </div>
+
+                <!-- NEW: CYCLE 2 ANALYTICS -->
+                <div class="prime-panel">
+                    <div class="panel-header" data-en="Performance Matrix" data-ar="مصفوفة الأداء العميق"
+                        data-hint-en="PERFORMANCE MATRIX: A real-time statistical breakdown of the AI's trading efficacy, including cumulative win rates and PnL growth cycles."
+                        data-hint-ar="مصفوفة الأداء: تحليل إحصائي في الوقت الفعلي لفعالية تداول الذكاء الاصطناعي، بما في ذلك معدلات النجاح التراكمية ودورات نمو الأرباح والخسائر.">Performance Matrix</div>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Win Rate" data-ar="نسبة النجاح">Win Rate</span>
+                            <span id="stat-winrate" class="text-lg font-black text-green-400">0%</span>
+                        </div>
+                        <div class="h-[80px] w-full mt-2">
+                            <canvas id="accuracyChart"></canvas>
+                        </div>
+                        <div class="flex justify-between items-center pt-2">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Avg Profit" data-ar="متوسط الربح">Avg Profit</span>
+                            <span id="stat-avgpnl" class="text-sm font-mono text-white">$0.00</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Cycle Rank" data-ar="رتبة الدورة">Cycle Rank</span>
+                            <span class="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-bold rounded border border-blue-500/20">ELITE APEX</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SENTIMENT METRICS -->
+                <div class="prime-panel">
+                    <div class="panel-header" data-en="Network Health" data-ar="صحة الشبكة العصبية"
+                        data-hint-en="NETWORK HEALTH: Monitors the neural synchronization between market sentiment nodes and the execute core, ensuring alignment before high-stakes entries."
+                        data-hint-ar="صحة الشبكة: يراقب التزامن العصبي بين عقد مشاعر السوق ونواة التنفيذ، مما يضمن التوافق قبل الدخول في صفقات عالية المخاطر.">Network Health</div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="Global Sentiment"
+                                data-ar="الاتجاه العام">Global Sentiment</p>
+                            <p id="sentiment-val" class="text-sm font-bold text-white">NEUTRAL</p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="AI Certainty"
+                                data-ar="يقين الذكاء">AI Certainty</p>
+                            <p id="health-pct" class="text-sm font-bold text-blue-400">0%</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 w-full bg-[#1f2937] h-1.5 rounded-full overflow-hidden">
+                        <div id="health-bar" class="h-full bg-blue-500 transition-all duration-1000" style="width: 0%">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI CLUSTER STATUS (NEW) -->
+                <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0f172a] border-blue-500/20">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-blue-400 text-sm">🧠</span>
+                            <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest" data-en="AI CLUSTER INFRA" data-ar="بنية مجمع الذكاء"
+                                data-hint-en="AI CLUSTER INFRA: A distributed cluster of Gemini 1.5 Flash nodes providing 24/7 intelligence with built-in redundancy and auto-rotation logic."
+                                data-hint-ar="بنية مجمع الذكاء: مجموعة موزعة من عقد Gemini 1.5 Flash التي توفر ذكاءً على مدار الساعة طوال أيام الأسبوع مع تكرار مدمج ومنطق تدوير تلقائي.">AI CLUSTER INFRA</p>
+                        </div>
+                        <div id="cluster-count" class="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[8px] font-bold rounded border border-blue-500/20">0 NODES</div>
+                    </div>
+                    <div id="ai-nodes-list" class="space-y-2">
+                        <p class="text-[9px] text-slate-500 italic text-center py-2">Initializing AI Nodes...</p>
+                    </div>
+                </div>
+
+                <!-- NEW: CYCLE 4 - MACRO REGIME -->
+                <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0d1117] border-amber-500/20">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-amber-400 text-sm">🌍</span>
+                        <p class="text-[10px] font-black text-amber-400 uppercase tracking-widest" data-en="MACRO GUARDIAN" data-ar="حارس الاقتصاد الكلي"
+                            data-hint-en="MACRO GUARDIAN: Monitors global economic indicators, Fear & Greed index, and liquidation heatmaps to shield the bot from black-swan events."
+                            data-hint-ar="حارس الاقتصاد الكلي: يراقب المؤشرات الاقتصادية العالمية، ومؤشر الخوف والجشع، وخرائط التصفية الحرارية لحماية البوت من أحداث البجعة السوداء.">MACRO GUARDIAN</p>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase">Regime</span>
+                            <span id="macro-regime" class="text-[9px] font-bold text-amber-400 px-2 py-0.5 bg-amber-500/10 rounded border border-amber-500/20">NORMAL</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase">Fear/Greed</span>
+                            <span id="macro-fgi" class="text-sm font-mono font-bold text-white">50</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase">Risk</span>
+                            <span id="macro-risk" class="text-[10px] font-bold text-green-400">MEDIUM</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CENTER: EXECUTION CORE -->
+            <div class="lg:col-span-6 space-y-6">
+                <div class="prime-panel min-h-[440px] flex flex-col relative">
+                    <div class="flex justify-between items-start mb-4 z-10">
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1"
+                                data-hint-en="PRIMARY ASSET: The current focus of the AI engine. All liquidity scanners and sentiment nodes are prioritized for this specific trading pair."
+                                data-hint-ar="الأصل كوانتوم الرئيسي: التركيز الحالي لمحرك الذكاء الاصطناعي. يتم إعطاء الأولوية لجميع أجهزة فحص السيولة وعقد المشاعر لزوج التداول المحدد هذا.">
+                                <span data-en="Primary Asset" data-ar="الأصل الاستراتيجي">Primary Asset</span> /
+                                <span id="symbol-display"
+                                    class="text-blue-400 cursor-pointer hover:text-blue-300 transition-colors"
+                                    title="Click to Change">BTCUSDT</span>
+                            </p>
+                            <h2 id="price" class="text-4xl font-mono font-medium text-white tracking-tight">$0.00</h2>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1"
+                                data-en="Model Confidence" data-ar="ثقة النموذج">Model Confidence</p>
+                            <h3 id="ai-conf" class="text-2xl font-mono font-medium text-blue-400">0.0%</h3>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 w-full"><canvas id="mainChart"></canvas></div>
+
+                    <!-- Authorization Panel -->
+                    <div id="signal-pnl"
+                        class="absolute bottom-6 left-6 right-6 p-5 bg-[#172033] border border-blue-500/30 rounded-lg hidden shadow-2xl backdrop-blur-md">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p
+                                    class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                                    <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-ping"></span>
+                                    <span data-en="Action Required" data-ar="إجراء مطلوب">Action Required</span>
+                                </p>
+                                <p id="prediction-text" class="text-sm font-semibold text-white">Pending AI
+                                    Confirmation...</p>
+                            </div>
+                            <button id="main-action-btn" onclick="executeManual()"
+                                class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg"
+                                data-en="AUTHORIZE ORDER" data-ar="تفويض الأمر">AUTHORIZE ORDER</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SYSTEM LOGS -->
+                <div class="prime-panel bg-[#06080c] border-[#1f2937]">
+                    <div class="panel-header text-[10px] border-none mb-2" data-en="Terminal Output Log"
+                        data-ar="سجل عمليات المحطة"
+                        data-hint-en="Real-time terminal feed showing raw system operations, API calls, and neural events."
+                        data-hint-ar="تغذية فورية تعرض العمليات التقنية، استدعاءات الـ API، وأحداث المحرك العصبي.">Terminal Output Log</div>
+                    <div id="logs" class="mono text-[11px] text-slate-400 h-[100px] overflow-y-auto space-y-1"></div>
+                </div>
+
+                <!-- ARBITRAGE & REVENUE STREAMS -->
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Arbitrage Scanner -->
+                    <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0f1a12] border-emerald-500/20">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-emerald-400 text-sm">🔺</span>
+                            <p class="text-[10px] font-black text-emerald-400 uppercase tracking-widest" data-en="ARBITRAGE SCANNER" data-ar="ماسح المراجحة"
+                                data-hint-en="Scans for price discrepancies across multiple pairs (Triangular Arbitrage) to secure risk-free profits."
+                                data-hint-ar="يبحث عن فروقات الأسعار بين أزواج العملات المختلفة (المراجحة المثلثية) لتحقيق أرباح خالية من المخاطر.">ARBITRAGE SCANNER</p>
+                        </div>
+                        <div id="arb-results" class="space-y-2">
+                            <p class="text-[10px] text-center text-slate-600 italic">Scanning triangular routes...</p>
+                        </div>
+                    </div>
+
+                    <!-- REVENUE STREAMS -->
+                    <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#1a1b10] border-emerald-500/20">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-emerald-400 text-sm">💰</span>
+                            <p class="text-[10px] font-black text-emerald-400 uppercase tracking-widest" data-en="REVENUE STREAMS" data-ar="مصادر الدخل"
+                                data-hint-en="Monitors secondary income sources including Yield Farming, Listing Sniping, and Funding Rate Arbitrage."
+                                data-hint-ar="يراقب مصادر الدخل الثانوية مثل زراعة العوائد، قنص الإدراجات الجديدة، ومراجحة رسوم التمويل.">REVENUE STREAMS</p>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center bg-white/5 p-2 rounded">
+                                <div>
+                                    <p class="text-[8px] text-slate-500 font-bold uppercase">Yield Farming</p>
+                                    <p id="yield-status" class="text-[10px] text-emerald-400 font-bold">IDLE</p>
+                                </div>
+                                <span id="yield-amt" class="text-[10px] font-mono text-white">$0.00</span>
+                            </div>
+                            <div class="flex justify-between items-center bg-white/5 p-2 rounded">
+                                <div>
+                                    <p class="text-[8px] text-slate-500 font-bold uppercase">Listing Sniper</p>
+                                    <p id="sniper-status" class="text-[10px] text-blue-400 font-bold">WATCHING</p>
+                                </div>
+                                <span id="sniper-hits" class="text-[10px] font-mono text-white">0 Hits</span>
+                            </div>
+                            <div class="flex justify-between items-center bg-white/5 p-2 rounded">
+                                <div>
+                                    <p class="text-[8px] text-slate-500 font-bold uppercase">Funding Arb</p>
+                                    <p id="funding-status" class="text-[10px] text-amber-400 font-bold">SCANNING</p>
+                                </div>
+                                <span id="funding-amt" class="text-[10px] font-mono text-white">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: PORTFOLIO & TRACKING -->
+            <div class="lg:col-span-3 space-y-6">
+                <!-- WALLET ALLOCATION -->
+                <div class="prime-panel">
+                    <div class="panel-header" data-en="Asset Allocation" data-ar="توزيع الأصول"
+                        data-hint-en="Visual breakdown of currently held assets and their relative weight in your portfolio."
+                        data-hint-ar="تحليل مرئي للأصول المحتفظ بها حالياً ووزنها النسبي في محفظتك الاستثمارية.">Asset Allocation</div>
+                    <div id="portfolio-list" class="space-y-4"></div>
+                </div>
+
+                <!-- WHALE TRACKER HIGH-PRECISION -->
+                <div class="prime-panel h-[300px] flex flex-col">
+                    <div class="panel-header" data-en="Institutional Flow" data-ar="تدفق السيولة المؤسسية"
+                        data-hint-en="Tracks large-scale movements by institutional wallets and crypto whales to detect smart money trends."
+                        data-hint-ar="يتتبع التحركات الكبيرة للمحافظ المؤسسية وحيتان الكريبتو للكشف عن توجهات الأموال الذكية.">Institutional
+                        Flow</div>
+                    <div id="whale-list" class="space-y-3 flex-1 overflow-y-auto pr-1"></div>
+                </div>
+
+                <!-- NEW: CONSOLIDATED SHADOW INTELLIGENCE -->
+                <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#111827] border-purple-500/30">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping"></div>
+                            <p class="text-[10px] font-black text-purple-400 uppercase tracking-widest" data-en="SHADOW PROTOCOL ACTIVE" data-ar="بروتوكول الظل نشط"
+                                data-hint-en="Advanced tracking of elite institutional wallets to mirror their high-conviction entries."
+                                data-hint-ar="تتبع متقدم لمحفظة النخبة المؤسسية لمحاكاة دخولهم القوي في الصفقات ذات الثقة العالية.">SHADOW PROTOCOL ACTIVE</p>
+                        </div>
+                        <span class="px-2 py-0.5 bg-purple-500/10 text-purple-400 text-[8px] font-black rounded border border-purple-500/20 uppercase">Core Intel</span>
+                    </div>
+
+                    <div class="space-y-6">
+                        <!-- Shadow Leads Section -->
+                        <div>
+                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"
+                                data-hint-en="Direct tracking of 'Smart Money' addresses to identify institutional positioning before it hits public exchanges."
+                                data-hint-ar="تتبع مباشر لعناوين 'الأموال الذكية' لتحديد المراكز المؤسسية قبل وصولها إلى المنصات العامة.">
+                                <span class="w-1 h-[1px] bg-slate-800 flex-1"></span>
+                                Institutional Shadow Leads
+                                <span class="w-1 h-[1px] bg-slate-800 flex-1"></span>
+                            </p>
+                            <div id="alpha-leads" class="space-y-2">
+                                <p class="text-[10px] text-center text-slate-600 italic">No institutional leads detected...</p>
+                            </div>
+                        </div>
+
+                        <!-- Order Flow Analytics Section -->
+                        <div class="bg-indigo-900/5 p-4 rounded-xl border border-indigo-500/10">
+                            <p class="text-[9px] font-bold text-cyan-400 uppercase tracking-widest mb-3 flex items-center gap-2"
+                                data-hint-en="Direct analysis of the exchange order book to detect buying/selling pressure and liquidity voids."
+                                data-hint-ar="تحليل مباشر لدفتر طلبات المنصة للكشف عن ضغط الشراء/البيع وفجوات السيولة السعرية.">
+                                📊 Order Flow Intel
+                            </p>
+                            <div id="flow-data" class="space-y-2.5">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Pressure</span>
+                                    <span id="flow-pressure" class="text-sm font-mono text-cyan-400">0%</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Bias</span>
+                                    <span id="flow-bias" class="text-[10px] font-bold text-white px-2 py-0.5 bg-slate-700 rounded">NEUTRAL</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Spread</span>
+                                    <span id="flow-spread" class="text-[10px] font-mono text-slate-300">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Crash & Hedge Protection Section -->
+                        <div class="bg-red-900/5 p-4 rounded-xl border border-red-500/10">
+                            <div class="flex items-center justify-between mb-3">
+                                <p class="text-[9px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-2"
+                                    data-hint-en="Emergency shield that evaluates market stability and activates automatic hedging at signs of a crash."
+                                    data-hint-ar="درع الطوارئ الذي يقيم استقرار السوق ويفعل التحقق الآلي للتحوط عند ظهور بوادر الانهيار.">
+                                    🛡️ Crash Shield
+                                </p>
+                                <div id="hedge-indicator" class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Crash Risk</span>
+                                    <span id="crash-risk" class="text-sm font-mono font-bold text-green-400">0%</span>
+                                </div>
+                                <div class="w-full bg-[#1f2937] h-1 rounded-full overflow-hidden">
+                                    <div id="crash-bar" class="h-full bg-green-500 transition-all duration-1000" style="width: 0%"></div>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Hedge Mode</span>
+                                    <span id="hedge-status" class="text-[9px] font-bold text-green-400 px-2 py-0.5 bg-green-500/10 rounded">STANDBY</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER BRANDING -->
+        <div class="text-center mt-12 mb-6 border-t border-white/5 pt-6">
+            <p class="text-[9px] font-mono text-slate-500 uppercase tracking-[0.2em]"
+                data-en="ENGINE DEVELOPED BY NASRO &times; SYSTEM ARCHITECTURE BY PROSOFT AI"
+                data-ar="تم تطوير المحرك الذكي بواسطة NASRO &times; المعمارية من PROSOFT">
+                ENGINE DEVELOPED BY <span class="text-white font-bold">NASRO</span> &nbsp;&times;&nbsp; SYSTEM
+                ARCHITECTURE BY <span class="text-blue-500 font-bold">PROSOFT AI</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- OFFICIAL PROTOCOLS MODAL -->
+    <div id="settings-modal" class="fixed inset-0 modal-overlay z-[100] flex items-center justify-center p-4 hidden">
+        <div
+            class="max-w-2xl w-full bg-[#0a0d14] rounded-xl border border-[#1f2937] shadow-2xl overflow-hidden flex flex-col">
+            <!-- Modal Header -->
+            <div class="bg-[#111520] border-b border-[#1f2937] p-6 flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-bold text-white uppercase tracking-widest"
+                        data-en="Security & Gateway Protocols" data-ar="بروتوكولات الأمان والمنافذ"
+                        data-hint-en="Central authorization hub for managing API keys, safety limits, and execution modes."
+                        data-hint-ar="مركز التفويض المركزي لإدارة مفاتيح الـ API، حدود الأمان، وأوضاع التنفيذ.">Security & Gateway
+                        Protocols</h2>
+                    <p class="text-xs text-slate-500 mt-1" data-en="Configure API endpoints and AI behavior logic."
+                        data-ar="تهيئة نقاط التوصيل ومنطق الذكاء الاصطناعي.">Configure API endpoints and AI behavior
+                        logic.</p>
+                </div>
+                <button id="close-settings"
+                    class="text-slate-500 hover:text-white font-bold px-3 py-1 rounded bg-white/5 hover:bg-white/10 transition">ESC
+                    &times;</button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-8 space-y-8">
+                <!-- System Config -->
+                <div class="grid grid-cols-2 gap-8">
+                    <div>
+                        <label class="official-label" data-en="Trading Logic" data-ar="منطق التداول">Trading
+                            Logic</label>
+                        <select id="select-mode" class="official-input">
+                            <option value="manual">Manual Approval (Sovereign)</option>
+                            <option value="auto">Fully Autonomous</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="official-label" data-en="Voice Alerts" data-ar="التنبيهات الصوتية">Voice
+                            Alerts</label>
+                        <select id="select-voice" class="official-input">
+                            <option value="on">Enabled</option>
+                            <option value="off">Muted</option>
+                        </select>
+                    </div>
+                </div>
+
+                <hr class="border-[#1f2937]">
+
+                <!-- API Settings -->
+                <div class="grid grid-cols-2 gap-8">
+                    <div>
+                        <label class="official-label" data-en="Binance Gateway" data-ar="بوابة بينانس">Binance
+                            Gateway</label>
+                        <div class="space-y-3">
+                            <input type="password" id="input-api-key" placeholder="API Key" class="official-input">
+                            <input type="password" id="input-api-secret" placeholder="Secret Key"
+                                class="official-input">
+                            <div class="flex items-center gap-3 mt-2">
+                                <a href="https://www.binance.com/en/my/settings/api-management" target="_blank"
+                                    class="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+                                    data-en="Get Binance API Keys" data-ar="الحصول على مفاتيح بينانس">Get Binance API
+                                    Keys &#x2197;</a>
+                                <button id="test-binance"
+                                    class="text-[9px] px-2 py-0.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded font-bold uppercase transition">Test
+                                    Connection</button>
+                                <span id="status-binance" class="text-[9px] font-bold uppercase"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="official-label" data-en="Telegram Encryption Node"
+                            data-ar="عقدة تشفير تلجرام">Telegram Node</label>
+                        <div class="space-y-3">
+                            <input type="password" id="input-tg-token" placeholder="Bot Token" class="official-input">
+                            <input type="text" id="input-tg-chat" placeholder="Dest. Chat ID" class="official-input">
+                            <div class="flex items-center gap-3 mt-2">
+                                <a href="https://t.me/BotFather" target="_blank"
+                                    class="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+                                    data-en="Get Telegram Token (BotFather)"
+                                    data-ar="الحصول على رمز تلجرام (BotFather)">Telegram Token (BotFather) &#x2197;</a>
+                                <button id="test-telegram"
+                                    class="text-[9px] px-2 py-0.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded font-bold uppercase transition">Test
+                                    Ping</button>
+                                <span id="status-telegram" class="text-[9px] font-bold uppercase"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-[#1f2937]">
+
+            <!-- GEMINI AI KEY -->
+            <div class="p-8 pt-4 pb-4">
+                <label class="official-label" data-en="Gemini AI Engine Cluster (Google)" data-ar="مجمع محركات Gemini AI (جوجل)">Gemini
+                    AI Engine Cluster</label>
+                <div class="flex items-center gap-4 mt-2">
+                    <input type="password" id="input-gemini-key" placeholder="API Key 1, API Key 2, ..."
+                        class="official-input flex-1">
+                    <a href="https://aistudio.google.com/apikey" target="_blank"
+                        class="text-[10px] text-blue-400 hover:text-blue-300 transition-colors whitespace-nowrap">Get
+                        Free Keys &#x2197;</a>
+                    <button id="test-gemini"
+                        class="text-[9px] px-2 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded font-bold uppercase transition">Test
+                        Nodes</button>
+                    <span id="status-gemini" class="text-[9px] font-bold uppercase"></span>
+                </div>
+                <p class="text-[8px] text-slate-600 mt-1"
+                    data-en="Add multiple keys separated by COMMA (,) for 24/7 continuous intelligence failover."
+                    data-ar="أضف عدة مفاتيح مفصلة بفاصلة (,) لضمان استمرارية الذكاء الاصطناعي على مدار 24 ساعة.">Add multiple keys separated by COMMA (,) for 24/7 continuous intelligence failover.</p>
+            </div>
+
+            <hr class="border-[#1f2937]">
+            <div class="p-8 pt-0">
+                <label class="official-label" data-en="Change Access Credentials" data-ar="تغيير بيانات الوصول">Change
+                    Access Credentials</label>
+                <div class="grid grid-cols-3 gap-4 mt-2">
+                    <input type="password" id="input-curr-pass" placeholder="Current Password" class="official-input">
+                    <input type="password" id="input-new-pass" placeholder="New Password" class="official-input">
+                    <button id="change-pass-btn"
+                        class="bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-bold uppercase rounded transition py-3 px-4"
+                        data-en="UPDATE CREDENTIALS" data-ar="تحديث البيانات">UPDATE CREDENTIALS</button>
+                </div>
+                <p id="pass-status" class="text-[9px] font-bold uppercase mt-2"></p>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="bg-[#111520] border-t border-[#1f2937] p-6 flex justify-end">
+                <button id="save-config"
+                    class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded shadow-lg transition-colors text-xs uppercase tracking-widest"
+                    data-en="APPLY CONFIGURATION" data-ar="اعتماد الإعدادات">APPLY CONFIGURATION</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUBCONSCIOUS MEMORY MODAL -->
+    <div id="memory-modal" class="fixed inset-0 modal-overlay z-[100] flex items-center justify-center p-4 hidden">
+        <div
+            class="max-w-4xl w-full bg-[#0a0d14] rounded-xl border border-purple-900 shadow-[0_0_50px_rgba(147,51,234,0.15)] overflow-hidden flex flex-col h-[70vh]">
+            <!-- Modal Header -->
+            <div class="bg-[#111520] border-b border-purple-900/50 p-6 flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-bold text-white uppercase tracking-widest flex items-center gap-2"
+                        data-en="Neural Subconscious Record" data-ar="سجل العقل الباطن للذكاء الاصطناعي"
+                        data-hint-en="Memory storage for system decisions and outcome analysis used for autonomous pattern matching."
+                        data-hint-ar="تخزين الذاكرة لقرارات النظام وتحليل النتائج المستخدمة في مطابقة الأنماط المستقلة.">
+                        <span class="text-purple-500">🧠</span> Neural Subconscious Record
+                    </h2>
+                    <p class="text-[10px] uppercase font-mono text-purple-400/70 mt-1 pb-0 mb-0"
+                        data-en="Live self-learning database for AI error correction and pattern matching."
+                        data-ar="قاعدة بيانات التعلم الذاتي لتصحيح الأخطاء ومطابقة الأنماط.">Live self-learning database
+                        for AI error correction and pattern matching.</p>
+                </div>
+                <button id="close-memory"
+                    class="text-slate-500 hover:text-white font-bold px-3 py-1 rounded bg-white/5 hover:bg-white/10 transition">ESC
+                    &times;</button>
+            </div>
+
+            <!-- Modal Tabs -->
+            <div class="px-6 border-b border-purple-900/30 flex gap-6">
+                <button id="tab-memory" class="py-3 text-[10px] uppercase font-bold tracking-widest text-purple-400 border-b-2 border-purple-500 transition-all" onclick="switchMemoryTab('memory')">🧠 Experience Memory</button>
+                <button id="tab-revenue" class="py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all" onclick="switchMemoryTab('revenue')">💰 Revenue Intelligence</button>
+            </div>
+
+            <!-- Modal Body (Trade Memory) -->
+            <div id="view-memory" class="p-4 flex-1 overflow-y-auto">
+                <table class="w-full text-left text-[11px] text-slate-300">
+                    <thead
+                        class="text-[10px] uppercase bg-[#171b26] text-purple-400 font-bold tracking-widest sticky top-0">
+                        <tr>
+                            <th class="px-3 py-3 rounded-tl" data-en="Time" data-ar="الوقت">Time</th>
+                            <th class="px-3 py-3" data-en="Date" data-ar="التاريخ">Date</th>
+                            <th class="px-3 py-3">Asset</th>
+                            <th class="px-3 py-3">Side</th>
+                            <th class="px-3 py-3 text-right">Entry</th>
+                            <th class="px-3 py-3 text-right">Exit</th>
+                            <th class="px-3 py-3 text-right">PNL</th>
+                            <th class="px-3 py-3 text-right">Health/Conf</th>
+                            <th class="px-3 py-3 rounded-tr">Neural Lesson</th>
+                        </tr>
+                    </thead>
+                    <tbody id="memory-table-body" class="divide-y divide-[#1f2937]">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Modal Body (Revenue Memory) -->
+            <div id="view-revenue" class="p-4 flex-1 overflow-y-auto hidden">
+                <table class="w-full text-left text-[11px] text-slate-300">
+                    <thead
+                        class="text-[10px] uppercase bg-[#171b26] text-emerald-400 font-bold tracking-widest sticky top-0">
+                        <tr>
+                            <th class="px-3 py-3 rounded-tl" data-en="Time" data-ar="الوقت">Time</th>
+                            <th class="px-3 py-3" data-en="Date" data-ar="التاريخ">Date</th>
+                            <th class="px-3 py-3">Mechanism</th>
+                            <th class="px-3 py-3">Asset</th>
+                            <th class="px-3 py-3 text-right">Amount</th>
+                            <th class="px-3 py-3 rounded-tr">Intelligence Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="revenue-table-body" class="divide-y divide-[#1f2937]">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- SYMBOL SELECTOR MODAL -->
+    <div id="symbol-modal" class="fixed inset-0 modal-overlay z-[101] flex items-center justify-center p-4 hidden">
+        <div
+            class="max-w-md w-full bg-[#0a0d14] rounded-xl border border-blue-900 shadow-[0_0_50px_rgba(37,99,235,0.15)] overflow-hidden flex flex-col h-[60vh]">
+            <div class="bg-[#111520] border-b border-blue-900/50 p-6 flex justify-between items-center">
+                <h2 class="text-sm font-bold text-white uppercase tracking-widest" data-en="Select Trading Asset"
+                    data-ar="اختيار الأصل للتداول">Select Trading Asset</h2>
+                <button id="close-symbol-modal" class="text-slate-500 hover:text-white">&times;</button>
+            </div>
+            <div class="p-6">
+                <div class="relative mb-4">
+                    <input type="text" id="symbol-search" placeholder="Search (e.g. BTC, ETH, SOL...)"
+                        class="official-input w-full pl-10" autocomplete="off">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none"
+                        stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                <div id="symbol-list" class="grid grid-cols-2 gap-2 overflow-y-auto max-h-[35vh] pr-2 custom-scrollbar">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI ADVISOR CHAT -->
+    <div id="chat-toggle">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+    </div>
+
+    <div id="chat-window" class="hidden flex flex-col">
+        <div class="chat-header">
+            <span class="flex items-center gap-2 text-sm uppercase tracking-wide">
+                <span class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+                <span data-en="Intelligence Advisor" data-ar="المستشار الذكي">Intelligence Advisor</span>
+            </span>
+            <button id="close-chat" class="text-slate-400 hover:text-white transition">&times;</button>
+        </div>
+        <div class="chat-messages flex-1 flex flex-col" id="chat-messages">
+            <div class="msg msg-ai" data-en="Connection secure. How may I assist your portfolio today?"
+                data-ar="الاتصال آمن. كيف يمكنني مساعدة محفظتك اليوم؟">Connection secure. How may I assist your
+                portfolio today?</div>
+        </div>
+        <div class="p-3 bg-[#06080c] border-t border-white/5 flex gap-2">
+            <input type="file" id="chat-image" accept="image/*" class="hidden">
+            <button id="upload-img-btn"
+                class="bg-[#1f2937] hover:bg-[#374151] px-2 py-2 rounded text-slate-400 hover:text-white transition"
+                title="Upload Chart Image">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            </button>
+            <input type="text" id="chat-input" placeholder="Type your inquiry..."
+                class="flex-1 bg-[#1f2937] border border-transparent focus:border-blue-500 text-white text-[12px] px-3 py-2 rounded outline-none transition">
+            <button id="send-btn" class="bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded text-white transition">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                        d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api';
+
+        // Persistent Language Setting
+        let currentLang = localStorage.getItem('prosoft_lang') || 'en';
+        if (currentLang === 'ar') {
+            document.body.classList.add('lang-ar');
+        }
+
+
+        // === LOGIN SYSTEM ===
+        const loginScreen = document.getElementById('login-screen');
+
+        async function checkAuthStatus() {
+            try {
+                // If local storage says we are logged in, hide screen immediately for speed
+                if (localStorage.getItem('prosoft_session') === 'active') {
+                    loginScreen.style.display = 'none';
+                    loadSavedConfig();
+                    return;
+                }
+
+                const res = await fetch(`${API_BASE}/auth_check`);
+                if (res.ok) {
+                    loginScreen.style.display = 'none';
+                    loadSavedConfig();
+                }
+            } catch (e) { }
+        }
+
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            try {
+                const res = await fetch(`${API_BASE}/login`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                if (res.ok) {
+                    localStorage.setItem('prosoft_session', 'active'); // Save session persistently
+                    loginScreen.style.display = 'none';
+                    loadSavedConfig();
+                } else {
+                    document.getElementById('login-error').classList.remove('hidden');
+                }
+            } catch (e) { document.getElementById('login-error').classList.remove('hidden'); }
+        });
+        document.getElementById('login-pass').addEventListener('keypress', (e) => { if (e.key === 'Enter') document.getElementById('login-btn').click(); });
+
+        checkAuthStatus();
+
+        // Auto-load saved API keys into Protocol modal
+        async function loadSavedConfig() {
+            try {
+                const res = await fetch(`${API_BASE}/load_config`);
+                const cfg = await res.json();
+                if (cfg.api_key) document.getElementById('input-api-key').value = cfg.api_key;
+                if (cfg.api_secret) document.getElementById('input-api-secret').value = cfg.api_secret;
+                if (cfg.telegram_token) document.getElementById('input-tg-token').value = cfg.telegram_token;
+                if (cfg.telegram_chat) document.getElementById('input-tg-chat').value = cfg.telegram_chat;
+                if (cfg.gemini_key) document.getElementById('input-gemini-key').value = cfg.gemini_key;
+                if (cfg.execution_mode) document.getElementById('select-mode').value = cfg.execution_mode;
+                if (cfg.voice_alerts) document.getElementById('select-voice').value = cfg.voice_alerts;
+            } catch (e) { }
+        }
+
+        // Language Initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            if (currentLang === 'ar') {
+                document.querySelectorAll('[data-en]').forEach(el => el.innerText = el.getAttribute(`data-ar`));
+            }
+        });
+
+        // Export PDF
+        document.getElementById('export-pdf').addEventListener('click', () => {
+            window.open(`${API_BASE}/download_report`, '_blank');
+        });
+
+        // Logout/Exit Terminal Fix
+        function logout() {
+            localStorage.removeItem('prosoft_session');
+            window.location.reload();
+        }
+
+
+        // Change Password
+        document.getElementById('change-pass-btn').addEventListener('click', async () => {
+            const st = document.getElementById('pass-status');
+            const curr = document.getElementById('input-curr-pass').value;
+            const newP = document.getElementById('input-new-pass').value;
+            if (!curr || !newP) { st.innerText = 'FILL BOTH FIELDS'; st.className = 'text-[9px] font-bold uppercase mt-2 text-red-500'; return; }
+            st.innerText = 'UPDATING...'; st.className = 'text-[9px] font-bold uppercase mt-2 text-yellow-500';
+            try {
+                const res = await fetch(`${API_BASE}/change_password`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ current_password: curr, new_password: newP })
+                });
+                const data = await res.json();
+                st.innerText = data.status === 'success' ? 'CREDENTIALS UPDATED' : data.message;
+                st.className = `text-[9px] font-bold uppercase mt-2 ${data.status === 'success' ? 'text-green-500' : 'text-red-500'}`;
+                if (data.status === 'success') { document.getElementById('input-curr-pass').value = ''; document.getElementById('input-new-pass').value = ''; }
+            } catch (e) { st.innerText = 'FAILED'; st.className = 'text-[9px] font-bold uppercase mt-2 text-red-500'; }
+        });
+
+        // Language toggle
+        document.getElementById('lang-toggle').addEventListener('click', () => {
+            currentLang = currentLang === 'en' ? 'ar' : 'en';
+            localStorage.setItem('prosoft_lang', currentLang); // Save preference
+            document.body.classList.toggle('lang-ar', currentLang === 'ar');
+            document.querySelectorAll('[data-en]').forEach(el => el.innerText = el.getAttribute(`data-${currentLang}`));
+            updateStats();
+        });
+
+
+        const modal = document.getElementById('settings-modal');
+        document.getElementById('settings-btn').addEventListener('click', () => modal.classList.remove('hidden'));
+        document.getElementById('close-settings').addEventListener('click', () => modal.classList.add('hidden'));
+
+        document.getElementById('save-config').addEventListener('click', async () => {
+            const btn = document.getElementById('save-config');
+            btn.innerText = 'SAVING...';
+            try {
+                await fetch(`${API_BASE}/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        api_key: document.getElementById('input-api-key').value,
+                        api_secret: document.getElementById('input-api-secret').value,
+                        telegram_token: document.getElementById('input-tg-token').value,
+                        telegram_chat: document.getElementById('input-tg-chat').value,
+                        gemini_key: document.getElementById('input-gemini-key').value,
+                        execution_mode: document.getElementById('select-mode').value,
+                        voice_alerts: document.getElementById('select-voice').value
+                    })
+                });
+                btn.innerText = 'SAVED SUCCESSFULLY';
+                setTimeout(() => { btn.innerText = 'APPLY CONFIGURATION'; modal.classList.add('hidden'); }, 1500);
+            } catch (e) { btn.innerText = 'ERROR SAVING'; setTimeout(() => btn.innerText = 'APPLY CONFIGURATION', 2000); }
+        });
+
+        document.getElementById('test-binance').addEventListener('click', async () => {
+            const st = document.getElementById('status-binance');
+            st.innerText = 'CONNECTING...'; st.className = 'text-[9px] font-bold uppercase text-yellow-500';
+            try {
+                const res = await fetch(`${API_BASE}/test_binance`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: document.getElementById('input-api-key').value, api_secret: document.getElementById('input-api-secret').value })
+                });
+                const data = await res.json();
+                st.innerText = data.status === 'success' ? 'CONNECTED' : 'ERROR: ' + data.message.substring(0, 15) + '...';
+                st.className = `text-[9px] font-bold uppercase ${data.status === 'success' ? 'text-green-500' : 'text-red-500'}`;
+            } catch (e) { st.innerText = 'FAILED'; st.className = 'text-[9px] font-bold uppercase text-red-500'; }
+        });
+
+        document.getElementById('test-telegram').addEventListener('click', async () => {
+            const st = document.getElementById('status-telegram');
+            st.innerText = 'PINGING...'; st.className = 'text-[9px] font-bold uppercase text-yellow-500';
+            try {
+                const res = await fetch(`${API_BASE}/test_telegram`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telegram_token: document.getElementById('input-tg-token').value, telegram_chat: document.getElementById('input-tg-chat').value })
+                });
+                const data = await res.json();
+                st.innerText = data.status === 'success' ? 'PING SENT' : 'ERROR';
+                st.className = `text-[9px] font-bold uppercase ${data.status === 'success' ? 'text-green-500' : 'text-red-500'}`;
+            } catch (e) { st.innerText = 'FAILED'; st.className = 'text-[9px] font-bold uppercase text-red-500'; }
+        });
+
+        document.getElementById('test-gemini').addEventListener('click', async () => {
+            const st = document.getElementById('status-gemini');
+            st.innerText = 'CONNECTING...'; st.className = 'text-[9px] font-bold uppercase text-yellow-500';
+            try {
+                const res = await fetch(`${API_BASE}/test_gemini`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gemini_key: document.getElementById('input-gemini-key').value })
+                });
+                const data = await res.json();
+                st.innerText = data.status === 'success' ? (currentLang === 'en' ? 'CONNECTED' : 'متصل') : data.message.toUpperCase();
+                st.className = `text-[9px] font-bold uppercase ${data.status === 'success' ? 'text-green-500' : 'text-red-500'}`;
+            } catch (e) { st.innerText = 'FAILED'; st.className = 'text-[9px] font-bold uppercase text-red-500'; }
+        });
+
+        // Memory Modal
+        const memoryModal = document.getElementById('memory-modal');
+        document.getElementById('memory-btn').addEventListener('click', () => { 
+            memoryModal.classList.remove('hidden'); 
+            updateMemory(); 
+            updateRevenue();
+        });
+        document.getElementById('close-memory').addEventListener('click', () => memoryModal.classList.add('hidden'));
+
+        function switchMemoryTab(tab) {
+            const btnMem = document.getElementById('tab-memory');
+            const btnRev = document.getElementById('tab-revenue');
+            const viewMem = document.getElementById('view-memory');
+            const viewRev = document.getElementById('view-revenue');
+
+            if (tab === 'memory') {
+                btnMem.className = "py-3 text-[10px] uppercase font-bold tracking-widest text-purple-400 border-b-2 border-purple-500 transition-all";
+                btnRev.className = "py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all";
+                viewMem.classList.remove('hidden');
+                viewRev.classList.add('hidden');
+            } else {
+                btnRev.className = "py-3 text-[10px] uppercase font-bold tracking-widest text-emerald-400 border-b-2 border-emerald-500 transition-all";
+                btnMem.className = "py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all";
+                viewRev.classList.remove('hidden');
+                viewMem.classList.add('hidden');
+            }
+        }
+
+        // Chat System
+        const chatToggle = document.getElementById('chat-toggle');
+        const chatWindow = document.getElementById('chat-window');
+        document.getElementById('close-chat').addEventListener('click', () => { chatWindow.classList.add('hidden'); chatToggle.classList.remove('hidden'); });
+        chatToggle.addEventListener('click', () => { chatWindow.classList.remove('hidden'); chatToggle.classList.add('hidden'); });
+
+        async function processChat() {
+            const input = document.getElementById('chat-input');
+            const query = input.value.trim();
+            if (!query) return;
+
+            const chatMsgs = document.getElementById('chat-messages');
+            chatMsgs.insertAdjacentHTML('beforeend', `<div class="msg msg-user">${query}</div>`);
+            input.value = '';
+
+            const thinkId = 'think-' + Date.now();
+            chatMsgs.insertAdjacentHTML('beforeend', `
+                <div id="${thinkId}" class="msg msg-ai text-slate-400 text-xs italic flex items-center gap-2">
+                    <span data-en="Processing" data-ar="جاري التحليل">Processing</span>
+                    <div class="thinking-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+                </div>
+            `);
+            chatMsgs.scrollTop = chatMsgs.scrollHeight;
+
+            try {
+                const res = await fetch(`${API_BASE}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: query }) });
+                const data = await res.json();
+                document.getElementById(thinkId).remove();
+                chatMsgs.insertAdjacentHTML('beforeend', `<div class="msg msg-ai">${data.response}</div>`);
+                chatMsgs.scrollTop = chatMsgs.scrollHeight;
+            } catch (e) { document.getElementById(thinkId).remove(); }
+        }
+        document.getElementById('send-btn').addEventListener('click', processChat);
+        document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') processChat(); });
+
+        // Image Analysis Protocol
+        const uploadBtn = document.getElementById('upload-img-btn');
+        const fileInput = document.getElementById('chat-image');
+
+        uploadBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const chatMsgs = document.getElementById('chat-messages');
+            const reader = new FileReader();
+            reader.onload = async (re) => {
+                chatMsgs.insertAdjacentHTML('beforeend', `<div class="msg msg-user self-end"><img src="${re.target.result}" class="max-w-[200px] rounded mb-2"><br>${currentLang === 'en' ? 'Analyzing chart...' : 'جاري تحليل الرسم البياني...'}</div>`);
+                chatMsgs.scrollTop = chatMsgs.scrollHeight;
+
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('question', document.getElementById('chat-input').value || 'Analyze this chart.');
+
+                const thinkId = 'think-' + Date.now();
+                chatMsgs.insertAdjacentHTML('beforeend', `
+                    <div id="${thinkId}" class="msg msg-ai text-slate-400 text-xs italic flex items-center gap-2">
+                        <span data-en="Gemini Vision Processing" data-ar="جاري معالجة Gemini Vision">Gemini Vision Processing</span>
+                        <div class="thinking-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+                    </div>
+                `);
+
+                try {
+                    const res = await fetch(`${API_BASE}/analyze_image`, { method: 'POST', body: formData });
+                    const data = await res.json();
+                    document.getElementById(thinkId).remove();
+                    chatMsgs.insertAdjacentHTML('beforeend', `<div class="msg msg-ai">${data.response}</div>`);
+                    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+                } catch (er) { if (document.getElementById(thinkId)) document.getElementById(thinkId).remove(); }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Update Routine
+        async function updateStats() {
+            try {
+                const res = await fetch(`${API_BASE}/stats`);
+                const data = await res.json();
+                const s = data.bot_stats;
+
+                document.getElementById('symbol-display').innerText = data.current_symbol;
+                // Update New Revenue Streams
+                if (s.yield_status) document.getElementById('yield-status').innerText = s.yield_status;
+                if (s.yield_amount) document.getElementById('yield-amt').innerText = `$${s.yield_amount.toFixed(4)}`;
+                if (s.sniper_hits) document.getElementById('sniper-hits').innerText = `${s.sniper_hits} Hits`;
+                if (s.funding_amount) document.getElementById('funding-amt').innerText = `$${s.funding_amount.toFixed(4)}`;
+                
+                document.getElementById('price').innerText = s.price ? `$${s.price.toLocaleString(undefined, {minimumFractionDigits: 2})}` : '$0.00';
+                document.getElementById('ai-conf').innerText = `${(s.ai_conf * 100).toFixed(1)}%`;
+                document.getElementById('balance').innerText = `$${s.total_equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                document.getElementById('health-pct').innerText = `${(s.market_health || 80).toFixed(0)}%`;
+                document.getElementById('health-bar').style.width = `${s.market_health || 80}%`;
+                document.getElementById('sentiment-val').innerText = (s.sentiment || 'NEUTRAL').toUpperCase();
+                document.getElementById('mode-val').innerText = s.execution_mode.toUpperCase();
+                
+                // Update Order Flow Intelligence
+                if (s.order_flow) {
+                    document.getElementById('flow-pressure').innerText = `${s.order_flow.pressure_score || 0}%`;
+                    document.getElementById('flow-bias').innerText = (s.order_flow.bias || 'NEUTRAL').replace('_', ' ');
+                    document.getElementById('flow-spread').innerText = `${(s.order_flow.spread_pct || 0).toFixed(4)}%`;
+                }
+
+                // Update Crash Shield & Hedge Protection
+                if (s.crash_risk !== undefined) {
+                    const risk = s.crash_risk || 0;
+                    document.getElementById('crash-risk').innerText = `${risk}%`;
+                    document.getElementById('crash-bar').style.width = `${risk}%`;
+                    
+                    // Change bar color based on risk
+                    const barEl = document.getElementById('crash-bar');
+                    const indicatorEl = document.getElementById('hedge-indicator');
+                    if (risk > 60) {
+                        barEl.className = "h-full bg-red-500 transition-all duration-1000";
+                        indicatorEl.className = "w-2 h-2 bg-red-500 rounded-full animate-ping";
+                    } else if (risk > 30) {
+                        barEl.className = "h-full bg-yellow-500 transition-all duration-1000";
+                        indicatorEl.className = "w-2 h-2 bg-yellow-500 rounded-full animate-pulse";
+                    } else {
+                        barEl.className = "h-full bg-green-500 transition-all duration-1000";
+                        indicatorEl.className = "w-2 h-2 bg-green-500 rounded-full";
+                    }
+                }
+                
+                if (s.hedge_status) {
+                    const h = s.hedge_status;
+                    const hStat = document.getElementById('hedge-status');
+                    hStat.innerText = h.active ? 'ACTIVE' : 'STANDBY';
+                    hStat.className = `text-[9px] font-bold px-2 py-0.5 rounded ${h.active ? 'text-red-400 bg-red-500/10' : 'text-green-400 bg-green-500/10'}`;
+                }
+                
+                // Update AI Cluster Node List
+                if (s.ai_cluster && s.ai_cluster.length > 0) {
+                    document.getElementById('cluster-count').innerText = `${s.ai_cluster.length} NODES`;
+                    document.getElementById('ai-nodes-list').innerHTML = s.ai_cluster.map(n => `
+                        <div class="flex justify-between items-center bg-white/5 p-2 rounded border ${n.active ? 'border-blue-500/40 bg-blue-500/5' : 'border-white/5'}">
+                            <div class="flex items-center gap-2">
+                                <div class="w-1.5 h-1.5 rounded-full ${n.status === 'ONLINE' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}"></div>
+                                <span class="text-[10px] font-bold text-white uppercase">Node ${n.id}</span>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[9px] font-mono ${n.active ? 'text-blue-400' : 'text-slate-500'}">${n.requests} REQS</p>
+                                <p class="text-[8px] font-bold ${n.status === 'ONLINE' ? 'text-green-500/70' : 'text-red-500'} uppercase">${n.status}</p>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                // Update Arbitrage Results (Consolidated)
+                const arbResultsEl = document.getElementById('arb-results');
+                if (arbResultsEl) {
+                    if (s.arb_opportunities && s.arb_opportunities.length > 0) {
+                        const nowStr = new Date().toLocaleTimeString();
+                        arbResultsEl.innerHTML = s.arb_opportunities.slice(0, 3).map(a => `
+                            <div class="group relative bg-emerald-500/5 p-2 rounded border border-emerald-500/10 hover:border-emerald-500/30 transition mb-2">
+                                ${a.is_high_liquidity ? `
+                                    <div class="absolute -top-2 -right-1 bg-emerald-500 text-[7px] font-black text-white px-1.5 py-0.5 rounded shadow-lg animate-pulse z-10">
+                                        LIQUIDITY SECURE
+                                    </div>
+                                ` : ''}
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="text-[10px] font-bold text-white uppercase tracking-tighter">${a.route_name}</span>
+                                            <span class="text-[8px] text-slate-500 bg-slate-800 px-1 rounded">${nowStr}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[8px] text-emerald-400 font-bold px-1 bg-emerald-500/10 rounded">${a.direction}</span>
+                                            <span class="text-[9px] font-mono font-bold text-white ml-1">+${a.profit_pct}%</span>
+                                            ${a.is_high_liquidity ? '<span class="text-[7px] text-emerald-200/50 italic">HIGH DEPTH</span>' : ''}
+                                        </div>
+                                    </div>
+                                    <button onclick="executeArbitrageManual('${a.route_name}', '${a.direction}')" 
+                                            class="bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-black px-3 py-1.5 rounded transition shadow-md active:scale-95">
+                                        ${currentLang === 'en' ? 'EXECUTE' : 'تنفيذ'}
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        arbResultsEl.innerHTML = '<p class="text-[10px] text-center text-slate-600 italic">Scanning triangular routes...</p>';
+                    }
+                }
+
+                // Cycle 4: Macro Guardian (Consolidated)
+                if (s.macro_state) {
+                    const m = s.macro_state;
+                    const regimeEl = document.getElementById('macro-regime');
+                    const fgiEl = document.getElementById('macro-fgi');
+                    const riskEl = document.getElementById('macro-risk');
+                    
+                    if (regimeEl) regimeEl.innerText = m.market_regime || 'NORMAL';
+                    if (fgiEl) fgiEl.innerText = m.fear_greed_index || '50';
+                    if (riskEl) {
+                        riskEl.innerText = m.risk_level || 'MEDIUM';
+                        const riskColors = {'CRITICAL': 'text-red-500', 'HIGH': 'text-red-400', 'MEDIUM': 'text-amber-400', 'LOW': 'text-green-400'};
+                        riskEl.className = `text-[10px] font-bold ${riskColors[m.risk_level] || 'text-green-400'}`;
+                    }
+                }
+
+                if (s.pending_signal) {
+                    document.getElementById('signal-pnl').classList.remove('hidden');
+                    document.getElementById('prediction-text').innerText = `${s.pending_signal.side.toUpperCase()} CONFIRMED ON ${s.pending_signal.symbol} @ $${s.pending_signal.price}`;
+                    const actionBtn = document.getElementById('main-action-btn');
+                    actionBtn.onclick = executeManual;
+                    actionBtn.className = "bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg";
+                    actionBtn.innerText = currentLang === 'en' ? 'AUTHORIZE ORDER' : 'تفويض الأمر';
+                } else if (data.active_trade) {
+                    const t = data.active_trade;
+                    const pnl = ((s.price - t.entry_price) * t.qty);
+                    const pnlPct = ((s.price / t.entry_price - 1) * 100);
+                    document.getElementById('signal-pnl').classList.remove('hidden');
+                    document.getElementById('prediction-text').innerHTML = `
+                        <span class="text-blue-400">ACTIVE ${t.side}:</span> ${t.symbol} @ $${t.entry_price.toFixed(2)} | 
+                        <span class="${pnl >= 0 ? 'text-green-400' : 'text-red-400'}">PNL: $${pnl.toFixed(2)} (${pnlPct.toFixed(2)}%)</span>
+                        <br><span class="text-[10px] text-slate-500">SL: $${t.sl.toFixed(2)} | TP: $${t.tp.toFixed(2)}</span>
+                    `;
+                    const actionBtn = document.getElementById('main-action-btn');
+                    actionBtn.onclick = closeActiveTrade;
+                    actionBtn.className = "bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg";
+                    actionBtn.innerText = currentLang === 'en' ? 'STOP TRADE & EXIT' : 'توقيف الصفقة والتحويل';
+                } else { document.getElementById('signal-pnl').classList.add('hidden'); }
+
+                if (s.market_pulse?.feed.length > 0) {
+                    const tagSymbols = { 'BREAKING': '⚡', 'ADVICE': '💡', 'MARKET': '📊', 'TWITTER': '🐦' };
+                    let html = s.market_pulse.feed.map(f => {
+                        const type = f.type || 'MARKET';
+                        const tagClass = `tag-${type.toLowerCase()}`;
+                        return `
+                        <div class="ticker-item">
+                            <span class="ticker-tag ${tagClass}">${tagSymbols[type] || ''} ${type}</span>
+                            <strong>${f.source}:</strong> ${f.title}
+                        </div>`;
+                    }).join('');
+                    
+                    if (s.news_highlight) {
+                        const hintType = s.news_highlight.toLowerCase().includes('twitter') ? 'TWITTER' : 'BREAKING';
+                        html = `<div class="ticker-item"><span class="ticker-tag tag-${hintType.toLowerCase()}">${tagSymbols[hintType] || '⚡'} AI RADAR</span> <strong style="color: #60a5fa;">FOCUS:</strong> ${s.news_highlight}</div>` + html;
+                    }
+                    
+                    const tickerEl = document.getElementById('pulse-ticker');
+                    const fullHtml = html + html; 
+                    if (tickerEl.innerHTML !== fullHtml) {
+                        tickerEl.innerHTML = fullHtml;
+                    }
+                }
+
+                updateAccuracyChart();
+
+                renderList('whale-list', s.whale_alerts, w => {
+                    let impactColor = w.impact === 'CRITICAL' ? 'text-yellow-400 font-extrabold animate-pulse' : (w.impact === 'BULLISH' ? 'text-green-500' : 'text-red-500');
+                    return `
+                    <div class="py-2 border-b border-white/5 last:border-0 hover:bg-white/5 transition px-2 rounded">
+                        <div class="flex justify-between text-[10px] text-slate-500 mb-1 font-bold uppercase"><span>${w.time}</span><span class="${impactColor}">${w.impact}</span></div>
+                        <p class="text-xs text-slate-300 font-medium">${w.msg}</p>
+                    </div>`
+                });
+
+                const logsEl = document.getElementById('logs');
+                logsEl.innerHTML = data.logs.slice(-30).map(l => `<p class="border-b border-white/5 pb-1 opacity-70 hover:opacity-100">> ${l}</p>`).join('');
+                logsEl.scrollTop = logsEl.scrollHeight;
+            } catch (e) { }
+        }
+
+        // --- GLOBAL FLOATING EXPLAINER LOGIC (User Suggestion) ---
+        let explainerTimer = null;
+        const tooltip = document.getElementById('explainer-tooltip');
+
+        document.querySelectorAll('[data-hint-en]').forEach(el => {
+            el.addEventListener('mouseenter', (e) => {
+                explainerTimer = setTimeout(() => {
+                    const title = el.getAttribute('data-en') || el.innerText;
+                    const arTitle = el.getAttribute('data-ar') || title;
+                    const body = el.getAttribute('data-hint-en');
+                    const arBody = el.getAttribute('data-hint-ar') || body;
+
+                    document.getElementById('ext-title').innerText = arTitle;
+                    document.getElementById('ext-body').innerText = arBody;
+
+                    // Position Tooltip
+                    const rect = el.getBoundingClientRect();
+                    tooltip.style.left = `${rect.left}px`;
+                    tooltip.style.top = `${rect.bottom + 10}px`;
+                    
+                    // Adjust if off-screen
+                    if (rect.left + 250 > window.innerWidth) {
+                        tooltip.style.left = `${window.innerWidth - 270}px`;
+                    }
+
+                    tooltip.classList.add('active');
+                }, 4000); // 4 Seconds as requested
+            });
+
+            el.addEventListener('mouseleave', () => {
+                clearTimeout(explainerTimer);
+                tooltip.classList.remove('active');
+            });
+        });
+
+        let accChart = null;
+        async function updateAccuracyChart() {
+            try {
+                const res = await fetch(`${API_BASE}/accuracy`);
+                const history = await res.json();
+                if (history.length < 2) return;
+
+                const labels = history.map(h => h.time);
+                const data = history.map(h => h.accuracy);
+
+                if (!accChart) {
+                    const ctx = document.getElementById('accuracyChart').getContext('2d');
+                    accChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Model Accuracy %',
+                                data: data,
+                                borderColor: '#22c55e',
+                                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { min: 0, max: 100, display: false },
+                                x: { display: false }
+                            }
+                        }
+                    });
+                } else {
+                    accChart.data.labels = labels;
+                    accChart.data.datasets[0].data = data;
+                    accChart.update('none');
+                }
+            } catch (e) { }
+        }
+
+        async function triggerOmega() {
+            const confirmMsg = currentLang === 'en' 
+                ? "🚨 CRITICAL: Activate PROTOCOL OMEGA? This will close all positions and pause the system. Proceed?"
+                : "🚨 حرج: تفعيل بروتوكول أوميغا؟ سيؤدي هذا إلى إغلاق جميع الصفقات وإيقاف النظام. هل تود المتابعة؟";
+            
+            if (confirm(confirmMsg)) {
+                try {
+                    const res = await fetch(`${API_BASE}/omega`, { method: 'POST' });
+                    const data = await res.json();
+                    alert(data.message || "Protocol Omega Activated.");
+                } catch (e) { alert("Matrix Error: Operation failed."); }
+            }
+        }
+
+        async function exportPDF() {
+            window.location.href = `${API_BASE}/download_report`;
+        }
+
+        async function updateScanner() {
+            try {
+                const res = await fetch(`${API_BASE}/scanner`);
+                const data = await res.json();
+                if (data.length === 0) return;
+                renderList('scanner-list', data, s => `
+                    <div onclick="selectSymbol('${s.symbol}')" class="flex justify-between items-center bg-[#1f2937]/50 p-2.5 rounded-lg border border-transparent hover:border-blue-500/30 cursor-pointer transition">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-[#111520] border border-white/10 flex items-center justify-center text-[10px] font-bold text-white">${s.symbol.substring(0, 2)}</div>
+                            <div>
+                                <p class="text-[12px] font-bold text-white">${s.symbol}</p>
+                                <p class="text-[10px] text-slate-400">SCORE: <span class="text-blue-400">${s.score}</span></p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[12px] font-mono font-medium text-white">$${s.price.toLocaleString(undefined, { maximumFractionDigits: 4 })}</p>
+                            <p class="text-[10px] text-slate-500">${s.rsi.toFixed(1)} RSI</p>
+                        </div>
+                    </div>`);
+            } catch (e) { }
+        }
+
+        async function updatePortfolio() {
+            try {
+                const res = await fetch(`${API_BASE}/portfolio`);
+                const data = await res.json();
+                renderList('portfolio-list', data.assets, a => `
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between text-xs font-bold uppercase text-slate-400">
+                            <span>${a.asset}</span>
+                            <span class="text-white">${a.percentage.toFixed(1)}%</span>
+                        </div>
+                        <div class="w-full bg-[#1f2937] h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-blue-500 h-full transition-all duration-1000" style="width: ${a.percentage}%"></div>
+                        </div>
+                    </div>`);
+            } catch (e) { }
+        }
+
+        async function updateMemory() {
+            try {
+                const res = await fetch(`${API_BASE}/memory`);
+                const data = await res.json();
+                const tbody = document.getElementById('memory-table-body');
+                if (data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 italic">${currentLang === 'en' ? 'No neural experiences recorded yet.' : 'لا يوجد سجلات مسجلة بعد.'}</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = data.map(m => {
+                    const pnlColor = parseFloat(m.profit_loss) >= 0 ? 'text-green-400' : 'text-red-400';
+                    const sideColor = m.side === 'BUY' ? 'text-blue-400' : 'text-pink-400';
+                    const [date, time] = m.timestamp.split(' ');
+                    return `
+                    <tr class="hover:bg-white/5 transition">
+                        <td class="px-3 py-3 font-mono text-slate-500">${time}</td>
+                        <td class="px-3 py-3 font-mono text-slate-500">${date}</td>
+                        <td class="px-3 py-3 font-bold text-white">${m.symbol}</td>
+                        <td class="px-3 py-3 font-bold ${sideColor}">${m.side}</td>
+                        <td class="px-3 py-3 text-right font-mono text-blue-300">${parseFloat(m.entry_price || 0).toFixed(4)}</td>
+                        <td class="px-3 py-3 text-right font-mono text-blue-300">${parseFloat(m.exit_price || 0).toFixed(4)}</td>
+                        <td class="px-3 py-3 text-right font-mono font-bold ${pnlColor}">${parseFloat(m.profit_loss) >= 0 ? '+' : ''}${parseFloat(m.profit_loss).toFixed(2)}</td>
+                        <td class="px-3 py-3 text-right font-mono">H:${m.market_health.toFixed(0)}% / C:${(m.ai_confidence * 100).toFixed(0)}%</td>
+                        <td class="px-3 py-3 text-[10px] text-slate-400 max-w-xs break-words whitespace-normal leading-relaxed">${m.lesson_learned}</td>
+                    </tr>`;
+                }).join('');
+            } catch (e) { }
+        }
+
+        async function updateRevenue() {
+            try {
+                const res = await fetch(`${API_BASE}/revenue`);
+                const data = await res.json();
+                const tbody = document.getElementById('revenue-table-body');
+                if (data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500 italic">${currentLang === 'en' ? 'No revenue intelligence recorded yet.' : 'لا يوجد سجلات مداخيل مسجلة بعد.'}</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = data.map(r => {
+                    const amtColor = r.amount >= 0 ? 'text-emerald-400' : 'text-red-400';
+                    const [date, time] = r.timestamp.split(' ');
+                    return `
+                    <tr class="hover:bg-white/5 transition">
+                        <td class="px-3 py-3 font-mono text-slate-500">${time}</td>
+                        <td class="px-3 py-3 font-mono text-slate-500">${date}</td>
+                        <td class="px-3 py-3 font-bold text-white">${r.source}</td>
+                        <td class="px-3 py-3 font-mono text-slate-400">${r.asset}</td>
+                        <td class="px-3 py-3 text-right font-mono font-bold ${amtColor}">${r.amount >= 0 ? '+' : ''}${parseFloat(r.amount).toFixed(4)}</td>
+                        <td class="px-3 py-3 text-[10px] text-slate-400 max-w-xs break-words whitespace-normal leading-relaxed">${r.details}</td>
+                    </tr>`;
+                }).join('');
+            } catch (e) { }
+        }
+
+        // Symbol Selector Logic
+        const symbolModal = document.getElementById('symbol-modal');
+        const symbolSearch = document.getElementById('symbol-search');
+        const symbolList = document.getElementById('symbol-list');
+        const popularSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT', 'DOTUSDT', 'MATICUSDT', 'LINKUSDT', 'LTCUSDT', 'SHIBUSDT', 'TRXUSDT', 'UNIUSDT', 'ATOMUSDT', 'NEARUSDT', 'ALGOUSDT', 'ICPUSDT', 'INJUSDT', 'FETUSDT', 'RNDRUSDT', 'OPUSDT', 'ARBUSDT', 'TIAUSDT', 'SEIUSDT', 'SUIUSDT', 'ORDIUSDT', 'STXUSDT', 'FILUSDT', 'LDOUSDT', 'PEPEUSDT', 'FLOKIUSDT', 'BONKUSDT', 'WIFUSDT'];
+
+        function renderSymbols(filter = '') {
+            const filtered = popularSymbols.filter(s => s.toLowerCase().includes(filter.toLowerCase()));
+            symbolList.innerHTML = filtered.map(s => `
+                <div onclick="selectSymbol('${s}')" class="p-3 bg-white/5 border border-white/5 rounded hover:bg-blue-600/20 hover:border-blue-500/50 cursor-pointer transition text-center font-mono text-xs font-bold text-slate-300">
+                    ${s}
+                </div>
+            `).join('');
+            if (filtered.length === 0) symbolList.innerHTML = '<p class="col-span-2 text-center text-slate-600 text-[10px] uppercase italic mt-4">No assets found</p>';
+        }
+
+        document.getElementById('symbol-display').addEventListener('click', () => {
+            symbolModal.classList.remove('hidden');
+            renderSymbols();
+            symbolSearch.focus();
+        });
+
+        document.getElementById('close-symbol-modal').addEventListener('click', () => symbolModal.classList.add('hidden'));
+        symbolSearch.addEventListener('input', (e) => renderSymbols(e.target.value));
+
+        window.selectSymbol = async (symbol) => {
+            try {
+                const res = await fetch(`${API_BASE}/switch_symbol`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: symbol })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    symbolModal.classList.add('hidden');
+                    document.getElementById('symbol-display').innerText = symbol;
+                    if (chart && chart.data && chart.data.datasets[0]) {
+                        chart.data.datasets[0].data = Array(60).fill(0);
+                        chart.update();
+                    }
+                } else {
+                    alert(`Error: ${data.message || 'Failed to switch symbol'}`);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Failed to switch symbol: Connection error.");
+            }
+        };
+
+        function renderList(id, data, mapper) { document.getElementById(id).innerHTML = data.map(mapper).join(''); }
+
+        async function executeManual() {
+            try {
+                const res = await fetch(`${API_BASE}/execute_manual`, { method: 'POST' });
+                if ((await res.json()).status === 'success') alert("PROTOCOL AUTHORIZED.");
+            } catch (e) { }
+        }
+
+        async function closeActiveTrade() {
+            if (!confirm(currentLang === 'en' ? "Warning: This will close the current trade and convert assets back to USDT. Continue?" : "تنبيه: سيتم إغلاق الصفقة الحالية وتحويل الأصول إلى USDT. هل تريد الاستمرار؟")) return;
+            try {
+                const res = await fetch(`${API_BASE}/close_trade`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert(currentLang === 'en' ? "EXIT PROTOCOL ENGAGED." : "تم تفعيل بروتوكول الخروج.");
+                } else {
+                    alert(data.message);
+                }
+            } catch (e) {
+                alert("Connection error.");
+            }
+        }
+
+        document.getElementById('sync-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('sync-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⌛...';
+            try {
+                const res = await fetch(`${API_BASE}/sync`, { method: 'POST' });
+                if (res.ok) {
+                    btn.className = btn.className.replace('text-blue-400', 'text-green-400');
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.className = btn.className.replace('text-green-400', 'text-blue-400');
+                    }, 2000);
+                }
+            } catch (e) { btn.innerHTML = originalText; }
+        });
+
+        async function cleanDust() {
+            if (!confirm(currentLang === 'en' ? "Convert all small balances (<$5) to BNB?" : "هل تريد تحويل كل العملات الضئيلة (أقل من 5 دولار) إلى BNB؟")) return;
+            const btn = document.getElementById('clean-dust-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '✨ ...';
+            try {
+                const res = await fetch(`${API_BASE}/convert_dust`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert(data.message);
+                } else {
+                    alert(`${currentLang === 'en' ? 'Protocols Latency' : 'فشل في البروتوكول'}: ${data.message}`);
+                }
+            } catch (e) {
+                alert("Connection error.");
+            } finally {
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // Charts Engine
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: Array(60).fill(''), datasets: [{ data: Array(60).fill(0), borderColor: '#2563eb', borderWidth: 2, pointRadius: 0, tension: 0.1, fill: true, backgroundColor: (context) => { const g = context.chart.ctx.createLinearGradient(0, 0, 0, 400); g.addColorStop(0, 'rgba(37, 99, 235, 0.2)'); g.addColorStop(1, 'rgba(0, 0, 0, 0)'); return g; } }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: true, position: 'right', grid: { color: 'rgba(255,255,255,0.05)' }, border: { dash: [4, 4] }, ticks: { color: '#9ca3af', font: { family: 'JetBrains Mono', size: 10 } } } } }
+        });
+
+        setInterval(() => { chart.data.datasets[0].data.shift(); chart.data.datasets[0].data.push(Math.random() * 100); chart.update('none'); }, 3000);
+        async function checkLicensing() {
+            try {
+                const res = await fetch(`${API_BASE}/license_status`);
+                const data = await res.json();
+                document.getElementById('display-hwid').innerText = data.hwid;
+
+                if (data.is_active) {
+                    document.getElementById('license-badge').classList.remove('hidden');
+                    document.getElementById('trial-badge').classList.add('hidden');
+                    document.getElementById('activation-overlay').classList.add('hidden');
+                } else {
+                    if (data.days_left <= 0) {
+                        document.getElementById('activation-overlay').classList.remove('hidden');
+                        document.getElementById('close-activation').classList.add('hidden'); // Force activation
+                    } else {
+                        document.getElementById('trial-badge').classList.remove('hidden');
+                        document.getElementById('trial-days-text').innerText = `${data.days_left} DAYS REMAINING`;
+                        document.getElementById('close-activation').classList.remove('hidden'); // Early exit allowed
+                    }
+                }
+            } catch (e) { }
+        }
+
+        // Early Activation Trigger
+        document.getElementById('trial-badge').addEventListener('click', () => {
+            document.getElementById('activation-overlay').classList.remove('hidden');
+            document.getElementById('close-activation').classList.remove('hidden');
+        });
+
+        document.getElementById('close-activation').addEventListener('click', () => {
+            document.getElementById('activation-overlay').classList.add('hidden');
+        });
+
+        document.getElementById('activate-btn').addEventListener('click', async () => {
+            const key = document.getElementById('license-key-input').value.trim();
+            const msg = document.getElementById('activation-msg');
+            msg.innerText = 'VERIFYING...'; msg.className = 'text-xs font-bold pt-2 text-blue-400';
+
+            try {
+                const res = await fetch(`${API_BASE}/activate`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ license_key: key })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    msg.innerText = 'SUCCESS! RESTARTING...'; msg.className = 'text-xs font-bold pt-2 text-green-500';
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    msg.innerText = 'INVALID KEY'; msg.className = 'text-xs font-bold pt-2 text-red-500';
+                }
+            } catch (e) { msg.innerText = 'CONNECTION ERROR'; }
+        });
+
+        let lastAlphaLeadsJSON = "";
+        async function updateAnalytics() {
+            try {
+                const res = await fetch(`${API_BASE}/analytics`);
+                const data = await res.json();
+                document.getElementById('stat-winrate').innerText = `${data.win_rate}%`;
+                document.getElementById('stat-avgpnl').innerText = `$${data.avg_pn_l}`;
+                
+                if (data.history && data.history.length > 0) {
+                    const alphaLeads = data.history.filter(h => h.lesson_learned && h.lesson_learned.includes("POSITIVE")).slice(0, 3);
+                    if (alphaLeads.length > 0) {
+                        const newJSON = JSON.stringify(alphaLeads.map(l => l.symbol + l.timestamp));
+                        if (newJSON !== lastAlphaLeadsJSON) {
+                            lastAlphaLeadsJSON = newJSON;
+                            document.getElementById('alpha-leads').innerHTML = alphaLeads.map(l => {
+                                const timeStr = l.timestamp ? l.timestamp : new Date().toLocaleString();
+                                const labelFirstSeen = currentLang === 'en' ? 'FIRST SEEN:' : 'تاريخ أول ظهور:';
+                                return `
+                                <div class="flex flex-col bg-purple-500/5 p-2 rounded border border-purple-500/10 transition-all duration-500 animate-pulse hover:bg-purple-500/10">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-[10px] font-bold text-white">${l.symbol}</span>
+                                        <span class="text-[9px] text-purple-400 font-mono">+${(l.ai_confidence * 100).toFixed(0)}% CONF</span>
+                                    </div>
+                                    <div class="text-[8px] text-slate-500 mt-1 uppercase tracking-widest text-right">
+                                        ${labelFirstSeen} <span class="font-mono text-purple-300 ml-1">${timeStr}</span>
+                                    </div>
+                                </div>
+                                `;
+                            }).join('');
+                            
+                            // Remove animate-pulse after 2 seconds to make the "change animation" stop
+                            setTimeout(() => {
+                                document.querySelectorAll('#alpha-leads > div').forEach(el => el.classList.remove('animate-pulse'));
+                            }, 2000);
+                        }
+                    } else {
+                        const noLeadsText = currentLang === 'en' ? 'No institutional leads detected...' : 'لا يوجد رصد مؤسسي حاليا...';
+                        document.getElementById('alpha-leads').innerHTML = `<p class="text-[10px] text-center text-slate-600 italic">${noLeadsText}</p>`;
+                    }
+                }
+            } catch (e) { }
+        }
+
+        checkLicensing();
+        setInterval(updateStats, 2000);
+        setInterval(updateScanner, 10000); 
+        setInterval(updatePortfolio, 30000);
+        setInterval(updateAnalytics, 5000);
+        updateStats(); updateScanner(); updatePortfolio(); updateAnalytics();
+
+
+        window.executeArbitrageManual = async (route, direction) => {
+            const confirmMsg = currentLang === 'en' 
+                ? `System Protocol: Initiating triple-market sequence for ${route} (${direction}) using MAX available USDT. Proceed?` 
+                : `بروتوكول النظام: بدء تسلسل السوق الثلاثي لـ ${route} (${direction}) باستخدام أقصى رصيد USDT متاح. هل تريد المتابعة؟`;
+            
+            if (!confirm(confirmMsg)) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/execute_arbitrage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ route_name: route, direction: direction, amount: null })
+                });
+                const data = await res.json();
+                alert(data.message);
+            } catch (e) {
+                alert("Quantum Link Failure: Could not trigger arbitrage sequence.");
+            }
+        };
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,12 @@
+.env
+python/
+libs/
+logs/
+data/
+reports/
+__pycache__/
+*.pyc
+brain.db
+prosoft.lic
+PROSOFT_DIST.rar
+credentials.json
