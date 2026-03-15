@@ -2,629 +2,489 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PROSOFT MOBILE QUANTUM</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>PROSOFT MOBILE NEXUS PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Cairo:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cairo:wght@400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #00f2ff;
-            --secondary: #7000ff;
-            --bg-base: #050507;
-            --bg-panel: rgba(18, 18, 24, 0.95);
-            --accent: #ff00c8;
-            --success: #00ff88;
-            --danger: #ff3333;
-            --text-main: #e2e8f0;
-            --text-muted: #94a3b8;
-            --border: rgba(255, 255, 255, 0.08);
-        }
-
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
+            --secondary: #2563eb;
+            --bg: #050608;
+            --panel: rgba(15, 18, 25, 0.85);
+            --danger: #ef4444;
+            --success: #10b981;
+            --text-main: #f8fafc;
+            --text-muted: #64748b;
         }
 
         body {
-            background-color: var(--bg-base);
+            background-color: var(--bg);
             color: var(--text-main);
             font-family: 'Cairo', sans-serif;
-            overflow-x: hidden;
             margin: 0;
-            padding-bottom: 80px;
+            padding-bottom: 90px;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(37, 99, 235, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(0, 242, 255, 0.05) 0%, transparent 50%);
         }
 
         .orbitron { font-family: 'Orbitron', sans-serif; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-
-        .glass-card {
-            background: var(--bg-panel);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        
+        /* Premium Blur */
+        .glass-blur {
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            background: var(--panel);
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        .neo-glow {
-            box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+        /* Top Header Style */
+        .status-pill {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 999px;
+            padding: 4px 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        /* News Ticker */
-        .marquee-container {
-            background: rgba(0, 242, 255, 0.05);
-            border-bottom: 1px solid var(--border);
-            height: 35px;
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #10b981;
+            animation: pulse-green 2s infinite;
+        }
+
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* Large Action Buttons */
+        .btn-large {
+            width: 100%;
+            height: 65px;
+            border-radius: 18px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
             overflow: hidden;
-            display: flex;
-            align-items: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
         }
 
-        .marquee-content {
-            display: flex;
-            white-space: nowrap;
-            animation: marquee 30s linear infinite;
+        .btn-large:active { transform: scale(0.96); filter: brightness(1.2); }
+
+        .btn-red { 
+            background: linear-gradient(135deg, #7f1d1d, #ef4444);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        
+        .btn-blue { 
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
-        @keyframes marquee {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
-
-        /* Tabs System */
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.4s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Bottom Nav */
-        .nav-bottom {
-            background: rgba(10, 10, 15, 0.95);
-            backdrop-filter: blur(30px);
-            border-top: 1px solid var(--border);
+        /* FAB Menu Styling */
+        .fab-container {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 120px;
+            left: 20px;
             z-index: 1000;
-            height: 75px;
-            display: flex;
-            justify-content: space-around;
-            padding-top: 10px;
         }
 
-        .nav-link {
+        .fab-main {
+            width: 56px;
+            height: 56px;
+            background: var(--primary);
+            border-radius: 50%;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            color: var(--text-muted);
-            font-size: 0.75rem;
-            width: 20%;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.2);
             transition: all 0.3s;
         }
 
-        .nav-link.active {
-            color: var(--primary);
-        }
+        .fab-main.active { transform: rotate(45deg); background: var(--danger); }
 
-        .nav-link i {
-            font-size: 1.4rem;
-            margin-bottom: 3px;
-        }
-
-        .nav-link.active i {
-            text-shadow: 0 0 12px var(--primary);
-            transform: scale(1.1);
-        }
-
-        /* Custom Gauges */
-        .gauge-ring {
-            position: relative;
-            width: 80px;
-            height: 80px;
-        }
-
-        .pnl-badge {
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-weight: 700;
-            font-size: 0.8rem;
-        }
-
-        /* Header */
-        header {
-            padding: 15px 20px;
+        .fab-menu {
+            position: absolute;
+            bottom: 70px;
+            left: 0;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 100;
+            flex-direction: column;
+            gap: 15px;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        .connection-dot {
-            width: 8px;
-            height: 8px;
+        .fab-menu.active {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .fab-item {
+            width: 48px;
+            height: 48px;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid var(--border);
             border-radius: 50%;
-            display: inline-block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            font-size: 1.2rem;
+            transition: 0.2s;
         }
 
-        /* Order Flow Pressure */
-        .pressure-bar {
-            height: 8px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 4px;
-            margin-top: 10px;
+        .fab-item:active { transform: scale(0.85); background: var(--primary); }
+
+        .fab-label {
+            position: absolute;
+            right: 60px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            pointer-events: none;
         }
 
-        .pressure-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+        /* Bottom Nav icons */
+        .nav-link i { font-size: 24px; margin-bottom: 4px; display: block; }
+        .nav-link { 
+            color: var(--text-muted); 
+            text-decoration: none; 
+            text-align: center; 
+            padding: 8px 0;
+            transition: 0.3s;
         }
+        .nav-link.active { color: var(--primary); text-shadow: 0 0 10px var(--primary); }
+
+        /* News Ticker */
+        .ticker-wrap {
+            overflow: hidden;
+            background: rgba(0,0,0,0.4);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            height: 28px;
+            display: flex;
+            align-items: center;
+        }
+
+        .ticker-move {
+            display: flex;
+            white-space: nowrap;
+            animation: ticker 30s linear infinite;
+        }
+
+        @keyframes ticker {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: slideIn 0.4s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
     </style>
 </head>
 <body>
 
-    <!-- Top News Ticker -->
-    <div class="marquee-container">
-        <div class="marquee-content" id="news-ticker">
-            <span class="mx-6 text-[10px] text-primary/80">⚡ [PROSOFT AI] جاري مزامنة تدفق السيولة...</span>
-            <span class="mx-6 text-[10px] text-white/60">BTC/USDT ميزان القوى لصالح المشترين</span>
-            <span class="mx-6 text-[10px] text-danger/80">⚠️ تحذير: ارتفاع ضغط البيع على TAO</span>
+    <!-- Top Info Bar -->
+    <div class="ticker-wrap">
+        <div class="ticker-move" id="live-news">
+            <span class="px-8 text-[10px] text-primary font-bold">PROSOFT QUANTUM : جاري تحليل السيولة...</span>
+            <span class="px-8 text-[10px] text-white/50">توازن السوق (Market Balance):Buyers Dominant</span>
+            <span class="px-8 text-[10px] text-success/80">Profit Stream: Yield Farming Active (+0.04% APR)</span>
         </div>
     </div>
 
-    <header>
-        <div>
-            <h1 class="orbitron text-primary text-xl font-black tracking-widest">PROSOFT</h1>
-            <p class="text-[9px] text-white/40 tracking-[4px]">QUANTUM ENTITY</p>
+    <!-- Header Section -->
+    <header class="px-6 py-4 flex justify-between items-center">
+        <div class="status-pill">
+            <div class="pulse-dot"></div>
+            <span class="text-[10px] font-black orbitron" style="color: #10b981;">ONLINE</span>
         </div>
-        <div class="bg-white/5 border border-white/10 rounded-full px-3 py-1 flex items-center gap-2">
-            <span id="conn-text" class="text-[10px] text-muted font-bold uppercase">Linking...</span>
-            <div id="conn-dot" class="connection-dot bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]"></div>
+        <div class="text-right">
+            <h1 class="orbitron text-2xl font-black tracking-widest leading-none">PROSOFT</h1>
+            <p class="text-[8px] text-white/30 tracking-[6px] uppercase">Quantum Entity</p>
         </div>
     </header>
 
-    <main class="px-4 pt-2">
+    <main class="px-6 py-2">
         
         <!-- ================= HOME TAB ================= -->
         <div id="tab-home" class="tab-content active">
-            <!-- Equity Hub -->
-            <div class="glass-card p-5 mb-5 neo-glow relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-full h-1 bg-primary opacity-30"></div>
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <p class="text-[10px] text-muted font-bold uppercase tracking-wider mb-1">إجمالي التمويل الصافي</p>
-                        <h2 id="total-equity" class="orbitron text-3xl font-bold tracking-tight">$0.00</h2>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-[10px] text-muted font-bold uppercase tracking-wider mb-1">الربح اليومي</p>
-                        <h2 id="daily-profit" class="orbitron text-xl font-bold text-success">+$0.00</h2>
-                    </div>
+            
+            <!-- Main Balance Display (Matching Screenshot Layout) -->
+            <div class="grid grid-cols-2 gap-4 mb-8 mt-4">
+                <div class="text-right">
+                    <p class="text-[10px] text-muted font-bold uppercase mb-1">إجمالي التمويل الصافي</p>
+                    <h2 id="total-equity" class="orbitron text-2xl font-black text-white">$0.00</h2>
                 </div>
-                
-                <div class="flex gap-2">
-                    <div class="flex-1 bg-white/5 p-3 rounded-xl border border-white/5">
-                        <p class="text-[8px] text-muted uppercase font-black mb-1">Yield Farming</p>
-                        <p id="yield-val" class="text-xs font-bold text-primary">--</p>
-                    </div>
-                    <div class="flex-1 bg-white/5 p-3 rounded-xl border border-white/5">
-                        <p class="text-[8px] text-muted uppercase font-black mb-1">Launchpool</p>
-                        <p id="pool-val" class="text-xs font-bold text-primary">--</p>
-                    </div>
-                    <div class="flex-1 bg-white/5 p-3 rounded-xl border border-white/5">
-                        <p class="text-[8px] text-muted uppercase font-black mb-1">Sniper Hits</p>
-                        <p id="sniper-hits" class="text-xs font-bold text-primary">0</p>
-                    </div>
+                <div class="text-left border-r border-white/10 pr-4">
+                    <p class="text-[10px] text-muted font-bold uppercase mb-1">الربح اليومي</p>
+                    <h2 id="daily-profit" class="orbitron text-2xl font-black text-success">+$0.00</h2>
                 </div>
             </div>
 
-            <!-- Active Trade (Responsive Container) -->
-            <div id="active-trade-zone">
-                <!-- Placeholder for dynamic insertion -->
-                <div class="glass-card p-10 flex flex-col items-center justify-center border-dashed border-white/10 opacity-30">
-                    <p class="text-xs">بانتظار اصطياد فرصة ذهبية</p>
-                    <div class="mt-4 flex gap-1">
-                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce"></div>
-                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+            <!-- Central Action Buttons (Matching Screenshot) -->
+            <div class="space-y-4 mb-10">
+                <button onclick="omegaKill()" class="btn-large btn-red shadow-lg">
+                    <span class="mr-2">⚡</span> OMEGA STOP
+                </button>
+                <button onclick="openManualOrder()" class="btn-large btn-blue shadow-lg">
+                    <span class="mr-2">🎯</span> AUTHORIZE ORDER
+                </button>
+            </div>
+
+            <!-- Lower Stats -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="glass-blur rounded-2xl p-4 flex flex-col items-center">
+                    <p class="text-[10px] font-bold text-muted uppercase mb-1">دقة الـ AI</p>
+                    <span id="ai-conf" class="orbitron text-xl font-black text-primary">85%</span>
+                </div>
+                <div class="glass-blur rounded-2xl p-4 flex flex-col items-center">
+                    <p class="text-[10px] font-bold text-muted uppercase mb-1">صحة السوق</p>
+                    <div class="w-full bg-white/5 h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div id="market-health-bar" class="h-full bg-primary w-[75%] shadow-[0_0_10px_#00f2ff]"></div>
                     </div>
+                    <span id="market-health-text" class="text-[10px] font-bold mt-1">75%</span>
                 </div>
             </div>
 
-            <!-- Macro Health & Shield -->
-            <div class="grid grid-cols-2 gap-4 mt-5">
-                <div class="glass-card p-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <span class="text-[10px] font-bold text-muted uppercase underline decoration-primary/30">دقة الـ AI</span>
-                        <span id="ai-conf" class="orbitron text-xs text-primary">0%</span>
-                    </div>
-                    <canvas id="miniConfChart" height="60"></canvas>
-                </div>
-                <div class="glass-card p-4 flex flex-col justify-center">
-                    <p class="text-[10px] font-bold text-muted uppercase mb-2">درع التحوط (Hedge)</p>
-                    <div class="flex items-center gap-3">
-                        <div class="flex-1 bg-white/5 h-1.5 rounded-full overflow-hidden">
-                            <div id="hedge-bar" class="h-full bg-success w-0 shadow-[0_0_10px_var(--success)]"></div>
-                        </div>
-                        <span id="hedge-status" class="text-[10px] font-black text-white px-2 bg-success/20 rounded">READY</span>
-                    </div>
-                    <p id="crash-risk-text" class="text-[8px] text-white/30 italic mt-2">مستوى مخاطرة الانهيار: 0%</p>
-                </div>
+            <!-- Active Position Alert (Floating style) -->
+            <div id="active-position-hub">
+                <!-- Injected via JS when trade moves -->
             </div>
+
         </div>
 
         <!-- ================= ANALYTICS TAB ================= -->
-        <div id="tab-analytics" class="tab-content px-1">
-            <h3 class="section-title text-sm border-r-2 border-primary pr-3 mb-4 font-bold uppercase tracking-wider">الذكاء العملياتي (Operational Intelligence)</h3>
-            
-            <div class="glass-card p-5 mb-4">
+        <div id="tab-analytics" class="tab-content">
+            <h3 class="text-xs font-black text-primary uppercase tracking-widest mb-4 border-r-2 border-primary pr-2">تحليل السيولة العبقري</h3>
+            <div class="glass-blur rounded-2xl p-5 mb-5">
                 <div class="flex justify-between items-center mb-4">
-                    <span class="text-xs font-bold">تدفق الطلبات (Order Flow)</span>
-                    <span id="flow-bias" class="pnl-badge bg-primary/20 text-primary">NEUTRAL</span>
+                    <span class="text-[10px] font-bold uppercase text-muted">Order Flow Pressure</span>
+                    <span id="flow-bias" class="text-[10px] font-bold bg-primary/20 text-primary px-2 py-0.5 rounded">NEUTRAL</span>
                 </div>
-                <div class="flex justify-between text-[10px] text-muted mb-1">
-                    <span>ضغط البيع</span>
-                    <span>ضغط الشراء</span>
+                <div class="w-full bg-white/5 h-2 rounded-full overflow-hidden mb-6">
+                    <div id="flow-pressure-bar" class="h-full bg-gradient-to-r from-secondary to-primary w-1/2"></div>
                 </div>
-                <div class="pressure-bar">
-                    <div id="pressure-fill" class="pressure-fill bg-gradient-to-l from-primary to-secondary" style="width: 50%"></div>
-                </div>
-                <div class="mt-4 grid grid-cols-3 gap-2">
-                    <div class="text-center">
-                        <p class="text-[8px] text-muted uppercase">سبريد السوق</p>
-                        <p id="flow-spread" class="text-xs font-bold font-mono">0.00%</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-white/5 p-3 rounded-xl">
+                        <p class="text-[8px] text-muted uppercase mb-1">Net Imbalance</p>
+                        <p id="flow-imbalance" class="orbitron text-sm font-bold">0.00</p>
                     </div>
-                    <div class="text-center">
-                        <p class="text-[8px] text-muted uppercase">توازن القوى</p>
-                        <p id="flow-imbalance" class="text-xs font-bold font-mono">0.0</p>
-                    </div>
-                    <div class="text-center">
-                        <p class="text-[8px] text-muted uppercase">جودة السيولة</p>
-                        <p class="text-xs font-bold text-success">HIGH</p>
+                    <div class="bg-white/5 p-3 rounded-xl">
+                        <p class="text-[8px] text-muted uppercase mb-1">Real Spread</p>
+                        <p id="flow-spread" class="orbitron text-sm font-bold">0.00%</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Macro State -->
-            <div class="glass-card p-5">
-                <p class="text-xs font-bold mb-4">المؤشرات الكلية (Macro Guards)</p>
-                <div class="flex gap-4">
-                    <div class="flex-1 text-center border-l border-white/10">
-                        <p class="text-[8px] text-muted uppercase mb-1">مؤشر الخوف</p>
-                        <p id="macro-fgi" class="orbitron text-xl font-bold">--</p>
-                        <p class="text-[7px] text-muted">Fear & Greed</p>
+            <!-- Macro Guardian -->
+            <div class="glass-blur rounded-2xl p-5">
+                <p class="text-[10px] font-bold text-muted uppercase mb-4">المؤشرات الكلية المتزامنة</p>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                        <p class="text-[8px] text-muted uppercase">Fear Index</p>
+                        <p id="macro-fgi" class="orbitron text-lg font-bold">--</p>
                     </div>
-                    <div class="flex-1 text-center">
-                        <p class="text-[8px] text-muted uppercase mb-1">نظام السوق</p>
-                        <p id="macro-regime" class="text-xs font-bold text-primary">--</p>
-                        <p class="text-[7px] text-muted">Regime Filter</p>
+                    <div>
+                        <p class="text-[8px] text-muted uppercase">Market Regime</p>
+                        <p id="macro-regime" class="text-[10px] font-black text-primary">--</p>
                     </div>
-                    <div class="flex-1 text-center border-r border-white/10">
-                        <p class="text-[8px] text-muted uppercase mb-1">حالة المخاطرة</p>
-                        <p id="macro-risk" class="text-xs font-bold text-success">--</p>
-                        <p class="text-[7px] text-muted">Global Risk</p>
+                    <div>
+                        <p class="text-[8px] text-muted uppercase">Risk Level</p>
+                        <p id="macro-risk" class="text-[10px] font-black text-success">--</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ================= INTELLIGENCE TAB ================= -->
-        <div id="tab-intel" class="tab-content px-1">
-            <!-- AI Strategist Voice -->
-            <div class="glass-card mb-5 p-5 border-r-4 border-secondary">
-                <div class="flex items-center gap-3 mb-3">
-                    <div class="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center text-secondary">🧠</div>
-                    <span class="text-xs font-bold">تحليل الاستراتيجي (Gemini)</span>
+        <!-- ================= INTEL TAB ================= -->
+        <div id="tab-intel" class="tab-content">
+            <div class="glass-blur rounded-2xl p-5 mb-5 border-r-4 border-primary">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-xl">🧠</span>
+                    <p class="text-xs font-bold">رؤية الذاكرة العصبية (Neural Vision)</p>
                 </div>
-                <p id="ai-insight-long" class="text-xs leading-relaxed text-slate-300 italic">
-                    "جاري معالجة بيانات الـ Heatmap ونقاط تمركز السيولة لمنصات الدرجة الأولى. ننتظر اختراق مستوى الـ Resistance القادم لتأكيد الاتجاه."
+                <p id="ai-insight" class="text-xs leading-relaxed text-slate-300 italic">
+                    "جاري مسح كتل السيولة على نطاق 100M$. التمركزات الحالية تشير إلى استقرار مؤسسي مؤقت."
                 </p>
             </div>
-
-            <!-- AI Nodes Status -->
-            <div class="grid grid-cols-2 gap-3 mb-5" id="ai-nodes-grid">
-                <!-- Nodes dynamically inserted -->
-            </div>
-
-            <!-- Whale Alerts & News -->
-            <h4 class="text-[10px] font-black text-muted uppercase tracking-widest mb-3 opacity-60">تنبيهات الحيتان والسيولة</h4>
-            <div id="intel-feed" class="space-y-3">
-                <!-- Sample Feed Item -->
-                <div class="bg-white/3 border-r-2 border-primary/20 p-3 rounded-lg text-[11px]">
-                    <span class="text-primary font-bold">Whale Alert:</span> تحرك 500 BTC من محفظة مجهولة إلى Binance.
-                </div>
+            
+            <div class="space-y-3" id="ai-nodes-list">
+                <!-- Nodes injected -->
             </div>
         </div>
 
         <!-- ================= LOGS TAB ================= -->
-        <div id="tab-terminal" class="tab-content h-[calc(100vh-180px)] flex flex-col">
-            <div class="flex justify-between items-center mb-3">
-                <span class="text-xs font-bold mono text-primary">QUANTUM_TERMINAL >_</span>
-                <button onclick="clearLogs()" class="text-[9px] bg-white/5 border border-white/10 px-2 py-1 rounded">Clear</button>
-            </div>
-            <div id="terminal-screen" class="glass-card flex-1 p-3 overflow-y-auto font-mono text-[10px] leading-relaxed">
-                <!-- Logs will be streamed here -->
-                <div class="text-muted">SYSTEM BOOT SEQUENCES COMPLETE...</div>
-                <div class="text-primary">ESTABLISHING ENCRYPTED LINK...</div>
+        <div id="tab-logs" class="tab-content h-[400px]">
+            <div id="terminal-screen" class="glass-blur rounded-2xl p-4 h-full overflow-y-auto font-mono text-[9px]">
+                <div class="text-primary opacity-50 mb-2">>_ SYSTEM BOOT INITIALIZED</div>
             </div>
         </div>
 
     </main>
 
+    <!-- Speed Dial FAB (The "Branched" Menu) -->
+    <div class="fab-container">
+        <div class="fab-menu" id="fab-menu">
+            <div class="relative flex items-center justify-end">
+                <span class="fab-label">إعادة تشغيل النظام</span>
+                <button onclick="rebootSystem()" class="fab-item">🔄</button>
+            </div>
+            <div class="relative flex items-center justify-end">
+                <span class="fab-label">تقرير PDF شامل</span>
+                <button onclick="generateReport()" class="fab-item">📄</button>
+            </div>
+            <div class="relative flex items-center justify-end">
+                <span class="fab-label">إعدادات الخوارزمية</span>
+                <button onclick="openSettings()" class="fab-item">⚙️</button>
+            </div>
+            <div class="relative flex items-center justify-end">
+                <span class="fab-label">تحديث قائمة العملات</span>
+                <button onclick="scanMarkets()" class="fab-item">🔍</button>
+            </div>
+        </div>
+        <button onclick="toggleFab()" class="fab-main" id="fab-trigger">
+            <span class="text-2xl font-black text-black">⚡</span>
+        </button>
+    </div>
+
     <!-- Bottom Navigation -->
-    <nav class="nav-bottom">
-        <a href="javascript:void(0)" class="nav-link active" onclick="switchTab('home', this)">
-            <i class="nav-icon">🏠</i>
-            <span>الرئيسية</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-link" onclick="switchTab('analytics', this)">
-            <i class="nav-icon">📊</i>
-            <span>التحليلات</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-link" onclick="switchTab('intel', this)">
-            <i class="nav-icon">🧠</i>
-            <span>الذكاء</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-link" onclick="switchTab('terminal', this)">
-            <i class="nav-icon">⌨️</i>
-            <span>السجلات</span>
-        </a>
+    <nav class="fixed bottom-0 left-0 right-0 h-[85px] glass-blur border-t border-white/10 flex justify-around items-center px-4 z-[500]">
+        <button onclick="switchTab('home', this)" class="nav-link active">
+            <i>🏠</i>
+            <span class="text-[9px] font-bold uppercase">الرئيسية</span>
+        </button>
+        <button onclick="switchTab('analytics', this)" class="nav-link">
+            <i>📊</i>
+            <span class="text-[9px] font-bold uppercase">التحليلات</span>
+        </button>
+        <button onclick="switchTab('intel', this)" class="nav-link">
+            <i>🧠</i>
+            <span class="text-[9px] font-bold uppercase">الذكاء</span>
+        </button>
+        <button onclick="switchTab('logs', this)" class="nav-link">
+            <i>⌨️</i>
+            <span class="text-[9px] font-bold uppercase">السجلات</span>
+        </button>
         <a href="/" class="nav-link">
-            <i class="nav-icon">🖥️</i>
-            <span>Desktop</span>
+            <i>🖥️</i>
+            <span class="text-[9px] font-bold uppercase">Desktop</span>
         </a>
     </nav>
 
-    <!-- Emergency Controls Overlay (Optional trigger via long press or swipe) -->
-    <div id="quick-actions" class="hidden fixed inset-0 bg-black/80 backdrop-filter blur-md z-[2000] flex items-center justify-center p-6">
-        <div class="glass-card w-full max-w-sm p-6 text-center">
-            <h3 class="orbitron text-danger text-lg font-black mb-6">OMEGA EMERGENCY PROTOCOL</h3>
-            <button onclick="omegaKill()" class="w-full bg-red-600 hover:bg-red-500 text-white font-black py-4 rounded-xl mb-4 shadow-[0_0_20px_rgba(239,68,68,0.4)]">KILL ALL POSITIONS</button>
-            <button onclick="toggleBot()" id="bot-toggle-btn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl mb-6">STOP TRADING BOT</button>
-            <button onclick="document.getElementById('quick-actions').classList.add('hidden')" class="text-muted text-sm uppercase">Cancel / Back</button>
-        </div>
-    </div>
-    
-    <!-- Float Action Button for Emergency -->
-    <button onclick="document.getElementById('quick-actions').classList.remove('hidden')" 
-            class="fixed bottom-24 right-4 w-12 h-12 bg-danger rounded-full shadow-2xl z-[500] flex items-center justify-center text-white font-black border-2 border-white/20 active:scale-90 transition">
-        ⚡
-    </button>
-
     <script>
         const socket = io();
-        let lastStats = null;
-        let confChart = null;
 
-        // --- Tab Management ---
-        function switchTab(tabName, el) {
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        // --- Navigation ---
+        function switchTab(tabId, el) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-            document.getElementById('tab-' + tabName).classList.add('active');
+            document.getElementById('tab-' + tabId).classList.add('active');
             el.classList.add('active');
-            
-            if (tabName === 'home' && !confChart) initChart();
         }
 
-        function initChart() {
-            const ctx = document.getElementById('miniConfChart').getContext('2d');
-            confChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: Array(10).fill(''),
-                    datasets: [{
-                        label: 'AI Confidence',
-                        data: Array(10).fill(85),
-                        borderColor: '#00f2ff',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        pointRadius: 0,
-                        fill: true,
-                        backgroundColor: 'rgba(0, 242, 255, 0.1)'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { display: false },
-                        y: { display: false, min: 0, max: 100 }
-                    }
-                }
-            });
+        // --- FAB Menu Toggle ---
+        function toggleFab() {
+            const menu = document.getElementById('fab-menu');
+            const trigger = document.getElementById('fab-trigger');
+            menu.classList.toggle('active');
+            trigger.classList.toggle('active');
         }
 
-        // --- Socket Integration ---
-        socket.on('connect', () => {
-            document.getElementById('conn-text').innerText = 'Online';
-            document.getElementById('conn-dot').className = 'connection-dot bg-success shadow-[0_0_8px_rgba(0,255,136,0.5)]';
-        });
-
+        // --- UI Updates ---
         socket.on('status_update', (data) => {
-            updateUI(data);
-        });
-
-        socket.on('new_log', (log) => {
-            addTerminalLog(log);
-        });
-
-        async function fetchStats() {
-            try {
-                const res = await fetch('/api/stats');
-                const data = await res.json();
-                updateUI(data);
-            } catch(e) {}
-        }
-
-        function updateUI(data) {
             const s = data.bot_stats;
-            if (!s) return;
+            if(!s) return;
 
-            // Global Home Stats
-            document.getElementById('total-equity').innerText = '$' + (s.total_equity || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-            document.getElementById('yield-val').innerText = s.yield_amount ? '$' + s.yield_amount.toFixed(4) : '--';
-            document.getElementById('pool-val').innerText = s.pool_amount ? '$' + s.pool_amount.toFixed(2) : '--';
-            document.getElementById('sniper-hits').innerText = s.sniper_hits || 0;
-            document.getElementById('ai-conf').innerText = (s.ai_conf * 100).toFixed(0) + '%';
+            // Balance & Equity
+            document.getElementById('total-equity').innerText = '$' + (s.total_equity || 0).toLocaleString(undefined, {minimumFractionDigits: 3});
             
-            // Confidence Chart
-            if (confChart) {
-                confChart.data.datasets[0].data.push(s.ai_conf * 100);
-                confChart.data.datasets[0].data.shift();
-                confChart.update('none');
+            // AI Conf & Market Health (The requested adjustments)
+            document.getElementById('ai-conf').innerText = ((s.ai_conf || 0) * 100).toFixed(0) + '%';
+            document.getElementById('market-health-bar').style.width = (s.market_health || 75) + '%';
+            document.getElementById('market-health-text').innerText = (s.market_health || 75).toFixed(0) + '%';
+
+            // Analytics
+            if(s.order_flow) {
+                document.getElementById('flow-pressure-bar').style.width = s.order_flow.pressure_score + '%';
+                document.getElementById('flow-bias').innerText = (s.order_flow.bias || 'NEUTRAL').replace('_', ' ');
+                document.getElementById('flow-imbalance').innerText = (s.order_flow.imbalance || 0).toFixed(2);
+                document.getElementById('flow-spread').innerText = (s.order_flow.spread_pct || 0).toFixed(4) + '%';
             }
 
-            // Crash Shield
-            const risk = s.crash_risk || 0;
-            const bar = document.getElementById('hedge-bar');
-            bar.style.width = risk + '%';
-            bar.className = risk > 60 ? 'h-full bg-danger shadow-[0_0_10px_#ff3333]' : 'h-full bg-success shadow-[0_0_10px_#00ff88]';
-            document.getElementById('crash-risk-text').innerText = `مستوى مخاطرة الانهيار: ${risk}%`;
-
-            // Active Trade Section
-            const tradeZone = document.getElementById('active-trade-zone');
-            if (data.active_trade) {
-                const t = data.active_trade;
-                const pnl = ((s.price - t.entry_price) * t.qty);
-                const pnlPct = ((s.price / t.entry_price - 1) * 100);
-                const isPlus = pnl >= 0;
-
-                tradeZone.innerHTML = `
-                    <div class="glass-card p-5 border-l-4 ${isPlus ? 'border-success' : 'border-danger'} animate-pulse">
-                        <div class="flex justify-between items-center mb-3">
-                            <h4 class="orbitron text-lg font-bold text-white">${t.symbol} <span class="text-[10px] text-muted">${t.side}</span></h4>
-                            <span class="pnl-badge ${isPlus ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'}">${isPlus ? '+' : ''}${pnlPct.toFixed(2)}%</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4 text-[10px]">
-                            <div>
-                                <p class="text-muted uppercase">محصلة P&L</p>
-                                <p class="font-bold text-sm ${isPlus ? 'text-success' : 'text-danger'}">$${pnl.toFixed(2)}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-muted uppercase">سعر الدخول</p>
-                                <p class="font-bold text-sm">$${t.entry_price.toFixed(2)}</p>
-                            </div>
-                        </div>
-                        <div class="mt-4 flex gap-4">
-                            <div class="flex-1 bg-white/5 p-2 rounded text-center border border-white/5">
-                                <p class="text-[8px] text-muted uppercase">Stop Loss</p>
-                                <p class="text-[10px] font-bold">$${t.sl.toFixed(2)}</p>
-                            </div>
-                            <div class="flex-1 bg-white/5 p-2 rounded text-center border border-white/5">
-                                <p class="text-[8px] text-muted uppercase">Take Profit</p>
-                                <p class="text-[10px] font-bold">$${t.tp.toFixed(2)}</p>
-                            </div>
-                        </div>
-                        <button onclick="closeActiveTrade()" class="w-full mt-4 bg-danger/10 hover:bg-danger/20 text-danger border border-danger/30 text-[10px] font-black py-2 rounded-lg transition">إغلاق الصفقة فوراً</button>
-                    </div>
-                `;
-            } else {
-                tradeZone.innerHTML = `
-                <div class="glass-card p-10 flex flex-col items-center justify-center border-dashed border-white/10 opacity-30 text-center">
-                    <p class="text-xs">بانتظار اصطياد فرصة ذهبية</p>
-                    <div class="mt-4 flex gap-1">
-                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce"></div>
-                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                        <div class="w-1 h-1 bg-primary rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-                    </div>
-                </div>`;
-            }
-
-            // Order Flow
-            if (s.order_flow) {
-                const flow = s.order_flow;
-                document.getElementById('pressure-fill').style.width = flow.pressure_score + '%';
-                document.getElementById('flow-bias').innerText = (flow.bias || 'NEUTRAL').replace('_', ' ');
-                document.getElementById('flow-spread').innerText = (flow.spread_pct || 0).toFixed(4) + '%';
-                document.getElementById('flow-imbalance').innerText = (flow.imbalance || 0).toFixed(2);
-            }
-
-            // Macro States
-            if (s.macro_state) {
+            // Macro
+            if(s.macro_state) {
                 const m = s.macro_state;
                 document.getElementById('macro-fgi').innerText = m.fear_greed_index || '--';
                 document.getElementById('macro-regime').innerText = m.market_regime || '--';
-                const rEl = document.getElementById('macro-risk');
-                rEl.innerText = m.risk_level || '--';
-                const riskColors = {'CRITICAL': 'text-red-500', 'HIGH': 'text-red-400', 'MEDIUM': 'text-amber-400', 'LOW': 'text-green-400'};
-                rEl.className = `text-xs font-bold ${riskColors[m.risk_level] || 'text-muted'}`;
+                document.getElementById('macro-risk').innerText = m.risk_level || '--';
             }
+        });
 
-            // AI Nodes List
-            if (s.ai_cluster && document.getElementById('tab-intel').classList.contains('active')) {
-                const nodesGrid = document.getElementById('ai-nodes-grid');
-                nodesGrid.innerHTML = s.ai_cluster.map(n => `
-                    <div class="glass-card p-3 border-l-2 ${n.status === 'ONLINE' ? 'border-success' : 'border-danger'}">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-[9px] font-bold text-muted">NODE #0${n.id}</span>
-                            <div class="w-1.5 h-1.5 rounded-full ${n.status === 'ONLINE' ? 'bg-success animate-pulse' : 'bg-danger'}"></div>
-                        </div>
-                        <p class="text-[10px] font-bold ${n.active ? 'text-primary' : 'text-white'}">${n.requests} REQS</p>
-                    </div>
-                `).join('');
-            }
-
-            // Ticker News
-            if (s.market_pulse && s.market_pulse.feed.length > 0) {
-                const newsItems = s.market_pulse.feed.slice(0, 5).map(f => {
-                    return `<span class="mx-6 text-[10px] text-white/70"><strong>[${f.source}]</strong> ${f.title}</span>`;
-                }).join('');
-                document.getElementById('news-ticker').innerHTML = newsItems;
-            }
-        }
-
-        // --- Terminal Helper ---
-        function addTerminalLog(msg) {
+        socket.on('new_log', (log) => {
             const screen = document.getElementById('terminal-screen');
             const div = document.createElement('div');
             const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-            
-            let colorClass = 'text-muted';
-            if (msg.includes('ERROR')) colorClass = 'text-danger';
-            if (msg.includes('SUCCESS') || msg.includes('BUY') || msg.includes('SELL')) colorClass = 'text-success';
-            if (msg.includes('AI') || msg.includes('GEMINI')) colorClass = 'text-primary';
-            
-            div.className = `mb-1 ${colorClass}`;
-            div.innerHTML = `<span class="opacity-30 inline-block w-14">${time}</span> ${msg}`;
-            
+            div.className = "mb-1 text-slate-400";
+            div.innerHTML = `<span class="opacity-30 inline-block w-14">${time}</span> ${log}`;
             screen.appendChild(div);
-            // Auto-scroll
             screen.scrollTop = screen.scrollHeight;
-            
-            // Limit log items
-            if(screen.children.length > 100) screen.removeChild(screen.firstChild);
-        }
+            if(screen.children.length > 50) screen.removeChild(screen.firstChild);
+        });
 
-        function clearLogs() {
-            document.getElementById('terminal-screen').innerHTML = '';
-        }
-
-        // --- Bot Commands ---
+        // --- Commands ---
         async function omegaKill() {
-            if(!confirm("⚠️ بروتوكول أوميغا: إغلاق جميع الصفقات والهروب فوراً؟")) return;
-            try { await fetch('/api/omega_kill', {method: 'POST'}); } catch(e) {}
-            document.getElementById('quick-actions').classList.add('hidden');
+            if(!confirm("⚠️ OMEGA KILL: إغلاق فوري لجميع الصفقات؟")) return;
+            await fetch('/api/omega_kill', {method: 'POST'});
         }
 
-        async function closeActiveTrade() {
-            if(!confirm("تأكيد إغلاق الصفقة النشطة؟")) return;
-            try { await fetch('/api/close_active', {method: 'POST'}); } catch(e) {}
+        async function openManualOrder() {
+            alert("فتح تفويض التداول... (سيتم توجيهك للوحة الأوامر اليدوية)");
         }
 
-        // Initial Stats load
-        fetchStats();
-        setInterval(fetchStats, 5000);
-        window.onload = initChart;
+        // Speed Dial Actions
+        function rebootSystem() { if(confirm("إعادة تشغيل البوت؟")) fetch('/api/reboot', {method: 'POST'}); }
+        function generateReport() { window.open('/api/generate_report'); }
+        function scanMarkets() { fetch('/api/scan_now', {method: 'POST'}); alert("بدأ المسح الشامل..."); }
+        function openSettings() { alert("جاري تحميل إعدادات الخوارزمية..."); }
+
+        // Load Initial Stats
+        async function loadInit() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                // (Update manually once if needed, or wait for socket)
+            } catch(e) {}
+        }
+        loadInit();
+        setInterval(loadInit, 5000);
 
     </script>
 </body>
