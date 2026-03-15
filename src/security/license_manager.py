@@ -30,7 +30,11 @@ class LicenseManager:
         hwid_str = platform.node() + platform.processor() + platform.machine()
         try:
             # Try to get disk serial number for stronger lock
-            serial = subprocess.check_output('wmic diskdrive get serialnumber', shell=True).decode().split('\n')[1].strip()
+            if os.name == 'nt':
+                serial = subprocess.check_output('wmic diskdrive get serialnumber', shell=True).decode().split('\n')[1].strip()
+            else:
+                # Fallback for Linux (e.g. Railway)
+                serial = "PROSOFT-NET-NODE-X"
             hwid_str += serial
         except: pass
         return hashlib.sha256(hwid_str.encode()).hexdigest()[:16].upper()

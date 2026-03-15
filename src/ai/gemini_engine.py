@@ -74,9 +74,14 @@ class GeminiAI:
         return info
 
     async def ask(self, question, market_context=None):
-        """Ask Gemini with automatic key rotation on 429."""
+        """Ask Gemini with automatic key rotation and model fallback."""
         import google.generativeai as genai
         
+        # Priority list of models to try if the main one fails
+        fallback_models = [self.model_name, 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+        # Remove duplicates while preserving order
+        fallback_models = list(dict.fromkeys(fallback_models))
+
         tries = 0
         max_tries = len(self.api_keys) if self.api_keys else 1
         
@@ -86,31 +91,49 @@ class GeminiAI:
             
             try:
                 genai.configure(api_key=active_key)
-                model = self.models.get(active_key) or genai.GenerativeModel(self.model_name)
                 
-                # Build prompt
-                if market_context:
-                    system_prompt = (
-                        "You are PROSOFT AI, a highly sophisticated institutional trading partner and neural strategist. "
-                        "Your goal is to provide deep, clear, and human-like insights that inspire confidence. "
-                        "Do not be robotic or overly brief; instead, offer sophisticated reasoning as if you are a professional mentor. "
-                        "CRITICAL: Detect the user's language. If the user asks in Arabic, reply in a warm, clear, and professional Arabic tone. "
-                        "If in English, provide a refined institutional perspective. Be more than a bot; be a strategist."
-                    )
-                    ctx = f"\nMarket Context: Asset={market_context.get('symbol')}, Price=${market_context.get('price')}, AI Confidence={market_context.get('ai_conf')}%, Market Health={market_context.get('market_health')}%"
-                    full_prompt = f"{system_prompt}{ctx}\n\nUser Question: {question}"
-                else:
-                    full_prompt = f"Detect user language and reply in it. User: {question}"
+                # Try models in order until one works
+                response = None
+                last_err = None
+                
+                for m_name in fallback_models:
+                    try:
+                        model = genai.GenerativeModel(m_name)
+                        
+                        # Build prompt
+                        if market_context:
+                            system_prompt = (
+                                "You are PROSOFT AI, a highly sophisticated institutional trading partner and neural strategist. "
+                                "Your goal is to provide deep, clear, and human-like insights that inspire confidence. "
+                                "CRITICAL: Detect the user's language. If the user asks in Arabic, reply in a warm, clear, and professional Arabic tone. "
+                                "If in English, provide a refined institutional perspective. Be more than a bot; be a strategist."
+                            )
+                            ctx = f"\nMarket Context: Asset={market_context.get('symbol')}, Price=${market_context.get('price')}, AI Confidence={market_context.get('ai_conf')}%, Market Health={market_context.get('market_health')}%"
+                            full_prompt = f"{system_prompt}{ctx}\n\nUser Question: {question}"
+                        else:
+                            full_prompt = f"Detect user language and reply in it. User: {question}"
 
-                # Track usage
-                self.usage_stats[active_key]['requests'] += 1
-                
-                response = await asyncio.to_thread(
-                    model.generate_content,
-                    full_prompt,
-                    request_options={"timeout": 12.0}
-                )
-                
+                        # Track usage
+                        self.usage_stats[active_key]['requests'] += 1
+                        
+                        response = await asyncio.to_thread(
+                            model.generate_content,
+                            full_prompt,
+                            request_options={"timeout": 12.0}
+                        )
+                        if response:
+                            # If successful, update the main model name to this working one to avoid future retries
+                            if self.model_name != m_name:
+                                app_logger.info(f"💡 [AI CLUSTER] Auto-adjusted model to {m_name}")
+                                self.model_name = m_name
+                            break
+                    except Exception as e:
+                        last_err = e
+                        if "404" in str(e) or "not found" in str(e).lower():
+                            continue # Try next model
+                        else:
+                            raise e # Re-raise if it's not a 404 (e.g. 429 quota)
+
                 if response and hasattr(response, 'text'):
                     self.usage_stats[active_key]['limit_hit'] = False
                     self.usage_stats[active_key]['last_success'] = time.time()
