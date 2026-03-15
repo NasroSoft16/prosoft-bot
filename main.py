@@ -801,6 +801,9 @@ class TradingBot:
                         target_df = df
                         target_signal = signal
                         
+                        if target_signal['signal'] == 'WAIT':
+                            self.add_log(f"Market Scan: {self.symbol} is currently in a noise zone. AI is waiting for high-velocity momentum.")
+                        
                         # Single Symbol Focus Mode (Manual Selection only)
                         if target_signal['signal'] == 'BUY':
                             # --- Manipulation Shield Check ---
