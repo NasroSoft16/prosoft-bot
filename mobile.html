@@ -34,7 +34,6 @@
 
         .orbitron { font-family: 'Orbitron', sans-serif; }
         
-        /* Premium Blur */
         .glass-blur {
             backdrop-filter: blur(25px);
             -webkit-backdrop-filter: blur(25px);
@@ -42,7 +41,6 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* Top Header Style */
         .status-pill {
             background: rgba(16, 185, 129, 0.1);
             border: 1px solid rgba(16, 185, 129, 0.3);
@@ -68,7 +66,6 @@
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
 
-        /* Large Action Buttons */
         .btn-large {
             width: 100%;
             height: 65px;
@@ -118,6 +115,7 @@
             box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
             border: 2px solid rgba(255, 255, 255, 0.2);
             transition: all 0.3s;
+            cursor: pointer;
         }
 
         .fab-main.active { transform: rotate(45deg); background: var(--danger); }
@@ -145,7 +143,7 @@
             width: 48px;
             height: 48px;
             background: rgba(30, 41, 59, 0.95);
-            border: 1px solid var(--border);
+            border: 1px solid rgba(255,255,255,0.1);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -154,9 +152,8 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             font-size: 1.2rem;
             transition: 0.2s;
+            cursor: pointer;
         }
-
-        .fab-item:active { transform: scale(0.85); background: var(--primary); }
 
         .fab-label {
             position: absolute;
@@ -170,18 +167,6 @@
             pointer-events: none;
         }
 
-        /* Bottom Nav icons */
-        .nav-link i { font-size: 24px; margin-bottom: 4px; display: block; }
-        .nav-link { 
-            color: var(--text-muted); 
-            text-decoration: none; 
-            text-align: center; 
-            padding: 8px 0;
-            transition: 0.3s;
-        }
-        .nav-link.active { color: var(--primary); text-shadow: 0 0 10px var(--primary); }
-
-        /* News Ticker */
         .ticker-wrap {
             overflow: hidden;
             background: rgba(0,0,0,0.4);
@@ -202,29 +187,45 @@
             100% { transform: translateX(-100%); }
         }
 
-        /* Tab Content */
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: slideIn 0.4s ease-out; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
+        /* Toast Styling */
+        #toast {
+            position: fixed;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 242, 255, 0.9);
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            z-index: 5000;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
 
-    <!-- Top Info Bar -->
+    <div id="toast">تم تفعيل الأوامر بنجاح</div>
+
     <div class="ticker-wrap">
         <div class="ticker-move" id="live-news">
             <span class="px-8 text-[10px] text-primary font-bold">PROSOFT QUANTUM : جاري تحليل السيولة...</span>
-            <span class="px-8 text-[10px] text-white/50">توازن السوق (Market Balance):Buyers Dominant</span>
-            <span class="px-8 text-[10px] text-success/80">Profit Stream: Yield Farming Active (+0.04% APR)</span>
+            <span class="px-8 text-[10px] text-white/50">توازن السوق: Buyers Dominant</span>
+            <span class="px-8 text-[10px] text-success/80">Yield Farming Active (+0.04% APR)</span>
         </div>
     </div>
 
-    <!-- Header Section -->
     <header class="px-6 py-4 flex justify-between items-center">
         <div class="status-pill">
-            <div class="pulse-dot"></div>
-            <span class="text-[10px] font-black orbitron" style="color: #10b981;">ONLINE</span>
+            <div class="pulse-dot" id="conn-dot"></div>
+            <span class="text-[10px] font-black orbitron" id="conn-text" style="color: #10b981;">ONLINE</span>
         </div>
         <div class="text-right">
             <h1 class="orbitron text-2xl font-black tracking-widest leading-none">PROSOFT</h1>
@@ -234,10 +235,8 @@
 
     <main class="px-6 py-2">
         
-        <!-- ================= HOME TAB ================= -->
+        <!-- HOME TAB -->
         <div id="tab-home" class="tab-content active">
-            
-            <!-- Main Balance Display (Matching Screenshot Layout) -->
             <div class="grid grid-cols-2 gap-4 mb-8 mt-4">
                 <div class="text-right">
                     <p class="text-[10px] text-muted font-bold uppercase mb-1">إجمالي التمويل الصافي</p>
@@ -249,39 +248,33 @@
                 </div>
             </div>
 
-            <!-- Central Action Buttons (Matching Screenshot) -->
             <div class="space-y-4 mb-10">
-                <button onclick="omegaKill()" class="btn-large btn-red shadow-lg">
+                <button onclick="apiCall('/api/omega', 'POST', '🚨 OMEGA ACTIVATED')" class="btn-large btn-red shadow-lg">
                     <span class="mr-2">⚡</span> OMEGA STOP
                 </button>
-                <button onclick="openManualOrder()" class="btn-large btn-blue shadow-lg">
+                <button onclick="apiCall('/api/execute_manual', 'POST', '🎯 AUTHORIZING ORDER')" class="btn-large btn-blue shadow-lg">
                     <span class="mr-2">🎯</span> AUTHORIZE ORDER
                 </button>
             </div>
 
-            <!-- Lower Stats -->
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div class="glass-blur rounded-2xl p-4 flex flex-col items-center">
                     <p class="text-[10px] font-bold text-muted uppercase mb-1">دقة الـ AI</p>
-                    <span id="ai-conf" class="orbitron text-xl font-black text-primary">85%</span>
+                    <span id="ai-conf" class="orbitron text-xl font-black text-primary">--%</span>
                 </div>
                 <div class="glass-blur rounded-2xl p-4 flex flex-col items-center">
                     <p class="text-[10px] font-bold text-muted uppercase mb-1">صحة السوق</p>
                     <div class="w-full bg-white/5 h-1.5 rounded-full mt-2 overflow-hidden">
-                        <div id="market-health-bar" class="h-full bg-primary w-[75%] shadow-[0_0_10px_#00f2ff]"></div>
+                        <div id="market-health-bar" class="h-full bg-primary w-0 shadow-[0_0_10px_#00f2ff]"></div>
                     </div>
-                    <span id="market-health-text" class="text-[10px] font-bold mt-1">75%</span>
+                    <span id="market-health-text" class="text-[10px] font-bold mt-1">--%</span>
                 </div>
             </div>
 
-            <!-- Active Position Alert (Floating style) -->
-            <div id="active-position-hub">
-                <!-- Injected via JS when trade moves -->
-            </div>
-
+            <div id="active-position-hub"></div>
         </div>
 
-        <!-- ================= ANALYTICS TAB ================= -->
+        <!-- ANALYTICS TAB -->
         <div id="tab-analytics" class="tab-content">
             <h3 class="text-xs font-black text-primary uppercase tracking-widest mb-4 border-r-2 border-primary pr-2">تحليل السيولة العبقري</h3>
             <div class="glass-blur rounded-2xl p-5 mb-5">
@@ -290,7 +283,7 @@
                     <span id="flow-bias" class="text-[10px] font-bold bg-primary/20 text-primary px-2 py-0.5 rounded">NEUTRAL</span>
                 </div>
                 <div class="w-full bg-white/5 h-2 rounded-full overflow-hidden mb-6">
-                    <div id="flow-pressure-bar" class="h-full bg-gradient-to-r from-secondary to-primary w-1/2"></div>
+                    <div id="flow-pressure-bar" class="h-full bg-gradient-to-r from-secondary to-primary w-0"></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="bg-white/5 p-3 rounded-xl">
@@ -299,110 +292,85 @@
                     </div>
                     <div class="bg-white/5 p-3 rounded-xl">
                         <p class="text-[8px] text-muted uppercase mb-1">Real Spread</p>
-                        <p id="flow-spread" class="orbitron text-sm font-bold">0.00%</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Macro Guardian -->
-            <div class="glass-blur rounded-2xl p-5">
-                <p class="text-[10px] font-bold text-muted uppercase mb-4">المؤشرات الكلية المتزامنة</p>
-                <div class="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                        <p class="text-[8px] text-muted uppercase">Fear Index</p>
-                        <p id="macro-fgi" class="orbitron text-lg font-bold">--</p>
-                    </div>
-                    <div>
-                        <p class="text-[8px] text-muted uppercase">Market Regime</p>
-                        <p id="macro-regime" class="text-[10px] font-black text-primary">--</p>
-                    </div>
-                    <div>
-                        <p class="text-[8px] text-muted uppercase">Risk Level</p>
-                        <p id="macro-risk" class="text-[10px] font-black text-success">--</p>
+                        <p id="flow-spread" class="orbitron text-sm font-bold">0.000%</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ================= INTEL TAB ================= -->
+        <!-- INTEL TAB -->
         <div id="tab-intel" class="tab-content">
             <div class="glass-blur rounded-2xl p-5 mb-5 border-r-4 border-primary">
                 <div class="flex items-center gap-2 mb-3">
                     <span class="text-xl">🧠</span>
-                    <p class="text-xs font-bold">رؤية الذاكرة العصبية (Neural Vision)</p>
+                    <p class="text-xs font-bold">رؤية الذاكرة العصبية</p>
                 </div>
-                <p id="ai-insight" class="text-xs leading-relaxed text-slate-300 italic">
-                    "جاري مسح كتل السيولة على نطاق 100M$. التمركزات الحالية تشير إلى استقرار مؤسسي مؤقت."
-                </p>
+                <p id="ai-insight" class="text-xs leading-relaxed text-slate-300 italic">"جاري مسح كتل السيولة على نطاق 100M$..."</p>
             </div>
-            
-            <div class="space-y-3" id="ai-nodes-list">
-                <!-- Nodes injected -->
-            </div>
+            <div class="space-y-3" id="ai-nodes-list"></div>
         </div>
 
-        <!-- ================= LOGS TAB ================= -->
+        <!-- LOGS TAB -->
         <div id="tab-logs" class="tab-content h-[400px]">
-            <div id="terminal-screen" class="glass-blur rounded-2xl p-4 h-full overflow-y-auto font-mono text-[9px]">
+            <div id="terminal-screen" class="glass-blur rounded-2xl p-4 h-full overflow-y-auto font-mono text-[9px] leading-relaxed">
                 <div class="text-primary opacity-50 mb-2">>_ SYSTEM BOOT INITIALIZED</div>
             </div>
         </div>
 
     </main>
 
-    <!-- Speed Dial FAB (The "Branched" Menu) -->
+    <!-- FAB -->
     <div class="fab-container">
         <div class="fab-menu" id="fab-menu">
             <div class="relative flex items-center justify-end">
                 <span class="fab-label">إعادة تشغيل النظام</span>
-                <button onclick="rebootSystem()" class="fab-item">🔄</button>
+                <div onclick="apiCall('/api/reboot', 'POST', 'Relaunching System...')" class="fab-item">🔄</div>
             </div>
             <div class="relative flex items-center justify-end">
                 <span class="fab-label">تقرير PDF شامل</span>
-                <button onclick="generateReport()" class="fab-item">📄</button>
+                <div onclick="apiCall('/api/test_report', 'POST', 'Sending PDF to Telegram...')" class="fab-item">📄</div>
             </div>
             <div class="relative flex items-center justify-end">
                 <span class="fab-label">إعدادات الخوارزمية</span>
-                <button onclick="openSettings()" class="fab-item">⚙️</button>
+                <div onclick="window.location.href='/'" class="fab-item">⚙️</div>
             </div>
             <div class="relative flex items-center justify-end">
                 <span class="fab-label">تحديث قائمة العملات</span>
-                <button onclick="scanMarkets()" class="fab-item">🔍</button>
+                <div onclick="apiCall('/api/scan_now', 'POST', 'Full Market Scan Started')" class="fab-item">🔍</div>
             </div>
         </div>
-        <button onclick="toggleFab()" class="fab-main" id="fab-trigger">
+        <div onclick="toggleFab()" class="fab-main" id="fab-trigger">
             <span class="text-2xl font-black text-black">⚡</span>
-        </button>
+        </div>
     </div>
 
-    <!-- Bottom Navigation -->
+    <!-- Bottom Nav -->
     <nav class="fixed bottom-0 left-0 right-0 h-[85px] glass-blur border-t border-white/10 flex justify-around items-center px-4 z-[500]">
-        <button onclick="switchTab('home', this)" class="nav-link active">
-            <i>🏠</i>
-            <span class="text-[9px] font-bold uppercase">الرئيسية</span>
-        </button>
-        <button onclick="switchTab('analytics', this)" class="nav-link">
-            <i>📊</i>
-            <span class="text-[9px] font-bold uppercase">التحليلات</span>
-        </button>
-        <button onclick="switchTab('intel', this)" class="nav-link">
-            <i>🧠</i>
-            <span class="text-[9px] font-bold uppercase">الذكاء</span>
-        </button>
-        <button onclick="switchTab('logs', this)" class="nav-link">
-            <i>⌨️</i>
-            <span class="text-[9px] font-bold uppercase">السجلات</span>
-        </button>
-        <a href="/" class="nav-link">
-            <i>🖥️</i>
-            <span class="text-[9px] font-bold uppercase">Desktop</span>
-        </a>
+        <div onclick="switchTab('home', this)" class="nav-link active"><i>🏠</i><span class="text-[9px] font-bold uppercase">الرئيسية</span></div>
+        <div onclick="switchTab('analytics', this)" class="nav-link"><i>📊</i><span class="text-[9px] font-bold uppercase">التحليلات</span></div>
+        <div onclick="switchTab('intel', this)" class="nav-link"><i>🧠</i><span class="text-[9px] font-bold uppercase">الذكاء</span></div>
+        <div onclick="switchTab('logs', this)" class="nav-link"><i>⌨️</i><span class="text-[9px] font-bold uppercase">السجلات</span></div>
+        <div onclick="window.location.href='/'" class="nav-link"><i>🖥️</i><span class="text-[9px] font-bold uppercase">Desktop</span></div>
     </nav>
 
     <script>
         const socket = io();
 
-        // --- Navigation ---
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.opacity = '1';
+            setTimeout(() => t.style.opacity = '0', 3000);
+        }
+
+        async function apiCall(endpoint, method, msg) {
+            try {
+                const res = await fetch(endpoint, { method: method });
+                showToast(msg);
+                if(endpoint === '/api/omega') toggleFab();
+            } catch(e) { showToast("Error connecting to Node"); }
+        }
+
         function switchTab(tabId, el) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
@@ -410,28 +378,20 @@
             el.classList.add('active');
         }
 
-        // --- FAB Menu Toggle ---
         function toggleFab() {
-            const menu = document.getElementById('fab-menu');
-            const trigger = document.getElementById('fab-trigger');
-            menu.classList.toggle('active');
-            trigger.classList.toggle('active');
+            document.getElementById('fab-menu').classList.toggle('active');
+            document.getElementById('fab-trigger').classList.toggle('active');
         }
 
-        // --- UI Updates ---
         socket.on('status_update', (data) => {
             const s = data.bot_stats;
             if(!s) return;
-
-            // Balance & Equity
             document.getElementById('total-equity').innerText = '$' + (s.total_equity || 0).toLocaleString(undefined, {minimumFractionDigits: 3});
-            
-            // AI Conf & Market Health (The requested adjustments)
-            document.getElementById('ai-conf').innerText = ((s.ai_conf || 0) * 100).toFixed(0) + '%';
-            document.getElementById('market-health-bar').style.width = (s.market_health || 75) + '%';
+            document.getElementById('daily-profit').innerText = '+' + (s.daily_pnl || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + '$';
+            document.getElementById('ai-conf').innerText = ((s.ai_conf || 0)*100).toFixed(0) + '%';
             document.getElementById('market-health-text').innerText = (s.market_health || 75).toFixed(0) + '%';
-
-            // Analytics
+            document.getElementById('market-health-bar').style.width = (s.market_health || 75) + '%';
+            
             if(s.order_flow) {
                 document.getElementById('flow-pressure-bar').style.width = s.order_flow.pressure_score + '%';
                 document.getElementById('flow-bias').innerText = (s.order_flow.bias || 'NEUTRAL').replace('_', ' ');
@@ -439,53 +399,36 @@
                 document.getElementById('flow-spread').innerText = (s.order_flow.spread_pct || 0).toFixed(4) + '%';
             }
 
-            // Macro
-            if(s.macro_state) {
-                const m = s.macro_state;
-                document.getElementById('macro-fgi').innerText = m.fear_greed_index || '--';
-                document.getElementById('macro-regime').innerText = m.market_regime || '--';
-                document.getElementById('macro-risk').innerText = m.risk_level || '--';
-            }
+            if(data.active_trade) {
+                const t = data.active_trade;
+                const pnl = ((s.price - t.entry_price) * t.qty);
+                const pnlPct = ((s.price / t.entry_price - 1) * 100);
+                const isPlus = pnl >= 0;
+                document.getElementById('active-position-hub').innerHTML = `
+                    <div class="glass-blur p-4 rounded-2xl border-l-4 ${isPlus ? 'border-success' : 'border-danger'} animate-pulse">
+                        <div class="flex justify-between items-center mb-2">
+                             <span class="orbitron text-sm font-bold">${t.symbol}</span>
+                             <span class="text-xs font-black ${isPlus ? 'text-success' : 'text-danger'}">${pnlPct.toFixed(2)}%</span>
+                        </div>
+                        <button onclick="apiCall('/api/close_trade', 'POST', 'Manual Exit Sent')" class="w-full py-2 bg-danger/10 text-danger text-[10px] font-bold rounded-lg mt-2">CLOSE POSITION</button>
+                    </div>
+                `;
+            } else { document.getElementById('active-position-hub').innerHTML = ''; }
         });
 
         socket.on('new_log', (log) => {
             const screen = document.getElementById('terminal-screen');
             const div = document.createElement('div');
-            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
             div.className = "mb-1 text-slate-400";
-            div.innerHTML = `<span class="opacity-30 inline-block w-14">${time}</span> ${log}`;
+            div.innerHTML = `<span class="opacity-20 inline-block w-12">${new Date().toLocaleTimeString()}</span> ${log}`;
             screen.appendChild(div);
             screen.scrollTop = screen.scrollHeight;
             if(screen.children.length > 50) screen.removeChild(screen.firstChild);
         });
 
-        // --- Commands ---
-        async function omegaKill() {
-            if(!confirm("⚠️ OMEGA KILL: إغلاق فوري لجميع الصفقات؟")) return;
-            await fetch('/api/omega_kill', {method: 'POST'});
-        }
-
-        async function openManualOrder() {
-            alert("فتح تفويض التداول... (سيتم توجيهك للوحة الأوامر اليدوية)");
-        }
-
-        // Speed Dial Actions
-        function rebootSystem() { if(confirm("إعادة تشغيل البوت؟")) fetch('/api/reboot', {method: 'POST'}); }
-        function generateReport() { window.open('/api/generate_report'); }
-        function scanMarkets() { fetch('/api/scan_now', {method: 'POST'}); alert("بدأ المسح الشامل..."); }
-        function openSettings() { alert("جاري تحميل إعدادات الخوارزمية..."); }
-
-        // Load Initial Stats
-        async function loadInit() {
-            try {
-                const res = await fetch('/api/stats');
-                const data = await res.json();
-                // (Update manually once if needed, or wait for socket)
-            } catch(e) {}
-        }
-        loadInit();
-        setInterval(loadInit, 5000);
-
+        setInterval(async () => {
+            try { await fetch('/api/stats'); } catch(e) {}
+        }, 5000);
     </script>
 </body>
 </html>

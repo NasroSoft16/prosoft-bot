@@ -637,6 +637,23 @@ class DashboardAPI:
             except Exception as e:
                 return jsonify({'response': f'Error: {str(e)}'}), 500
 
+        @self.app.route('/api/reboot', methods=['POST'])
+        def reboot_bot():
+            """Gracefully exit and let the supervisor restart the process."""
+            self.bot.add_log("SYSTEM: Remote Reboot Signal Received. Shutting down...")
+            def shutdown():
+                time.sleep(2)
+                os._exit(0)
+            threading.Thread(target=shutdown).start()
+            return jsonify({'status': 'success', 'message': 'Rebooting system...'})
+
+        @self.app.route('/api/scan_now', methods=['POST'])
+        def trigger_scan():
+            """Triggers an immediate market scanning cycle."""
+            self.bot.add_log("SYSTEM: Manual Market Scan Triggered.")
+            threading.Thread(target=lambda: asyncio.run(self.bot.market_scanner.scan_market())).start()
+            return jsonify({'status': 'success', 'message': 'Scanning initiated...'})
+
     def _get_ai_response(self, query):
         """Quantum Neural Reasoning: High-level interactive strategist."""
         q = query.lower()
