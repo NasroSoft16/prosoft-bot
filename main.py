@@ -481,10 +481,10 @@ class TradingBot:
                             if self.stats['total_equity'] > 0:
                                 # Run yield farming/launchpool on idle USDT if no active trade
                                 if not self.active_trade and self.execution_mode == 'auto':
-                                    self.farmer.check_and_farm(threshold_usdt=25.0)
+                                    await self.farmer.check_and_farm(threshold_usdt=25.0)
                                     # LAUNCHPOOL INTEGRATION: Stake idle funds for free tokens
                                     if self.stats['balance'] > 50:
-                                        self.pool_hunter.auto_stake_for_farming(amount_usdt=20.0)
+                                        await self.pool_hunter.auto_stake_for_farming(amount_usdt=20.0)
                                     
                                 self.add_log(f"Portfolio Sync: Equity verified at ${self.stats['total_equity']:,.2f}")
                                 

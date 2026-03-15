@@ -16,7 +16,7 @@ class GeminiAI:
         self.current_key_idx = 0
         self.models = {}  # Cache models for each key
         self.usage_stats = {key: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0} for key in self.api_keys}
-        self.model_name = 'gemini-1.5-flash-latest' # Optimal for fast trading analysis
+        self.model_name = 'gemini-1.5-flash' # Optimal for fast trading analysis
         self.model = True # Compatibility flag for dashboard checks
         self._initialize_all()
     

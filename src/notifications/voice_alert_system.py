@@ -44,6 +44,11 @@ class VoiceAlertSystem:
         """Uses Windows PowerShell SAPI to speak the message aloud."""
         if not self.enabled: return
         
+        # Only attempt on Windows
+        if os.name != 'nt':
+            app_logger.info(f"[Voice Alert] Verbal notification (Text-only on Linux): {message}")
+            return
+
         def _speak():
             try:
                 # Clean message for shell
