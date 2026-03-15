@@ -41,6 +41,35 @@ class DashboardAPI:
         CORS(self.app, supports_credentials=True) # Support session cookies
         self.socketio = SocketIO(self.app, cors_allowed_origins="*", manage_session=True)
         self._setup_routes()
+        self._start_background_emitter()
+
+    def _start_background_emitter(self):
+        """Starts a background thread to push periodic updates via Socket.IO."""
+        def emit_loop():
+            while True:
+                try:
+                    # Collect current status
+                    status_data = {
+                        'bot_stats': self.bot.stats,
+                        'current_symbol': self.bot.symbol,
+                        'active_trade': self.bot.active_trade,
+                        'equity': self.bot.stats.get('total_equity', 0)
+                    }
+                    self.socketio.emit('status_update', status_data)
+                    
+                    # Push latest logs if any
+                    if self.bot.logs:
+                        latest_log = self.bot.logs[-1]
+                        self.socketio.emit('new_log', latest_log)
+                        
+                except Exception as e:
+                    app_logger.error(f"Socket Emitter Error: {e}")
+                
+                time.sleep(3) # Emit every 3 seconds
+        
+        thread = threading.Thread(target=emit_loop)
+        thread.daemon = True
+        thread.start()
 
     def _setup_routes(self):
         @self.app.route('/', methods=['GET'])
