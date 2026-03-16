@@ -467,8 +467,9 @@ class TradingBot:
                             )
                     else:
                         self.add_log("Data Warning: Insufficient data for analysis. Waiting...")
-                        await asyncio.sleep(self.interval_sec)
-                        continue
+                        if not self.active_trade:
+                            await asyncio.sleep(self.interval_sec)
+                            continue
 
                     # 3. Portfolio Sync (Every 5 loops)
                     if loop_count % 5 == 0:
@@ -889,7 +890,7 @@ class TradingBot:
                             self.voice.alert_stop_loss()
                             await self.close_trade('SELL', curr_price, "SL")
                         # --- Partial Take Profit (TP1 = 50% position at midpoint) ---
-                        elif curr_price >= trade.get('tp1', trade['tp']) and not trade.get('partial_done'):
+                        elif 'tp1' in trade and curr_price >= trade['tp1'] and not trade.get('partial_done'):
                             tp1_price = trade['entry_price'] + (trade['tp'] - trade['entry_price']) * 0.5
                             if curr_price >= tp1_price:
                                 self.add_log(f"💰 PARTIAL TP: Locking 50% profit on {trade['symbol']} @ {curr_price:.2f}")
