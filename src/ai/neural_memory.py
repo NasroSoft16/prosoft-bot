@@ -191,7 +191,7 @@ class NeuralMemory:
                     SUM(CASE WHEN profit_loss > 0 THEN 1 ELSE 0 END) as wins,
                     SUM(profit_loss) as total_pnl
                 FROM trade_memory 
-                WHERE timestamp > '{cutoff}'
+                WHERE entry_time > '{cutoff}'
             """, conn)
             conn.close()
             
