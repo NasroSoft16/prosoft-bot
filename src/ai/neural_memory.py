@@ -8,8 +8,8 @@ from src.utils.logger import app_logger
 class NeuralMemory:
     """PROSOFT AI Self-Learning Database (SQLite) for storing trade history & self-improvement."""
     
-    def __init__(self, db_path="brain.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path or os.environ.get("DB_PATH", "brain.db")
         self._initialize_db()
 
     def _initialize_db(self):

@@ -9,8 +9,8 @@ from cryptography.fernet import Fernet
 class LicenseManager:
     """PROSOFT GLOBAL ACTIVATION SYSTEM (Universal)"""
     
-    def __init__(self, db_path="brain.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path or os.environ.get("DB_PATH", "brain.db")
         self.license_file = "prosoft.lic"
         self.trial_days = 3
         # Secret key for local encryption

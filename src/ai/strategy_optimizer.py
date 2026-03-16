@@ -6,8 +6,8 @@ from src.utils.logger import app_logger
 class StrategyOptimizer:
     """PROSOFT AI: The Scientist - Self-Refactoring Strategy Logic."""
     
-    def __init__(self, db_path="brain.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path or os.environ.get("DB_PATH", "brain.db")
         
     def run_optimization_cycle(self):
         """Analyzes memory and updates strategy parameters for maximum efficiency."""
