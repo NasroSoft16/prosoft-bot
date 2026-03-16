@@ -8,6 +8,9 @@ class StrategyOptimizer:
     
     def __init__(self, db_path=None):
         self.db_path = db_path or os.environ.get("DB_PATH", "brain.db")
+        db_dir = os.path.dirname(self.db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
         
     def run_optimization_cycle(self):
         """Analyzes memory and updates strategy parameters for maximum efficiency."""
