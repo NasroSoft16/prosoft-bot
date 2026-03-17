@@ -18,13 +18,17 @@ class MicroScalper:
     async def find_volatile_candidates(self, limit=10):
         """Scans the market for symbols with high volume and recent volatility."""
         try:
+            # Fetch Exchange Info to check status
+            info = self.api.client.get_exchange_info()
+            trading_symbols = {s['symbol']: s['status'] for s in info['symbols'] if s['status'] == 'TRADING'}
+            
             tickers = self.api.client.get_ticker()
             candidates = []
             
             for t in tickers:
                 symbol = t['symbol']
-                # Only USDT pairs
-                if not symbol.endswith('USDT'): continue
+                # Only USDT pairs and ONLY active trading pairs
+                if not symbol.endswith('USDT') or symbol not in trading_symbols: continue
                 
                 quote_volume = float(t['quoteVolume'])
                 price_change_pct = abs(float(t['priceChangePercent']))

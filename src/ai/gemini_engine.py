@@ -16,7 +16,7 @@ class GeminiAI:
         self.current_key_idx = 0
         self.models = {}  # Cache models for each key
         self.usage_stats = {key: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0} for key in self.api_keys}
-        self.model_name = 'gemini-1.5-flash' # Optimal for fast trading analysis
+        self.model_name = 'gemini-1.5-flash-latest' # Canonical stable latest
         self.model = True # Compatibility flag for dashboard checks
         self._initialize_all()
     
@@ -78,7 +78,7 @@ class GeminiAI:
         import google.generativeai as genai
         
         # Priority list of models to try if the main one fails
-        fallback_models = [self.model_name, 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+        fallback_models = [self.model_name, 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-1.5-flash', 'gemini-1.5-pro']
         # Remove duplicates while preserving order
         fallback_models = list(dict.fromkeys(fallback_models))
 
