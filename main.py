@@ -924,6 +924,10 @@ class TradingBot:
                         trade = self.active_trade
                         curr_price = self.stats['price']
                         
+                        # Calculate current performance for exit logic
+                        pnl = (curr_price - trade['entry_price']) * trade['qty']
+                        pnl_pct = (curr_price - trade['entry_price']) / trade['entry_price'] * 100
+                        
                         # Check Stop Loss
                         if curr_price <= trade['sl']:
                             self.add_log(f"STOP LOSS HIT for {trade['symbol']} @ {curr_price}")
