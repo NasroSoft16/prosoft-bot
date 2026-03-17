@@ -604,6 +604,29 @@ class DashboardAPI:
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)}), 500
 
+        @self.app.route('/api/maintenance/delete_record', methods=['POST'])
+        def delete_specific_record():
+            """Delete a single specific record by ID and table name."""
+            try:
+                data = request.get_json()
+                table = data.get('table') # 'trade_memory' or 'revenue_memory'
+                row_id = data.get('id')
+
+                if table not in ['trade_memory', 'revenue_memory']:
+                    return jsonify({'status': 'error', 'message': 'Invalid table source.'}), 400
+
+                import sqlite3
+                conn = sqlite3.connect(self.bot.memory.db_path)
+                cursor = conn.cursor()
+                cursor.execute(f"DELETE FROM {table} WHERE id = ?", (row_id,))
+                conn.commit()
+                conn.close()
+                
+                self.bot.add_log(f"🛠️ SYSTEM: Specific {table} record (ID: {row_id}) manually pruned.")
+                return jsonify({'status': 'success', 'message': f'Record {row_id} deleted.'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
+
         @self.app.route('/api/revenue', methods=['GET'])
         def get_revenue():
             """Fetch the revenue stream history."""

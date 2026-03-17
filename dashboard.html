@@ -1000,7 +1000,8 @@
                             <th class="px-3 py-3 text-right">Exit</th>
                             <th class="px-3 py-3 text-right">PNL</th>
                             <th class="px-3 py-3 text-right">Health/Conf</th>
-                            <th class="px-3 py-3 rounded-tr">Neural Lesson</th>
+                            <th class="px-3 py-3">Neural Lesson</th>
+                            <th class="px-3 py-3 text-right" data-en="Action" data-ar="إجراء">Action</th>
                         </tr>
                     </thead>
                     <tbody id="memory-table-body" class="divide-y divide-[#1f2937]">
@@ -1020,7 +1021,8 @@
                             <th class="px-3 py-3">Mechanism</th>
                             <th class="px-3 py-3">Asset</th>
                             <th class="px-3 py-3 text-right">Amount</th>
-                            <th class="px-3 py-3 rounded-tr">Intelligence Details</th>
+                            <th class="px-3 py-3">Intelligence Details</th>
+                            <th class="px-3 py-3 text-right" data-en="Action" data-ar="إجراء">Action</th>
                         </tr>
                     </thead>
                     <tbody id="revenue-table-body" class="divide-y divide-[#1f2937]">
@@ -1667,6 +1669,26 @@
             } catch (e) { alert("Connection Error."); }
         }
 
+        async function deleteRecord(table, id) {
+            const confirmMsg = currentLang === 'en' ? "Delete this specific record?" : "هل تريد حذف هذا السجل المحدد؟";
+            if (!confirm(confirmMsg)) return;
+            
+            try {
+                const res = await fetch(`${API_BASE}/maintenance/delete_record`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ table, id })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    if (table === 'trade_memory') updateMemory();
+                    else updateRevenue();
+                } else {
+                    alert("Error: " + data.message);
+                }
+            } catch (e) { alert("Connection error."); }
+        }
+
         async function updateScanner() {
             try {
                 const res = await fetch(`${API_BASE}/scanner`);
@@ -1735,6 +1757,11 @@
                         <td class="px-3 py-3 text-right font-mono font-bold ${pnlColor}">${parseFloat(m.profit_loss) >= 0 ? '+' : ''}${parseFloat(m.profit_loss).toFixed(2)}</td>
                         <td class="px-3 py-3 text-right font-mono">H:${(m.market_health || 0).toFixed(0)}% / C:${((m.ai_confidence || 0) * 100).toFixed(0)}%</td>
                         <td class="px-3 py-3 text-[10px] text-slate-400 max-w-xs break-words whitespace-normal leading-relaxed">${m.lesson_learned || ''}</td>
+                        <td class="px-3 py-3 text-right">
+                            <button onclick="deleteRecord('trade_memory', ${m.id})" class="text-red-500/50 hover:text-red-500 transition-colors p-1" title="Delete Record">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </td>
                     </tr>`;
                 }).join('');
             } catch (e) { }
@@ -1761,6 +1788,11 @@
                         <td class="px-3 py-3 font-mono text-slate-400">${r.asset}</td>
                         <td class="px-3 py-3 text-right font-mono font-bold ${amtColor}">${r.amount >= 0 ? '+' : ''}${parseFloat(r.amount).toFixed(4)}</td>
                         <td class="px-3 py-3 text-[10px] text-slate-400 max-w-xs break-words whitespace-normal leading-relaxed">${r.details}</td>
+                        <td class="px-3 py-3 text-right">
+                            <button onclick="deleteRecord('revenue_memory', ${r.id})" class="text-red-500/50 hover:text-red-500 transition-colors p-1" title="Delete Record">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </td>
                     </tr>`;
                 }).join('');
             } catch (e) { }
