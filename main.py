@@ -1253,7 +1253,7 @@ class TradingBot:
     def update_accuracy_stats(self):
         """Update the accuracy evolution history."""
         try:
-            import datetime
+            from datetime import datetime, timezone, timedelta
             memories = self.memory.get_recent_memories(limit=20)
             if memories:
                 wins = len([m for m in memories if m['profit_loss'] > 0])
@@ -1261,7 +1261,6 @@ class TradingBot:
                 if not isinstance(self.stats['ai_accuracy_history'], list):
                     self.stats['ai_accuracy_history'] = []
                     
-                from datetime import timezone, timedelta
                 now_algeria = datetime.now(timezone.utc) + timedelta(hours=1)
                 self.stats['ai_accuracy_history'].append({
                     'time': now_algeria.strftime("%H:%M"),
@@ -1276,7 +1275,7 @@ class TradingBot:
     async def _check_daily_report(self):
         """Compiles and sends a high-level summary of all revenue streams at 23:00."""
         try:
-            from datetime import timezone, timedelta
+            from datetime import datetime, timezone, timedelta
             now = datetime.now(timezone.utc) + timedelta(hours=1)
             today_str = now.strftime("%Y-%m-%d")
             
