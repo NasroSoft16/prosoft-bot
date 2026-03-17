@@ -189,13 +189,7 @@ class TradingBot:
         # Performance & AI Evolution Tracking
         self.is_paused = False # Mode to stop all loops if Omega triggered
         
-        # Dashboard API & Event Sync
-        self.main_loop = asyncio.get_event_loop()
-        self.wakeup_event = asyncio.Event()
-        self.dashboard = DashboardAPI(self)
-        self.dashboard.run(port=5000)
-        
-        # Active Trade Tracking
+        # Active Trade Tracking (INITIALIZED BEFORE DASHBOARD TO PREVENT ERRORS)
         # --- CLOUD RECOVERY: Load previous state if exists ---
         self.active_trade = self.healer.load_trade_state()
         if self.active_trade:
@@ -203,6 +197,12 @@ class TradingBot:
             self.add_log(f"💾 SYSTEM RECOVERED: Restored active {self.active_trade['symbol']} trade.")
         else:
             self.active_trade = None # Stores {symbol, side, entry_price, qty, sl, tp, conf}
+
+        # Dashboard API & Event Sync (MOVED AFTER STATE LOAD)
+        self.main_loop = asyncio.get_event_loop()
+        self.wakeup_event = asyncio.Event()
+        self.dashboard = DashboardAPI(self)
+        self.dashboard.run(port=5000)
             
         self.omega_active = False # Protocol Omega State
         self.last_report_date = None # Track daily summary timestamp
