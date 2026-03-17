@@ -89,9 +89,8 @@ from src.ai.whale_copy_trader import WhaleAlphaTracker
 from src.strategy.arbitrage_engine import TriangularArbitrageEngine
 from src.strategy.order_flow_analyzer import OrderFlowAnalyzer
 from src.risk_management.hedging_protocol import HedgingProtocol
-from src.risk_management.global_macro_filter import GlobalMacroFilter
 from src.strategy.liquidity_heatmap import LiquidityHeatmap
-from src.strategy.micro_scalper import MicroScalper
+# Micro-Scalper disabled as requested
 
 load_dotenv()
 
@@ -114,7 +113,7 @@ class TradingBot:
         self.gemini = GeminiAI()
         self.intel = QuantumIntelligence(gemini=self.gemini)
         self.portfolio = PortfolioManager(self.api)
-        self.news = GlobalNewsEngine()
+        # self.news = GlobalNewsEngine() # Disabled News Engine
         self.whales = WhaleTracker()
         
         # Initialize Stats early to avoid AttributeErrors
@@ -130,7 +129,7 @@ class TradingBot:
             'market_health': 50.0,
             'sentiment': 'Neutral',
             'prediction': 'N/A',
-            'market_pulse': self.news.refresh_pulse({}),
+            'market_pulse': {'feed': []},
             'whale_alerts': [],
             'top_gems': [],
             'execution_mode': self.execution_mode,
@@ -168,7 +167,7 @@ class TradingBot:
         self.market_scanner = MarketScanner(self.api)
         self.rocket_sniper = MemeRocketSniper(self.api)
         self.pool_hunter = LaunchpoolHunter(self.api)
-        self.sentiment_front = AISentimentFrontRunner(self.gemini, self.news)
+        self.sentiment_front = AISentimentFrontRunner(self.gemini, None) # News disabled
         self.twitter = TwitterSentimentFirehose() # Phase 1: Twitter Radar
         self.optimizer = StrategyOptimizer()      # Cycle 2: The Scientist
         self.alpha_tracker = WhaleAlphaTracker()  # Cycle 2: Shadow Protocol
@@ -178,7 +177,7 @@ class TradingBot:
         self.macro_filter = GlobalMacroFilter()                # Cycle 4: Macro Guardian
         self.heatmap = LiquidityHeatmap(self.api)              # Cycle 4: War Room
         self.memory = NeuralMemory()
-        self.micro_scalper = MicroScalper(self.api)            # PROSOFT Micro-Scalper
+        # self.micro_scalper = MicroScalper(self.api) # Micro-Scalper removed
         
         # --- NEW MODULES (v12.0) ---
         self.shield = ManipulationShield()        # درع التلاعب
@@ -610,23 +609,13 @@ class TradingBot:
                                            f"Status: System mirroring initialized.")
                                 await self.telegram.send_message(alert_msg)
                                 self.add_log(f"Alpha Shadow: Detected institutional lead on {lead['symbol']}")
-                                if self.execution_mode == 'auto':
-                                    self.switch_symbol(lead['symbol'])
+                                if self.execution_mode == 'auto': # Macro filter skipped (News disabled)
+                                    pass
 
                     # Refresh News Pulse every 10 loops (~3 minutes) for a dynamic ticker
                     if loop_count % 10 == 0:
-                        # Generate a dynamic AI Insight before refreshing
-                        try:
-                            rsi = self.stats.get('rsi', 50)
-                            if rsi > 70:
-                                self.news.inject_ai_insight("RSI Overbought: Consider partial profit taking.", "WARNING")
-                            elif rsi < 30:
-                                self.news.inject_ai_insight("RSI Oversold: Potential reversal zone detected.", "ADVICE")
-                            else:
-                                self.news.inject_ai_insight(f"Market Sentiment Stable. Analyzing {self.symbol} order flow.", "MARKET")
-                        except: pass
-                        
-                        self.stats['market_pulse'] = self.news.refresh_pulse(self.stats)
+                       # Sync with Intelligence (Simplified)
+                        self.stats['market_pulse'] = {'feed': []}
 
                     # 4.4 Cycle 3: Arbitrage & Order Flow Protocols
                     if loop_count == 1 or (loop_count > 0 and loop_count % 20 == 0):
@@ -803,30 +792,6 @@ class TradingBot:
                         target_df = df
                         target_signal = signal
                         
-                        # --- PROSOFT MICRO-SCALPER INTELLIGENCE (v12.5) ---
-                        if target_signal['signal'] == 'WAIT':
-                            self.add_log(f"Searching for Micro-Scalping opportunities...")
-                            scalp_candidates = await self.micro_scalper.find_volatile_candidates(limit=5)
-                            for candle in scalp_candidates:
-                                c_sym = candle['symbol']
-                                # Increase limit to 150 for stable EMA 50
-                                c_df = self.api.get_historical_klines(c_sym, '1m', limit=150)
-                                if c_df is not None:
-                                    c_df = self.ta.calculate_indicators(c_df)
-                                    c_df.attrs['symbol'] = c_sym # Explicitly set symbol for logging
-                                    s_signal = self.micro_scalper.check_scalp_signal(c_df)
-                                    if s_signal:
-                                        self.add_log(f"🔥 MICRO-SCALPING SIGNAL: {c_sym} detected @ ${s_signal['entry']:.4f}")
-                                        target_symbol = c_sym
-                                        target_signal = {
-                                            'signal': 'BUY',
-                                            'entry_price': s_signal['entry'],
-                                            'stop_loss': s_signal['sl'],
-                                            'take_profit': s_signal['tp'],
-                                            'indicators': {'Strategy': 'Micro-Scalper'}
-                                        }
-                                        break
-                        
                         if target_signal['signal'] == 'WAIT':
                             import time as _t
                             _now = _t.time()
@@ -958,10 +923,26 @@ class TradingBot:
                                     )
                                 except: pass
 
-                            # 2. OPTIMIZED TRAILING STOP
+                            # 2. PROSOFT PROACTIVE EXIT (v12.5): Momentum Decay Protection
+                            # If momentum drops sharply while in profit, exit early before the crash
+                            rsi_now = curr['RSI']
+                            rsi_prev = df['RSI'].iloc[-3]
+                            rsi_decay = rsi_prev - rsi_now
+                            
+                            # Neural Awareness: Check if memory suggests a reversal here
+                            memory_insight = self.memory.analyze_past_mistakes(trade['symbol'])
+                            is_risky_zone = "Warning" in memory_insight or "reversal" in memory_insight.lower()
+
+                            if pnl_pct > 0.5 and (rsi_decay > 8 or is_risky_zone):
+                                self.add_log(f"🧠 PROACTIVE EXIT: Momentum decay/Neural Risk detected (Decay: {rsi_decay:.1f}). Securing ${pnl:.2f}")
+                                self.voice.say("Momentum weakening. Executing proactive exit to secure gains.")
+                                await self.close_trade('SELL', curr_price, "PROACTIVE MOMENTUM EXIT")
+                                continue
+
+                            # 3. OPTIMIZED TRAILING STOP
                             new_sl = self.orders.update_trailing_stop(trade['symbol'], curr_price, trade['entry_price'], trade['sl'], 
-                                                                    trailing_pct_activation=0.015, # 1.5% profit activation
-                                                                    trailing_distance=0.01)       # 1% distance
+                                                                    trailing_pct_activation=0.012, # 1.2% profit activation
+                                                                    trailing_distance=0.008)      # 0.8% distance (tighter)
                             if new_sl > trade['sl']:
                                 self.active_trade['sl'] = new_sl
 

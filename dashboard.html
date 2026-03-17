@@ -95,65 +95,7 @@
             letter-spacing: 0.05em;
         }
 
-        /* News Ticker (Scrolling) */
-        .ticker-wrap {
-            width: 100%;
-            overflow: hidden;
-            background: var(--bg-panel);
-            border-bottom: 1px solid var(--border-subtle);
-            padding: 0.5rem 0;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            position: relative;
-            z-index: 50;
-        }
-
-        .ticker-content {
-            display: inline-flex;
-            white-space: nowrap;
-            animation: ticker-scroll 180s linear infinite; 
-            padding-right: 100%; /* Start from left side */
-            direction: rtl; /* Ensure Arabic RTL layout */
-        }
-
-        .ticker-content:hover {
-            animation-play-state: paused;
-        }
-
-        .ticker-item {
-            padding: 0 4rem;
-            font-size: 1.1rem; /* Increased font size as requested */
-            font-weight: 600;
-            color: var(--text-muted);
-            border-left: 1px solid rgba(255, 255, 255, 0.1); 
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .ticker-tag {
-            font-size: 9px;
-            font-weight: 800;
-            padding: 2px 8px;
-            border-radius: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .tag-market { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
-        .tag-twitter { background: rgba(29, 161, 242, 0.15); color: #1da1f2; border: 1px solid rgba(29, 161, 242, 0.3); }
-        .tag-breaking { 
-            background: rgba(239, 68, 68, 0.2); 
-            color: #ef4444; 
-            border: 1px solid #ef4444; 
-            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
-            animation: pulse-red 1.5s infinite;
-        }
-
-        @keyframes pulse-red {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.8; box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); }
-            100% { transform: scale(1); opacity: 1; }
-        }
+        /* Official Omega Kill Switch */
 
         /* Official Omega Kill Switch */
         .btn-omega {
@@ -189,14 +131,6 @@
             margin-left: 0.2rem;
         }
 
-        @keyframes ticker-scroll {
-            0% {
-                transform: translateX(-100%);
-            }
-            100% {
-                transform: translateX(100%);
-            }
-        }
 
         /* Chat Widget */
         #chat-window {
@@ -467,14 +401,6 @@
         </div>
     </div>
 
-    <!-- SCROLLING NEWS TICKER -->
-    <div class="ticker-wrap">
-        <div class="ticker-content" id="pulse-ticker">
-            <div class="ticker-item"><strong data-en="SYSTEM:" data-ar="النظام:">SYSTEM:</strong> <span
-                    data-en="Initializing Quantum Prime Engine..."
-                    data-ar="جارٍ تشغيل محرك كوانتوم برايم...">Initializing Quantum Prime Engine...</span></div>
-        </div>
-    </div>
 
     <!-- GLOBAL EXPLAINER TOOLTIP -->
     <div id="explainer-tooltip">
@@ -1601,43 +1527,6 @@
                     actionBtn.innerText = currentLang === 'en' ? 'STOP TRADE & EXIT' : 'توقيف الصفقة والتحويل';
                 } else { document.getElementById('signal-pnl').classList.add('hidden'); }
 
-                if (s.market_pulse?.feed.length > 0) {
-                    const tagSymbols = { 'BREAKING': '⚡', 'ADVICE': '💡', 'MARKET': '📊', 'TWITTER': '🐦' };
-                    let html = s.market_pulse.feed.map(f => {
-                        const type = f.type || 'MARKET';
-                        const tagClass = `tag-${type.toLowerCase()}`;
-                        const isBreaking = type === 'BREAKING';
-                        const timeStr = f.time || '--:--';
-                        return `
-                        <div class="ticker-item ${isBreaking ? 'font-bold' : ''}">
-                            <div class="flex flex-col items-center">
-                                <span class="text-[9px] font-mono text-blue-400 mb-1 leading-none">${timeStr}</span>
-                                <span class="ticker-tag ${tagClass}">${tagSymbols[type] || ''} ${type}</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <strong class="${isBreaking ? 'text-red-500' : ''}">${f.source}:</strong> 
-                                <span class="${isBreaking ? 'text-red-400' : ''}">${f.title}</span>
-                                ${isBreaking ? '<span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping ml-2"></span>' : '<span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse ml-2"></span>'}
-                            </div>
-                        </div>`;
-                    }).join('');
-                    
-                    if (s.news_highlight) {
-                        const hintType = s.news_highlight.toLowerCase().includes('twitter') ? 'TWITTER' : 'BREAKING';
-                        html = `<div class="ticker-item"><span class="ticker-tag tag-${hintType.toLowerCase()}">${tagSymbols[hintType] || '⚡'} AI RADAR</span> <strong style="color: #60a5fa;">FOCUS:</strong> ${s.news_highlight}</div>` + html;
-                    }
-                    
-                    const tickerEl = document.getElementById('pulse-ticker');
-                    if (html) {
-                        const fullHtml = html + html; 
-                        if (tickerEl.innerHTML !== fullHtml) {
-                            tickerEl.innerHTML = fullHtml;
-                        }
-                    } else if (!tickerEl.innerHTML) {
-                         // Initial fallback if no news ever arrive
-                         tickerEl.innerHTML = '<div class="ticker-item"><strong>SYSTEM:</strong> <span data-en="Awaiting Quantum Feed..." data-ar="في انتظار تغذية كوانتوم...">Awaiting Quantum Feed...</span></div>';
-                    }
-                }
 
                 updateAccuracyChart();
 

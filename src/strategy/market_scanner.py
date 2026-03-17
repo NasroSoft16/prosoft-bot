@@ -50,26 +50,38 @@ class MarketScanner:
             # Intelligence (Lighter version for fast scanning)
             prediction = self.intel.predict_next_price(df)
             
+            # Momentum Upgrades (v12.5)
+            df['VOL_EMA'] = df['volume'].rolling(window=20).mean()
+            vol_spike = curr['volume'] > (df['VOL_EMA'].iloc[-1] * 1.8) # 80% volume spike
+            
+            # RSI Slope (Acceleration)
+            rsi_prev = df['RSI'].iloc[-5]
+            rsi_slope = (curr['RSI'] - rsi_prev) / 5
+            
             # Scoring
-            score = 40 # Baseline for being top volume
+            score = 30 # Base
             if curr['close'] > curr['EMA_20'] > curr['EMA_50']: score += 20
-            if 40 <= curr['RSI'] <= 60: score += 15
-            elif curr['RSI'] < 30: score += 25
+            if rsi_slope > 2: score += 25 # Rapidly growing momentum
+            if vol_spike: score += 20     # Liquid influx
+            if 40 <= curr['RSI'] <= 60: score += 10
+            elif curr['RSI'] < 30: score += 15 # Bounce potential
+            
+            # Prediction bonus
             if prediction and prediction['direction'] == 'UP': score += 10
 
             # Reasons
             reasons = []
+            if vol_spike: reasons.append("Institutional Vol Spike")
+            if rsi_slope > 2: reasons.append("Zheng Acceleration")
             if curr['close'] > curr['EMA_20']: reasons.append("Price above EMA20")
-            if curr['EMA_20'] > curr['EMA_50']: reasons.append("EMA Trend Bullish")
-            if curr['RSI'] < 35: reasons.append("Oversold Rebound Zone")
 
             return {
                 'symbol': symbol,
                 'price': float(curr['close']),
                 'rsi': float(curr['RSI']),
                 'score': int(score),
-                'health': 50, # Placeholder during scan
-                'sentiment': "Scan Mode",
+                'health': int(score), # Sync health to momentum for scan mode
+                'sentiment': "BULLISH ACCEL" if rsi_slope > 2 else "SCANNING",
                 'prediction': prediction,
                 'reasoning': reasons
             }
