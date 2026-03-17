@@ -59,34 +59,46 @@ class GlobalNewsEngine:
         return context_news
 
     def refresh_pulse(self, stats=None):
-        """Generates a rich and diverse set of global events."""
+        """Generates a rich and diverse set of global events with realistic timestamps."""
+        import random
+        from datetime import datetime, timedelta
+        
         stats = stats or {}
+        now = datetime.now()
         market_news = self.generate_market_context_news(stats)
         
-        # Select random samples from global pool to keep it dynamic
+        # Format Market News
+        for n in market_news:
+            n['time'] = now.strftime("%H:%M")
+            
+        # Select random samples from global pool
         sampled_global = random.sample(self.global_pool, k=min(4, len(self.global_pool)))
-        
-        # Order: 1. Real-time conditions, 2. AI dynamic insights, 3. Global background news
+        for i, n in enumerate(sampled_global):
+            # Stagger times for global news to look like a real history
+            ago = (i + 1) * random.randint(15, 45)
+            n['time'] = (now - timedelta(minutes=ago)).strftime("%H:%M")
+            
+        # AI Insights are very recent
+        for n in self.dynamic_insights:
+            if 'time' not in n:
+                n['time'] = (now - timedelta(minutes=random.randint(2, 10))).strftime("%H:%M")
+
+        # Combine
         selected = market_news + self.dynamic_insights + sampled_global
         
-        # Ensure we don't have too many items to cause lag
-        selected = selected[:12]
-        
-        self.current_feed = []
-        avg_sentiment = 0
-        
+        # Unique check by title
+        seen = set()
+        final_list = []
         for item in selected:
-            pulse_item = item.copy()
-            pulse_item['time'] = datetime.now().strftime("%H:%M")
-            self.current_feed.append(pulse_item)
-            try:
-                avg_sentiment += float(item.get('sentiment', 0.5))
-            except:
-                avg_sentiment += 0.5
-            
-        mood = avg_sentiment / len(selected) if selected else 0.5
+            if item['title'] not in seen:
+                final_list.append(item)
+                seen.add(item['title'])
+        
+        self.current_feed = final_list[:12]
+        avg_sentiment = sum(float(i.get('sentiment', 0.5)) for i in self.current_feed) / len(self.current_feed) if self.current_feed else 0.5
+        
         return {
             'feed': self.current_feed,
-            'mood_score': mood * 100,
-            'status': "BULLISH" if mood > 0.7 else ("NEUTRAL" if mood > 0.5 else "BEARISH")
+            'mood_score': avg_sentiment * 100,
+            'status': "BULLISH" if avg_sentiment > 0.7 else ("NEUTRAL" if avg_sentiment > 0.45 else "BEARISH")
         }

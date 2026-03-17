@@ -121,13 +121,13 @@
 
         .ticker-item {
             padding: 0 4rem;
-            font-size: 0.85rem;
-            font-weight: 500;
+            font-size: 1.1rem; /* Increased font size as requested */
+            font-weight: 600;
             color: var(--text-muted);
-            border-left: 1px solid rgba(255, 255, 255, 0.1); /* Left border for RTL */
+            border-left: 1px solid rgba(255, 255, 255, 0.1); 
             display: flex;
             align-items: center;
-            gap: 0.8rem;
+            gap: 1rem;
         }
 
         .ticker-tag {
@@ -1607,11 +1607,18 @@
                         const type = f.type || 'MARKET';
                         const tagClass = `tag-${type.toLowerCase()}`;
                         const isBreaking = type === 'BREAKING';
+                        const timeStr = f.time || '--:--';
                         return `
                         <div class="ticker-item ${isBreaking ? 'font-bold' : ''}">
-                            <span class="ticker-tag ${tagClass}">${tagSymbols[type] || ''} ${type}</span>
-                            <strong class="${isBreaking ? 'text-red-500' : ''}">${f.source}:</strong> 
-                            <span class="${isBreaking ? 'text-red-400' : ''}">${f.title}</span>
+                            <div class="flex flex-col items-center">
+                                <span class="text-[9px] font-mono text-blue-400 mb-1 leading-none">${timeStr}</span>
+                                <span class="ticker-tag ${tagClass}">${tagSymbols[type] || ''} ${type}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <strong class="${isBreaking ? 'text-red-500' : ''}">${f.source}:</strong> 
+                                <span class="${isBreaking ? 'text-red-400' : ''}">${f.title}</span>
+                                ${isBreaking ? '<span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping ml-2"></span>' : '<span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse ml-2"></span>'}
+                            </div>
                         </div>`;
                     }).join('');
                     
