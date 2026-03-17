@@ -91,6 +91,7 @@ from src.strategy.order_flow_analyzer import OrderFlowAnalyzer
 from src.risk_management.hedging_protocol import HedgingProtocol
 from src.risk_management.global_macro_filter import GlobalMacroFilter
 from src.strategy.liquidity_heatmap import LiquidityHeatmap
+from src.strategy.micro_scalper import MicroScalper
 
 load_dotenv()
 
@@ -177,6 +178,7 @@ class TradingBot:
         self.macro_filter = GlobalMacroFilter()                # Cycle 4: Macro Guardian
         self.heatmap = LiquidityHeatmap(self.api)              # Cycle 4: War Room
         self.memory = NeuralMemory()
+        self.micro_scalper = MicroScalper(self.api)            # PROSOFT Micro-Scalper
         
         # --- NEW MODULES (v12.0) ---
         self.shield = ManipulationShield()        # درع التلاعب
@@ -801,6 +803,29 @@ class TradingBot:
                         target_symbol = self.symbol
                         target_df = df
                         target_signal = signal
+                        
+                        # --- PROSOFT MICRO-SCALPER INTELLIGENCE (v12.5) ---
+                        if target_signal['signal'] == 'WAIT':
+                            self.add_log(f"Searching for Micro-Scalping opportunities...")
+                            scalp_candidates = await self.micro_scalper.find_volatile_candidates(limit=5)
+                            for candle in scalp_candidates:
+                                c_sym = candle['symbol']
+                                # Increase limit to 150 for stable EMA 50
+                                c_df = self.api.get_historical_klines(c_sym, '1m', limit=150)
+                                if c_df is not None:
+                                    c_df = self.ta.calculate_indicators(c_df)
+                                    s_signal = self.micro_scalper.check_scalp_signal(c_df)
+                                    if s_signal:
+                                        self.add_log(f"🔥 MICRO-SCALPING SIGNAL: {c_sym} detected @ ${s_signal['entry']:.4f}")
+                                        target_symbol = c_sym
+                                        target_signal = {
+                                            'signal': 'BUY',
+                                            'entry_price': s_signal['entry'],
+                                            'stop_loss': s_signal['sl'],
+                                            'take_profit': s_signal['tp'],
+                                            'indicators': {'Strategy': 'Micro-Scalper'}
+                                        }
+                                        break
                         
                         if target_signal['signal'] == 'WAIT':
                             import time as _t
