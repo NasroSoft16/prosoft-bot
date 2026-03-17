@@ -623,6 +623,11 @@ class TradingBot:
                             self.add_log("🧠 Weekly Intelligence Review started...")
                             review = self.optimizer.generate_weekly_review()
                             if review:
+                                # 1. WEEKLY FORGIVENESS: Reset blacklist to default before re-evaluating
+                                # This ensures coins get a second chance every week
+                                env_blacklist = os.getenv('BLACKLISTED_COINS', 'USDC,FDUSD,TUSD,USDP,EUR,BUSD,USD1,DAI,USDD,PYUSD,AEUR,GBP,EURI')
+                                self.market_scanner.blacklist = [coin.strip().upper() for coin in env_blacklist.split(',')]
+                                
                                 self.stats['last_weekly_review'] = now_alg.strftime("%Y-%m-%d")
                                 toxic_list = ", ".join(review['toxic_assets']) if review['toxic_assets'] else "None"
                                 report = (
