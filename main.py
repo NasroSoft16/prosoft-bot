@@ -306,11 +306,10 @@ class TradingBot:
                     # 0.1 Periodic Revenue Sync (Every 10 loops)
                     if loop_count % 10 == 0:
                         await self.farmer.sync_rewards(self.memory)
-                        await self.funding_arb.log_funding_revenue(self.memory)
-                        
-                        # Phase 12.1: Funding Rate Arbitrage Scanner
-                        arb_rates = await self.funding_arb.scan_opportunities()
-                        self.stats['funding_rates'] = arb_rates
+                        # Phase 12.1: Funding Rate Arbitrage Scanner (FROZEN due to API Permissions)
+                        # await self.funding_arb.log_funding_revenue(self.memory)
+                        # arb_rates = await self.funding_arb.scan_opportunities()
+                        self.stats['funding_rates'] = [] # Set to empty as scanner is frozen
                         
                         # Update Live Stats for Dashboard
                         rev_totals = self.memory.get_revenue_totals()
