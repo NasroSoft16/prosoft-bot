@@ -137,6 +137,10 @@ class GeminiAI:
                 if response and hasattr(response, 'text'):
                     self.usage_stats[active_key]['limit_hit'] = False
                     self.usage_stats[active_key]['last_success'] = time.time()
+                    
+                    # PROACTIVE ROTATION: Rotate to the next key after success to balance load
+                    self.rotate_key()
+                    
                     return response.text.strip()
                 
                 return None
