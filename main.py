@@ -209,8 +209,10 @@ class TradingBot:
         self.ui.update_ui(self.symbol, self.timeframe, self.stats, self.logs)
 
     def add_log(self, msg):
-        now = datetime.now().strftime("%H:%M:%S")
-        self.logs.append(f"[{now}] {msg}")
+        from datetime import timezone, timedelta
+        now_algeria = datetime.now(timezone.utc) + timedelta(hours=1)
+        time_str = now_algeria.strftime("%H:%M:%S")
+        self.logs.append(f"[{time_str}] {msg}")
         app_logger.info(msg)
 
     def reconnect_binance(self, api_key, api_secret):
@@ -372,7 +374,7 @@ class TradingBot:
                                             self.voice.alert_sniper_hit(new_asset)
                                             self.add_log(f"⚡ SNIPE SUCCESS: Target {new_asset} engaged at {snipe_price}")
                                             self.switch_symbol(new_asset)
-                                            self.stats['trades_count'] += 1
+                                            self.stats['trades_count'] = int(self.stats.get('trades_count', 0)) + 1
                                             self.voice.alert_buy_signal()
                                             self.add_log(f"✅ SNIPER ORDER FILLED: {new_asset} @ ${snipe_price:.4f} | SL: ${snipe_sl:.4f} | TP: ${snipe_tp:.4f}")
                                             try:
@@ -416,11 +418,10 @@ class TradingBot:
                         self.stats['ema200'] = curr['EMA_200']
                         # --- AGGRESSIVE AI QUOTA MANAGEMENT (v12.2) ---
                         current_time = time.time()
-                        last_ai_time = self.stats.get('last_ai_update', 0)
-                        last_quota_hit = self.stats.get('last_ai_quota_hit', 0)
+                        last_ai_time = float(self.stats.get('last_ai_update', 0))
+                        last_quota_hit = float(self.stats.get('last_ai_quota_hit', 0))
                         
-                        # If we hit quota recently (within 1 hour), skip Gemini and use technical fallback
-                        # Also use a 10-minute cache even if quota is fine to save tokens
+                        # Use AI if quota fine and not updated in last 10 mins
                         use_ai = (current_time - last_quota_hit > 3600) and (current_time - last_ai_time > 600)
                         
                         # 1. Technical Confidence (Live update every loop)
@@ -1035,7 +1036,7 @@ class TradingBot:
             except Exception as e:
                 self.add_log(f"OCO Warning: Failed to set remote TP/SL. Bot will monitor locally. Error: {e}")
 
-            self.stats['trades_count'] += 1
+            self.stats['trades_count'] = int(self.stats.get('trades_count', 0)) + 1
             # Notify Telegram
             try:
                 await self.telegram.send_message(
@@ -1205,8 +1206,10 @@ class TradingBot:
                 if not isinstance(self.stats['ai_accuracy_history'], list):
                     self.stats['ai_accuracy_history'] = []
                     
+                from datetime import timezone, timedelta
+                now_algeria = datetime.now(timezone.utc) + timedelta(hours=1)
                 self.stats['ai_accuracy_history'].append({
-                    'time': datetime.datetime.now().strftime("%H:%M"),
+                    'time': now_algeria.strftime("%H:%M"),
                     'accuracy': round(acc, 2)
                 })
                 # Keep last 15 points
@@ -1218,7 +1221,8 @@ class TradingBot:
     async def _check_daily_report(self):
         """Compiles and sends a high-level summary of all revenue streams at 23:00."""
         try:
-            now = datetime.now()
+            from datetime import timezone, timedelta
+            now = datetime.now(timezone.utc) + timedelta(hours=1)
             today_str = now.strftime("%Y-%m-%d")
             
             # Dispatch once per day when hour is 23 (11 PM)

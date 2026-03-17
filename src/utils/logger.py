@@ -8,7 +8,14 @@ def setup_logger(name, log_file, level=logging.INFO):
     # Ensure logs directory exists
     os.makedirs('logs', exist_ok=True)
     
+    # --- ALGERIA TIME ADJUSTMENT (GMT+1) ---
+    from datetime import datetime, timedelta, timezone as dt_timezone
+    def custom_converter(*args):
+        # Algeria is GMT+1/UTC+1.
+        return (datetime.now(dt_timezone.utc) + timedelta(hours=1)).timetuple()
+    
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter.converter = custom_converter
 
     # File handler (with rotation)
     file_path = os.path.join('logs', log_file)
