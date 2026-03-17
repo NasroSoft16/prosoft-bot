@@ -140,6 +140,19 @@
 
         .tag-market { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
         .tag-twitter { background: rgba(29, 161, 242, 0.15); color: #1da1f2; border: 1px solid rgba(29, 161, 242, 0.3); }
+        .tag-breaking { 
+            background: rgba(239, 68, 68, 0.2); 
+            color: #ef4444; 
+            border: 1px solid #ef4444; 
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+            animation: pulse-red 1.5s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; box-shadow: 0 0 15px rgba(239, 68, 68, 0.8); }
+            100% { transform: scale(1); opacity: 1; }
+        }
 
         /* Omega Kill Switch */
         .btn-omega {
@@ -1592,10 +1605,12 @@
                     let html = s.market_pulse.feed.map(f => {
                         const type = f.type || 'MARKET';
                         const tagClass = `tag-${type.toLowerCase()}`;
+                        const isBreaking = type === 'BREAKING';
                         return `
-                        <div class="ticker-item">
+                        <div class="ticker-item ${isBreaking ? 'font-bold' : ''}">
                             <span class="ticker-tag ${tagClass}">${tagSymbols[type] || ''} ${type}</span>
-                            <strong>${f.source}:</strong> ${f.title}
+                            <strong class="${isBreaking ? 'text-red-500' : ''}">${f.source}:</strong> 
+                            <span class="${isBreaking ? 'text-red-400' : ''}">${f.title}</span>
                         </div>`;
                     }).join('');
                     
