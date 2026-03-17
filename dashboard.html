@@ -1628,9 +1628,14 @@
                     }
                     
                     const tickerEl = document.getElementById('pulse-ticker');
-                    const fullHtml = html + html; 
-                    if (tickerEl.innerHTML !== fullHtml) {
-                        tickerEl.innerHTML = fullHtml;
+                    if (html) {
+                        const fullHtml = html + html; 
+                        if (tickerEl.innerHTML !== fullHtml) {
+                            tickerEl.innerHTML = fullHtml;
+                        }
+                    } else if (!tickerEl.innerHTML) {
+                         // Initial fallback if no news ever arrive
+                         tickerEl.innerHTML = '<div class="ticker-item"><strong>SYSTEM:</strong> <span data-en="Awaiting Quantum Feed..." data-ar="في انتظار تغذية كوانتوم...">Awaiting Quantum Feed...</span></div>';
                     }
                 }
 

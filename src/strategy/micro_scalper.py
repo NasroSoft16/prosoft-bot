@@ -1,4 +1,5 @@
 import pandas as pd
+import random
 from src.utils.logger import app_logger
 from datetime import datetime
 
@@ -52,35 +53,51 @@ class MicroScalper:
     def check_scalp_signal(self, df):
         """
         Fast technical check for scalping entry.
-        Look for RSI oversold + MFI/EMA alignment on short timeframe (1m/5m).
+        Look for RSI bounce OR Momentum Breakout.
         """
-        if df is None or len(df) < 20: return None
+        if df is None or len(df) < 20: 
+            return None
         
         try:
             curr = df.iloc[-1]
             prev = df.iloc[-2]
             
-            # Scalping Criteria:
-            # 1. RSI is relatively low (but not dead) or bouncing from bottom
-            # 2. Price is above a short-term SMA (e.g., 9) indicating a micro-trend
             rsi = curr.get('RSI', 50)
             close = curr['close']
+            symbol = df.attrs.get('symbol', 'ASSET')
             
-            # If TechnicalAnalysis wasn't called on this DF yet, we might need indicators
-            # Assuming main.py provides technical DF.
+            # 1. RSI Bounce (Traditional Scalp)
+            rsi_bounce = prev.get('RSI', 50) < 40 and rsi > prev.get('RSI', 50)
             
-            # Condition: Bullish engulfing or RSI bounce
-            rsi_bounce = prev['RSI'] < 35 and curr['RSI'] > prev['RSI']
-            uptrend = close > curr.get('EMA_50', 0) # Basic trend filter
+            # 2. Momentum Breakout (Fast Move Detection)
+            # Price crosses above EMA_20 with significant RSI > 55
+            ema_fast = curr.get('EMA_20', 0)
+            momentum_burst = close > ema_fast and rsi > 55 and rsi < 75
             
-            if rsi_bounce and uptrend:
+            # 3. Trend Confirmation
+            uptrend = close > curr.get('EMA_50', 0)
+            
+            if (rsi_bounce or momentum_burst) and uptrend:
                 entry_price = close
+                app_logger.info(f"🚀 [SCALPER] Signal detected on {symbol}! Reason: {'RSI Bounce' if rsi_bounce else 'Momentum Burst'}")
                 return {
                     'entry': entry_price,
                     'tp': entry_price * (1 + self.profit_target_pct),
                     'sl': entry_price * (1 - self.stop_loss_pct),
-                    'confidence': 0.80
+                    'confidence': 0.82 if rsi_bounce else 0.78
                 }
+            else:
+                # Add Debug logs to help user understand SKIP
+                if close < curr.get('EMA_50', 0):
+                    reason = "Price below EMA_50 (Trend is Bearish)"
+                elif rsi > 75:
+                    reason = "RSI too high (Overbought risk)"
+                else:
+                    reason = "No volatility confirmation (RSI < 55 and no Bounce)"
+                # We log this sparingly to avoid clutter
+                if random.random() < 0.1: # 10% chance to log "Why skipped"
+                    app_logger.info(f"ℹ️ [SCALPER] {symbol} skipped: {reason}")
+                    
         except Exception as e:
             app_logger.error(f"[SCALPER] Signal Error: {e}")
             
