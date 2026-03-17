@@ -9,14 +9,13 @@ class GlobalNewsEngine:
         self.dynamic_insights = []
         self.current_feed = []
         self.global_pool = [
-            {"type": "MARKET", "source": "REUTERS", "title": "Global markets await Fed's next move; volatility remains low.", "sentiment": 0.5},
-            {"type": "TECH", "source": "BLOOMBERG", "title": "Ethereum L2 adoption hits record high as gas fees stabilize.", "sentiment": 0.7},
-            {"type": "MACRO", "source": "PROSOFT", "title": "Stablecoin inflows detected across major exchanges; preparation for move?", "sentiment": 0.6},
             {"type": "MARKET", "source": "رويترز", "title": "الأسواق العالمية تترقب قرار الفيدرالي القادم؛ هدوء حذر في التداولات.", "sentiment": 0.5},
-            {"type": "TECH", "source": "بلومبرغ", "title": "اعتماد شبكات الطبقة الثانية للإيثيريوم يسجل مستويات قياسية.", "sentiment": 0.7},
-            {"type": "MACRO", "source": "برو سوفت", "title": "رصد تدفقات للعملات المستقرة نحو المنصات؛ هل ننتظر حركة قوية؟", "sentiment": 0.6},
-            {"type": "ADVICE", "source": "AI CORE", "title": "Patience is a strategy. High-conviction setups require waiting.", "sentiment": 0.5},
-            {"type": "ADVICE", "source": "AI CORE", "title": "الصبر هو استراتيجية بحد ذاتها. الصفقات القوية تتطلب انتظار اللحظة المناسبة.", "sentiment": 0.5},
+            {"type": "TECH", "source": "بلومبرغ", "title": "اعتماد شبكات الطبقة الثانية للإيثيريوم يسجل مستويات قياسية وزيادة في السيولة.", "sentiment": 0.7},
+            {"type": "MACRO", "source": "برو سوفت", "title": "رصد تدفقات ضخمة للعملات المستقرة نحو المنصات؛ احتمالية حركة سعرية كبرى.", "sentiment": 0.6},
+            {"type": "MARKET", "source": "أخبار الكريبتو", "title": "صناديق الاستثمار تزيد من استحواذها على البيتكوين رغم تقلبات السوق.", "sentiment": 0.8},
+            {"type": "ADVICE", "source": "الذكاء الاصطناعي", "title": "الصبر هو استراتيجية بحد ذاتها؛ انتظر اكتمال إشارات الدخول القوية.", "sentiment": 0.5},
+            {"type": "SECURITY", "source": "درع الحماية", "title": "تفعيل بروتوكول حماية السيولة؛ النظام يراقب التحركات المشبوهة بدقة.", "sentiment": 0.6},
+            {"type": "WHALE", "source": "الرادار", "title": "رصد تحركات حيتان نحو المحافظ الباردة؛ إشارة إيجابية لتقليص المعروض.", "sentiment": 0.75}
         ]
 
     def inject_ai_insight(self, title, type="ADVICE"):
@@ -37,26 +36,25 @@ class GlobalNewsEngine:
             self.dynamic_insights.pop()
 
     def generate_market_context_news(self, stats):
-        """Generates real-time news based on the bot's current status."""
+        """Generates real-time news in Arabic only."""
         symbol = stats.get('symbol', 'BTC')
-        price = stats.get('price', 0)
         rsi = stats.get('rsi', 50)
         health = stats.get('market_health', 50)
         
         context_news = []
         
-        # Rule-based news generation
+        # Rule-based Arabic news generation
         if rsi > 70:
-            context_news.append({"type": "MARKET", "source": "QUANTUM AI", "title": f"ALERT: {symbol} RSI at {rsi:.1f} (Overbought).", "sentiment": 0.3})
+            context_news.append({"type": "MARKET", "source": "كوانتوم AI", "title": f"تنبيه: مؤشر RSI لعملة {symbol} عند {rsi:.1f} (تشبع شراء). احتمالية تصحيح.", "sentiment": 0.3})
         elif rsi < 30:
-            context_news.append({"type": "MARKET", "source": "QUANTUM AI", "title": f"OPPORTUNITY: {symbol} RSI at {rsi:.1f} (Oversold).", "sentiment": 0.8})
+            context_news.append({"type": "MARKET", "source": "كوانتوم AI", "title": f"فرصة: مؤشر RSI لعملة {symbol} عند {rsi:.1f} (تشبع بيع). رصد تجميع.", "sentiment": 0.8})
 
         if health < 35:
-            context_news.append({"type": "BREAKING", "source": "SHIELD", "title": f"Risk Threshold Warning: Market Health at {health:.1f}%", "sentiment": 0.2})
+            context_news.append({"type": "BREAKING", "source": "درع الحماية", "title": f"تحذير: صحة السوق منخفضة عند {health:.1f}%؛ احتمالية تلاعب.", "sentiment": 0.2})
         
         if stats.get('whale_alerts'):
             whale = stats['whale_alerts'][0]
-            context_news.append({"type": "WHALE", "source": "RADAR", "title": f"WHALE: {whale[:50]}...", "sentiment": 0.5})
+            context_news.append({"type": "WHALE", "source": "الرادار", "title": f"تنبيه حيتان: {whale[:60]}...", "sentiment": 0.5})
 
         return context_news
 
