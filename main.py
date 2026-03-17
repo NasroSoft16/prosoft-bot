@@ -130,7 +130,7 @@ class TradingBot:
             'market_health': 50.0,
             'sentiment': 'Neutral',
             'prediction': 'N/A',
-            'market_pulse': self.news.refresh_pulse(),
+            'market_pulse': self.news.refresh_pulse({}),
             'whale_alerts': [],
             'top_gems': [],
             'execution_mode': self.execution_mode,
@@ -626,7 +626,7 @@ class TradingBot:
                                 self.news.inject_ai_insight(f"Market Sentiment Stable. Analyzing {self.symbol} order flow.", "MARKET")
                         except: pass
                         
-                        self.stats['market_pulse'] = self.news.refresh_pulse()
+                        self.stats['market_pulse'] = self.news.refresh_pulse(self.stats)
 
                     # 4.4 Cycle 3: Arbitrage & Order Flow Protocols
                     if loop_count == 1 or (loop_count > 0 and loop_count % 20 == 0):

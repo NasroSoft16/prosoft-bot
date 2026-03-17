@@ -3,23 +3,9 @@ from datetime import datetime
 from src.utils.logger import app_logger
 
 class GlobalNewsEngine:
-    """PROSOFT AI: Real-Time Global News & Sentiment Engine (Bilingual AR/EN)."""
+    """PROSOFT AI: Real-Time Global News & Sentiment Engine (Dynamic generation)."""
     
     def __init__(self):
-        self.news_database = [
-            # English News
-            {"type": "MARKET", "impact": "HIGH", "source": "REUTERS", "title": "Federal Reserve signals potential rate pause amid strong labor data.", "sentiment": 0.8},
-            {"type": "MARKET", "impact": "HIGH", "source": "BLOOMBERG", "title": "BlackRock Bitcoin ETF records $1.2B inflows in a single week.", "sentiment": 0.9},
-            {"type": "BREAKING", "impact": "CRITICAL", "source": "ALERTS", "title": "Sudden Liquidations Detected: High volatility expected in the next hour.", "sentiment": 0.3},
-            {"type": "ADVICE", "impact": "HIGH", "source": "QUANTUM AI", "title": "Current RSI suggests oversold conditions. Look for accumulation zones.", "sentiment": 0.7},
-            
-            # Arabic News
-            {"type": "MARKET", "impact": "HIGH", "source": "رويترز", "title": "الفيدرالي الأمريكي يلمح بوقف رفع الفائدة؛ الأسواق تستجيب بإيجابية.", "sentiment": 0.82},
-            {"type": "BREAKING", "impact": "CRITICAL", "source": "عاجل", "title": "تم رصد تصفية مراكز شراء ضخمة؛ توقعات بتقلبات حادة خلال الساعة القادمة.", "sentiment": 0.3},
-            {"type": "ADVICE", "impact": "HIGH", "source": "كوانتوم AI", "title": "مؤشر RSI حرج؛ ينصح بمراقبة مناطق التجميع وتجنب الدخول المتأخر.", "sentiment": 0.75},
-            {"type": "ADVICE", "impact": "MEDIUM", "source": "نظام الحماية", "title": "تم تفعيل درع التقلبات؛ يرجى الالتزام بأوامر وقف الخسارة الصارمة.", "sentiment": 0.5},
-            {"type": "MARKET", "impact": "HIGH", "source": "أخبار برو سوفت", "title": "نظام QUANTUM يسجل إشارات دخول قوية على عملات الميم والعملات البديلة.", "sentiment": 0.92},
-        ]
         self.dynamic_insights = []
         self.current_feed = []
 
@@ -34,24 +20,59 @@ class GlobalNewsEngine:
             "time": datetime.now().strftime("%H:%M")
         }
         self.dynamic_insights.insert(0, insight)
-        if len(self.dynamic_insights) > 5:
+        if len(self.dynamic_insights) > 10:
             self.dynamic_insights.pop()
 
-    def refresh_pulse(self):
-        """Generates a rich and diverse set of global events in AR/EN."""
-        # Combine static news with dynamic real-time insights
-        base_selected = random.sample(self.news_database, k=min(7, len(self.news_database)))
-        selected = self.dynamic_insights + base_selected
+    def generate_market_context_news(self, stats):
+        """Generates real-time news based on the bot's current status."""
+        symbol = stats.get('symbol', 'BTC')
+        price = stats.get('price', 0)
+        rsi = stats.get('rsi', 50)
+        health = stats.get('market_health', 50)
+        
+        context_news = []
+        
+        # Rule-based news generation in Arabic and English
+        if rsi > 70:
+            context_news.append({"type": "MARKET", "source": "QUANTUM AI", "title": f"ALERT: {symbol} RSI at {rsi:.1f} (Overbought). Probability of correction: HIGH.", "sentiment": 0.3})
+            context_news.append({"type": "MARKET", "source": "كوانتوم AI", "title": f"تنبيه: مؤشر RSI لعملة {symbol} عند {rsi:.1f} (تشبع شراء). احتمالية التصحيح: عالية.", "sentiment": 0.3})
+        elif rsi < 30:
+            context_news.append({"type": "MARKET", "source": "QUANTUM AI", "title": f"OPPORTUNITY: {symbol} RSI at {rsi:.1f} (Oversold). Heavy accumulation detected.", "sentiment": 0.8})
+            context_news.append({"type": "MARKET", "source": "كوانتوم AI", "title": f"فرصة: مؤشر RSI لعملة {symbol} عند {rsi:.1f} (تشبع بيع). رصد عمليات تجميع ضخمة.", "sentiment": 0.8})
+
+        if health < 30:
+            context_news.append({"type": "BREAKING", "source": "SHIELD", "title": "CRITICAL: Market Health dropping. Manipulation Shield active.", "sentiment": 0.2})
+            context_news.append({"type": "BREAKING", "source": "نظام الحماية", "title": "عاجل: انخفاض صحة السوق. تفعيل درع حماية التلاعب فوراً.", "sentiment": 0.2})
+        
+        if stats.get('whale_alerts'):
+            whale = stats['whale_alerts'][0]
+            context_news.append({"type": "WHALE", "source": "RADAR", "title": f"WHALE ALERT: {whale}", "sentiment": 0.5})
+            context_news.append({"type": "WHALE", "source": "رادار", "title": f"تنبيه حيتان: {whale}", "sentiment": 0.5})
+
+        return context_news
+
+    def refresh_pulse(self, stats=None):
+        """Generates a rich and diverse set of global events."""
+        stats = stats or {}
+        market_news = self.generate_market_context_news(stats)
+        
+        # Combine dynamic constant news with real-time extracted news
+        selected = self.dynamic_insights + market_news
+        
+        # Add basic fallback if empty
+        if not selected:
+            selected = [{"type": "INFO", "source": "SYSTEM", "title": "Scanning global order books for institutional signals...", "sentiment": 0.5}]
         
         self.current_feed = []
         avg_sentiment = 0
         
         for item in selected:
             pulse_item = item.copy()
-            if 'time' not in pulse_item:
-                pulse_item['time'] = datetime.now().strftime("%H:%M")
+            pulse_item['time'] = datetime.now().strftime("%H:%M")
             self.current_feed.append(pulse_item)
-            avg_sentiment += item.get('sentiment', 0.5)
+            # Ensure sentiment is a float (defaults to 0.5)
+            val = item.get('sentiment', 0.5)
+            avg_sentiment += float(val)
             
         mood = avg_sentiment / len(selected) if selected else 0.5
         return {
