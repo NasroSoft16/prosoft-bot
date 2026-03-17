@@ -813,6 +813,7 @@ class TradingBot:
                                 c_df = self.api.get_historical_klines(c_sym, '1m', limit=150)
                                 if c_df is not None:
                                     c_df = self.ta.calculate_indicators(c_df)
+                                    c_df.attrs['symbol'] = c_sym # Explicitly set symbol for logging
                                     s_signal = self.micro_scalper.check_scalp_signal(c_df)
                                     if s_signal:
                                         self.add_log(f"🔥 MICRO-SCALPING SIGNAL: {c_sym} detected @ ${s_signal['entry']:.4f}")
