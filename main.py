@@ -148,6 +148,9 @@ class TradingBot:
             'crash_risk': 0,
             'hedge_status': {'active': False},
             'last_ai_quota_hit': 0,
+            'qty_multiplier': 1.0,
+            'btc_dominance': 50.0,
+            'last_weekly_review': None,
             'last_periodic_sync': 0
         }
 
@@ -424,6 +427,20 @@ class TradingBot:
                         # Use AI if quota fine and not updated in last 10 mins
                         use_ai = (current_time - last_quota_hit > 3600) and (current_time - last_ai_time > 600)
                         
+                        # --- GLOBAL CRASH SHIELD (v12.6) ---
+                        dom_state = self.market_scanner.get_btc_dominance_state()
+                        self.stats['btc_dominance'] = dom_state['dominance']
+                        if dom_state['is_risky']:
+                            self.stats['crash_risk'] = 85 # High Alert
+                            self.stats['qty_multiplier'] = 0.5 # Cut risk by 50%
+                            if not self.stats.get('crash_notified'):
+                                await self.telegram.send_message("🛡️ *GLOBAL CRASH SHIELD ACTIVATED*\nBTC Dominance spike detected (>60%). Liquidity is leaving alts. Scaling down position sizes by 50%.")
+                                self.stats['crash_notified'] = True
+                        else:
+                            self.stats['crash_risk'] = 0
+                            self.stats['qty_multiplier'] = 1.0
+                            self.stats['crash_notified'] = False
+
                         # 1. Technical Confidence (Live update every loop)
                         self.stats['ai_conf'] = self.ai.calculate_confidence(curr)
                         
@@ -598,6 +615,32 @@ class TradingBot:
                             if optimization and optimization.get('type') == 'ADJUST_THRESHOLD':
                                 self.ai_threshold = optimization['value']
                                 self.add_log(f"🧠 [OPTIMIZER] Auto-Refactoring: AI Confidence Threshold elevated to {self.ai_threshold}")
+
+                        # 4.3.2 WEEKLY SELF-OPTIMIZATION (v12.6)
+                        from datetime import timezone, timedelta
+                        now_alg = datetime.now(timezone.utc) + timedelta(hours=1)
+                        if now_alg.weekday() == 6 and now_alg.hour == 0 and self.stats['last_weekly_review'] != now_alg.strftime("%Y-%m-%d"):
+                            self.add_log("🧠 Weekly Intelligence Review started...")
+                            review = self.optimizer.generate_weekly_review()
+                            if review:
+                                self.stats['last_weekly_review'] = now_alg.strftime("%Y-%m-%d")
+                                toxic_list = ", ".join(review['toxic_assets']) if review['toxic_assets'] else "None"
+                                report = (
+                                    f"📊 *WEEKLY PERFORMANCE REVIEW*\n"
+                                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"💰 Total PNL: `${review['total_pnl']:+.4f}`\n"
+                                    f"🏆 Win Rate: `{review['win_rate']:.1f}%`\n"
+                                    f"🌟 Best Asset: `{review['best_asset']}`\n"
+                                    f"🚫 Toxic Assets: `{toxic_list}`\n"
+                                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"Action: Toxic assets will be prioritized for blacklisting in scans."
+                                )
+                                await self.telegram.send_message(report)
+                                # Automatically update scanner blacklist
+                                if review['toxic_assets']:
+                                    for t in review['toxic_assets']:
+                                        if t not in self.market_scanner.blacklist:
+                                            self.market_scanner.blacklist.append(t)
 
                         # 4.3.2 Alpha Shadow Tracking (Periodic scan)
                         if not self.active_trade and loop_count % 15 == 0:
@@ -1006,7 +1049,9 @@ class TradingBot:
         # The OrderManager handles the actual API call to Binance
         # If credentials are not set or incorrect, it will return None
         try:
-            order_res = self.orders.place_market_buy(symbol, qty)
+            # Apply global risk multiplier (Crash Shield)
+            final_qty = qty * self.stats.get('qty_multiplier', 1.0)
+            order_res = self.orders.place_market_buy(symbol, final_qty)
         except Exception as e:
             self.add_log(f"Execution Error: {str(e)}")
             order_res = None

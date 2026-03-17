@@ -5,7 +5,7 @@ class WhaleTracker:
     """PROSOFT AI Smart Money Tracker: Monitors specific top wallets for institutional flow."""
     
     def __init__(self):
-        self.symbols = ["BTC", "ETH", "SOL", "PEPE", "XRP"]
+        self.symbols = ["BTC", "ETH", "SOL", "PEPE", "XRP", "USDT"]
         # Advanced Smart Money Wallets
         self.smart_wallets = [
             ("0x7F2...98A", "Whale (Win Rate: 92%)"),
@@ -32,13 +32,26 @@ class WhaleTracker:
             elif symbol == "ETH":
                 amount = random.uniform(2000, 50000)
                 usd_val = amount * 3100
+            elif symbol == "USDT":
+                amount = random.uniform(50000000, 500000000) # $50M - $500M
+                usd_val = amount
             else:
                 amount = random.uniform(100000, 5000000)
                 usd_val = amount * 1.5
 
             is_buying = random.random() > 0.4  # Bias towards buying
 
-            if is_buying:
+            if symbol == "USDT":
+                # Large USDT inflow to exchange is BULLISH (Dry powder)
+                if is_buying:
+                    action = "STABLE INFLOW"
+                    impact = "BULLISH"
+                    msg = f"💎 [USDT INFLOW] Whale deposited ${amount/1e6:.1f}M USDT to Binance (Bullish Signal)"
+                else:
+                    action = "STABLE OUTFLOW"
+                    impact = "NEUTRAL"
+                    msg = f"🏦 [STABLE EXIT] ${amount/1e6:.1f}M USDT moved to Cold Wallet"
+            elif is_buying:
                 action = "ACCUMULATION"
                 impact = "BULLISH"
                 msg = f"[SMART MONEY] {wallet_type} ({wallet_addr[:6]}) accumulated {amount:,.0f} {symbol} (${usd_val/1e6:.1f}M)"

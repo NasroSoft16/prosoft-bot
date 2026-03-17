@@ -2,6 +2,7 @@ import os
 import ta
 from src.utils.logger import app_logger
 from src.ai.quantum_intelligence import QuantumIntelligence
+import random # Added for WhaleTracker simulation
 
 class MarketScanner:
     def __init__(self, api_wrapper):
@@ -11,6 +12,29 @@ class MarketScanner:
         # Load user-defined blacklist from env, or use default stablecoin list
         env_blacklist = os.getenv('BLACKLISTED_COINS', 'USDC,FDUSD,TUSD,USDP,EUR,BUSD,USD1,DAI,USDD,PYUSD,AEUR,GBP,EURI')
         self.blacklist = [coin.strip().upper() for coin in env_blacklist.split(',')]
+        self.crash_shield_active = False
+
+    def get_btc_dominance_state(self):
+        """Proxies market dominance by comparing BTC volume to top Alts."""
+        try:
+            tickers = self.api.client.get_ticker()
+            btc_vol = 0
+            alts_vol = 0
+            for t in tickers:
+                if t['symbol'] == 'BTCUSDT':
+                    btc_vol = float(t['quoteVolume'])
+                elif t['symbol'].endswith('USDT'):
+                    alts_vol += float(t['quoteVolume'])
+            
+            # Dominance proxy (BTC Vol / Total USDT Vol)
+            total_vol = btc_vol + alts_vol
+            dom = (btc_vol / total_vol) * 100 if total_vol > 0 else 50
+            
+            # If BTC Vol is > 65% of total top volume, it often signals a liquidity drain from alts (Crash Risk)
+            is_risky = dom > 60
+            return {"dominance": dom, "is_risky": is_risky}
+        except:
+            return {"dominance": 50, "is_risky": False}
 
     def get_top_pairs(self, limit=20):
         """Fetches top volume pairs from Binance."""

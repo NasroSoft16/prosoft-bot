@@ -49,7 +49,38 @@ class StrategyOptimizer:
                 app_logger.info(f"🧠 [STRATEGY OPTIMIZER] Optimization Insight: Losses occur at higher market health ({avg_health_losses:.1f}%) than wins ({avg_health_wins:.1f}%). Logic adjustment required.")
 
             return {"win_rate": win_rate, "total_trades": len(df)}
-            
         except Exception as e:
             app_logger.error(f"Optimization Cycle Error: {e}")
+            return None
+            
+    def generate_weekly_review(self):
+        """Reviews weekly performance and identifies toxic assets or low-success patterns."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            # Fetch last 500 trades for a broader weekly view
+            query = "SELECT symbol, profit_loss FROM trade_memory ORDER BY id DESC LIMIT 500"
+            df = pd.read_sql_query(query, conn)
+            conn.close()
+            
+            if df.empty or len(df) < 10:
+                return None
+                
+            # Summarize by symbol
+            sym_stats = df.groupby('symbol')['profit_loss'].agg(['count', 'sum', lambda x: (x > 0).mean()]).reset_index()
+            sym_stats.columns = ['symbol', 'trade_count', 'total_pnl', 'win_rate']
+            
+            # Identify 'Toxic' assets (e.g., more than 3 trades and win rate < 30%)
+            toxic_assets = sym_stats[(sym_stats['trade_count'] >= 3) & (sym_stats['win_rate'] < 0.3)]['symbol'].tolist()
+            
+            pnl_total = df['profit_loss'].sum()
+            win_rate_total = (df['profit_loss'] > 0).mean()
+            
+            return {
+                'total_pnl': pnl_total,
+                'win_rate': win_rate_total * 100,
+                'toxic_assets': toxic_assets,
+                'best_asset': sym_stats.sort_values('total_pnl', ascending=False).iloc[0]['symbol'] if not sym_stats.empty else "N/A"
+            }
+        except Exception as e:
+            app_logger.error(f"Weekly Review Error: {e}")
             return None
