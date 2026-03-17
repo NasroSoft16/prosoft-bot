@@ -90,6 +90,7 @@ from src.strategy.arbitrage_engine import TriangularArbitrageEngine
 from src.strategy.order_flow_analyzer import OrderFlowAnalyzer
 from src.risk_management.hedging_protocol import HedgingProtocol
 from src.strategy.liquidity_heatmap import LiquidityHeatmap
+from src.risk_management.global_macro_filter import GlobalMacroFilter
 # Micro-Scalper disabled as requested
 
 load_dotenv()
