@@ -96,7 +96,7 @@ from src.risk_management.global_macro_filter import GlobalMacroFilter
 load_dotenv()
 
 class TradingBot:
-    def __init__(self, symbol='BTCUSDT', timeframe='15m', interval_sec=20):
+    def __init__(self, symbol='BTCUSDT', timeframe='15m', interval_sec=10):
         self.symbol = os.getenv('SYMBOL', symbol)
         self.timeframe = os.getenv('TIMEFRAME', timeframe)
         self.interval_sec = int(interval_sec)
