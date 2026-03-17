@@ -75,11 +75,16 @@ class StrategyOptimizer:
             pnl_total = df['profit_loss'].sum()
             win_rate_total = (df['profit_loss'] > 0).mean()
             
+            best_asset = sym_stats.sort_values('total_pnl', ascending=False).iloc[0]['symbol'] if not sym_stats.empty else "N/A"
+            worst_asset = sym_stats.sort_values('total_pnl', ascending=True).iloc[0]['symbol'] if not sym_stats.empty else "N/A"
+            
             return {
                 'total_pnl': pnl_total,
                 'win_rate': win_rate_total * 100,
                 'toxic_assets': toxic_assets,
-                'best_asset': sym_stats.sort_values('total_pnl', ascending=False).iloc[0]['symbol'] if not sym_stats.empty else "N/A"
+                'best_asset': best_asset,
+                'worst_asset': worst_asset,
+                'total_trades': len(df)
             }
         except Exception as e:
             app_logger.error(f"Weekly Review Error: {e}")

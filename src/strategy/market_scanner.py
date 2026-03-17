@@ -36,7 +36,7 @@ class MarketScanner:
         except:
             return {"dominance": 50, "is_risky": False}
 
-    def get_top_pairs(self, limit=20):
+    def get_top_pairs(self, limit=25):
         """Fetches top volume pairs from Binance."""
         try:
             tickers = self.api.client.get_ticker()
@@ -76,7 +76,7 @@ class MarketScanner:
             
             # Momentum Upgrades (v12.5)
             df['VOL_EMA'] = df['volume'].rolling(window=20).mean()
-            vol_spike = curr['volume'] > (df['VOL_EMA'].iloc[-1] * 1.8) # 80% volume spike
+            vol_spike = curr['volume'] > (df['VOL_EMA'].iloc[-1] * 1.5) # Loosened from 1.8 to 1.5
             
             # RSI Slope (Acceleration)
             rsi_prev = df['RSI'].iloc[-5]
@@ -84,19 +84,20 @@ class MarketScanner:
             
             # Scoring
             score = 30 # Base
-            if curr['close'] > curr['EMA_20'] > curr['EMA_50']: score += 20
-            if rsi_slope > 2: score += 25 # Rapidly growing momentum
-            if vol_spike: score += 20     # Liquid influx
-            if 40 <= curr['RSI'] <= 60: score += 10
-            elif curr['RSI'] < 30: score += 15 # Bounce potential
+            if curr['close'] > curr['EMA_20']: score += 15 # More weighted towards fast EMA
+            if curr['close'] > curr['EMA_50']: score += 10
+            if rsi_slope > 1.5: score += 20     # Loosened acceleration
+            if vol_spike: score += 25          # More reward for volume
+            if 35 <= curr['RSI'] <= 65: score += 10 # Wider active RSI zone
+            elif curr['RSI'] < 35: score += 15 # Bounce potential broadened
             
             # Prediction bonus
-            if prediction and prediction['direction'] == 'UP': score += 10
+            if prediction and prediction['direction'] == 'UP': score += 15
 
             # Reasons
             reasons = []
             if vol_spike: reasons.append("Institutional Vol Spike")
-            if rsi_slope > 2: reasons.append("Zheng Acceleration")
+            if rsi_slope > 1.5: reasons.append("Zheng Acceleration")
             if curr['close'] > curr['EMA_20']: reasons.append("Price above EMA20")
 
             return {
@@ -105,7 +106,7 @@ class MarketScanner:
                 'rsi': float(curr['RSI']),
                 'score': int(score),
                 'health': int(score), # Sync health to momentum for scan mode
-                'sentiment': "BULLISH ACCEL" if rsi_slope > 2 else "SCANNING",
+                'sentiment': "BULLISH ACCEL" if rsi_slope > 1.5 else "SCANNING",
                 'prediction': prediction,
                 'reasoning': reasons
             }
@@ -115,11 +116,11 @@ class MarketScanner:
 
     def scan_market(self):
         """Scans multiple pairs for opportunities."""
-        symbols = self.get_top_pairs(limit=15)
+        symbols = self.get_top_pairs(limit=25)
         results = []
         for sym in symbols:
             analysis = self.analyze_symbol(sym)
-            # Relaxed threshold to ensure list is not empty
-            if analysis and analysis['score'] >= 50:
+            # Relaxed threshold to ensure list is not empty (Dropped from 50 to 40)
+            if analysis and analysis['score'] >= 40:
                 results.append(analysis)
         return sorted(results, key=lambda x: x['score'], reverse=True)

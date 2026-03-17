@@ -542,9 +542,9 @@ class TradingBot:
                                 
                                 best_candidate = scan_results[0]
                                 
-                                # 3. Strategic Decision: Switch only for significant Alpha (+12 threshold)
-                                # This prevents 'jitter' and ensures we only move for high-probability setups
-                                if best_candidate['score'] > current_scanner_score + 12 and best_candidate['symbol'] != self.symbol:
+                                # 3. Strategic Decision: Switch only for significant Alpha (+5 threshold)
+                                # Loosened from +12 to +5 to encourage more active market hunting
+                                if best_candidate['score'] > current_scanner_score + 5 and best_candidate['symbol'] != self.symbol:
                                     self.add_log(f"🧠 AI STRATEGIC PIVOT: {best_candidate['symbol']} (Score: {best_candidate['score']}) outperforms {self.symbol} (Score: {current_scanner_score})")
                                     
                                     # Send Professional Bilingual Alert
@@ -552,8 +552,8 @@ class TradingBot:
                                         msg = (f"🔄 *STRATEGIC ROTATION / تدوير استراتيجي* 🔄\n\n"
                                                f"Current / الحالي: `{self.symbol}` (Score: {current_scanner_score})\n"
                                                f"Superior Alpha / البديل الأقوى: `{best_candidate['symbol']}` (Score: {best_candidate['score']})\n\n"
-                                               f"Reason: Multi-factor analysis detected terminal growth potential.\n"
-                                               f"السبب: التحليل متعدد العوامل اكتشف إشارة انفجارية قوية.")
+                                               f"Reason: High-velocity opportunity detected in discovery mode.\n"
+                                               f"السبب: تم اكتشاف فرصة عالية السرعة في وضع الاستكشاف الجديد.")
                                         await self.telegram.send_message(msg)
                                     except: pass
                                     
@@ -624,25 +624,38 @@ class TradingBot:
                             self.add_log("🧠 Weekly Intelligence Review started...")
                             review = self.optimizer.generate_weekly_review()
                             if review:
-                                # 1. WEEKLY FORGIVENESS: Reset blacklist to default before re-evaluating
-                                # This ensures coins get a second chance every week
-                                env_blacklist = os.getenv('BLACKLISTED_COINS', 'USDC,FDUSD,TUSD,USDP,EUR,BUSD,USD1,DAI,USDD,PYUSD,AEUR,GBP,EURI')
-                                self.market_scanner.blacklist = [coin.strip().upper() for coin in env_blacklist.split(',')]
+                                # 1. WEEKLY FORGIVENESS: Prepare list of forgiven assets
+                                env_defaults = 'USDC,FDUSD,TUSD,USDP,EUR,BUSD,USD1,DAI,USDD,PYUSD,AEUR,GBP,EURI'
+                                defaults = [c.strip().upper() for c in env_defaults.split(',')]
+                                forgiven = [c for c in self.market_scanner.blacklist if c not in defaults]
                                 
+                                # Reset to default
+                                self.market_scanner.blacklist = list(defaults)
                                 self.stats['last_weekly_review'] = now_alg.strftime("%Y-%m-%d")
+                                
                                 toxic_list = ", ".join(review['toxic_assets']) if review['toxic_assets'] else "None"
+                                forgiven_list = ", ".join(forgiven) if forgiven else "None"
+                                
                                 report = (
-                                    f"📊 *WEEKLY PERFORMANCE REVIEW*\n"
+                                    f"📊 *WEEKLY INTELLIGENCE REPORT / التقرير الأسبوعي*\n"
                                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                                    f"💰 Total PNL: `${review['total_pnl']:+.4f}`\n"
-                                    f"🏆 Win Rate: `{review['win_rate']:.1f}%`\n"
-                                    f"🌟 Best Asset: `{review['best_asset']}`\n"
-                                    f"🚫 Toxic Assets: `{toxic_list}`\n"
+                                    f"💰 Total PNL / إجمالي الربح: `${review['total_pnl']:+.4f}`\n"
+                                    f"🏆 Win Rate / نسبة النجاح: `{review['win_rate']:.1f}%`\n"
+                                    f"🔢 Total Trades / عدد الصفقات: `{review['total_trades']}`\n"
+                                    f"🌟 Best Asset / أفضل عملة: `{review['best_asset']}`\n"
+                                    f"💀 Worst Asset / أسوأ عملة: `{review['worst_asset']}`\n"
                                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                                    f"Action: Toxic assets will be prioritized for blacklisting in scans."
+                                    f"🕊️ *FORGIVENESS / العفو عن العملات:*\n"
+                                    f"`{forgiven_list}`\n\n"
+                                    f"🚫 *NEW BLACKLIST / القائمة السوداء الجديدة:*\n"
+                                    f"`{toxic_list}`\n"
+                                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                                    f"Status / الحالة: System brain refreshed. Toxic assets quarantined.\n"
+                                    f"الحالة: تم تحديث ذاكرة النظام. تم عزل أصول التداول السامة."
                                 )
                                 await self.telegram.send_message(report)
-                                # Automatically update scanner blacklist
+                                
+                                # Automatically update scanner blacklist with new toxic ones
                                 if review['toxic_assets']:
                                     for t in review['toxic_assets']:
                                         if t not in self.market_scanner.blacklist:

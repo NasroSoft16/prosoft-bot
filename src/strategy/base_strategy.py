@@ -3,7 +3,7 @@ from src.utils.logger import app_logger
 from src.indicators.technical_analysis import TechnicalAnalysis
 
 class BaseStrategy:
-    def __init__(self, rsi_min=25, rsi_max=80, volume_multiplier=1.2, atr_multiplier_sl=2.2, atr_multiplier_tp=5.0):
+    def __init__(self, rsi_min=20, rsi_max=85, volume_multiplier=1.1, atr_multiplier_sl=2.2, atr_multiplier_tp=5.0):
         self.ta = TechnicalAnalysis()
         self.rsi_min = rsi_min
         self.rsi_max = rsi_max
@@ -21,23 +21,23 @@ class BaseStrategy:
     def check_entry_signal(self, df):
         """Checks if the technical indicators signal a buy with optimized sensitivity."""
         try:
-            if len(df) < 50: # Increased minimum history for better EMA/ATR accuracy
+            if len(df) < 30: # Loosened historical requirement from 50 to 30
                 return {'signal': 'WAIT'}
                 
             current_row = df.iloc[-1]
             prev_row = df.iloc[-2]
             
-            # --- PROSOFT ELITE ADAPTIVE LOGIC ---
-            # Condition 1: Strong Breakout (Surging above high of previous candle)
-            is_breakout = current_row['close'] > prev_row['high'] and current_row['close'] > current_row['EMA_50']
+            # --- PROSOFT ELITE ADAPTIVE LOGIC (LOOSENED) ---
+            # Condition 1: Breakout (Using EMA_20 for faster response)
+            is_breakout = current_row['close'] > prev_row['high'] and current_row['close'] > current_row['EMA_20']
             
-            # Condition 2: Confidence Zone (Avoid extreme overbought RSI > 85)
-            is_momentum = 55 <= current_row['RSI'] <= 82
+            # Condition 2: Confidence Zone (Broadened from 55-82 to 45-85)
+            is_momentum = 45 <= current_row['RSI'] <= 85
             
-            # Condition 3: Professional Knife Catch (Deep Mean Reversion)
-            is_knife_catch = current_row['RSI'] < 20 and current_row['close'] > prev_row['close']
+            # Condition 3: Knife Catch (Broadened from 20 to 30)
+            is_knife_catch = current_row['RSI'] < 30 and current_row['close'] > prev_row['close']
             
-            # Condition 4: Volume confirmation (Enhanced sensitivity)
+            # Condition 4: Volume confirmation (Using multiplier 1.1 instead of 1.2)
             is_volume_valid = self.ta.is_volume_spike(df, multiplier=self.volume_multiplier)
             
             # Aggregate Signal Logic
