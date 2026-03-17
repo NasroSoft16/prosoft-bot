@@ -970,9 +970,14 @@
                         data-ar="قاعدة بيانات التعلم الذاتي لتصحيح الأخطاء ومطابقة الأنماط.">Live self-learning database
                         for AI error correction and pattern matching.</p>
                 </div>
-                <button id="close-memory"
-                    class="text-slate-500 hover:text-white font-bold px-3 py-1 rounded bg-white/5 hover:bg-white/10 transition">ESC
-                    &times;</button>
+                <div class="flex items-center gap-3">
+                    <button onclick="triggerWipeDatabase()" class="bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold px-3 py-1.5 rounded border border-red-500/20 transition-all flex items-center gap-1">
+                        🗑️ <span data-en="FULL RESET" data-ar="تصفير السجل المحفوظ">FULL RESET</span>
+                    </button>
+                    <button id="close-memory"
+                        class="text-slate-500 hover:text-white font-bold px-3 py-1 rounded bg-white/5 hover:bg-white/10 transition">ESC
+                        &times;</button>
+                </div>
             </div>
 
             <!-- Modal Tabs -->
@@ -1641,6 +1646,25 @@
 
         async function exportPDF() {
             window.location.href = `${API_BASE}/download_report`;
+        }
+
+        async function triggerWipeDatabase() {
+            const confirmMsg = currentLang === 'en' 
+                ? "⚠️ SYSTEM WARNING: This will PERMANENTLY delete all trade and revenue history. This cannot be undone. Proceed?" 
+                : "⚠️ تحذير النظام: سيؤدي هذا إلى مسح سجل التداول والأرباح بشكل نهائي. لا يمكن التراجع عن هذه الخطوة. هل تريد المتابعة؟";
+            
+            if (!confirm(confirmMsg)) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/maintenance/wipe`, { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert(currentLang === 'en' ? "Database wiped successfully." : "تم تصفير قاعدة البيانات بنجاح.");
+                    location.reload();
+                } else {
+                    alert("Error: " + data.message);
+                }
+            } catch (e) { alert("Connection Error."); }
         }
 
         async function updateScanner() {

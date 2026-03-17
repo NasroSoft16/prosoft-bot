@@ -587,6 +587,23 @@ class DashboardAPI:
                 return jsonify(memories)
             return jsonify([])
 
+        @self.app.route('/api/maintenance/wipe', methods=['POST'])
+        def wipe_database():
+            """Hard-reset the database history (Trade & Revenue memory)."""
+            try:
+                import sqlite3
+                conn = sqlite3.connect(self.bot.memory.db_path)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM trade_memory")
+                cursor.execute("DELETE FROM revenue_memory")
+                cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('trade_memory', 'revenue_memory')")
+                conn.commit()
+                conn.close()
+                self.bot.add_log("⚠️ SYSTEM ALERT: Database history has been manually wiped via Dashboard.")
+                return jsonify({'status': 'success', 'message': 'Database cleared successfully.'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
+
         @self.app.route('/api/revenue', methods=['GET'])
         def get_revenue():
             """Fetch the revenue stream history."""
