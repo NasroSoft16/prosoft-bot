@@ -1619,7 +1619,7 @@
                             maintainAspectRatio: false,
                             plugins: { legend: { display: false } },
                             scales: {
-                                y: { min: 0, max: 100, display: false },
+                                y: { display: false }, // Dynamic scale for small profits
                                 x: { display: false }
                             }
                         }
@@ -1974,8 +1974,12 @@
             try {
                 const res = await fetch(`${API_BASE}/analytics`);
                 const data = await res.json();
-                document.getElementById('stat-winrate').innerText = `${data.win_rate}%`;
-                document.getElementById('stat-avgpnl').innerText = `$${data.avg_pn_l}`;
+                const wr = parseFloat(data.win_rate || 0);
+                const wrEl = document.getElementById('stat-winrate');
+                wrEl.innerText = `${wr}%`;
+                wrEl.className = `text-lg font-black ${wr < 45 ? 'text-red-400' : wr < 65 ? 'text-yellow-400' : 'text-green-400'}`;
+                
+                document.getElementById('stat-avgpnl').innerText = `$${parseFloat(data.avg_pn_l || 0).toFixed(2)}`;
                 
                 if (data.history && data.history.length > 0) {
                     const alphaLeads = data.history.filter(h => h.lesson_learned && h.lesson_learned.includes("POSITIVE")).slice(0, 3);
