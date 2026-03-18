@@ -1223,7 +1223,7 @@ class TradingBot:
         self.stats['daily_pnl'] += pnl
         
         # --- NEW: NEURAL POST-TRADE REVIEW (v12.8) ---
-        ai_lesson = "Strategy performance within expected parameters."
+        ai_lesson = "Strategy performance within expected parameters. (Node Latency: AI Insight Deferred)"
         try:
             if self.gemini and self.gemini.api_keys:
                 self.add_log("AI Cluster: Initiating Neural Post-Trade Review & Cluster Rotation...")
@@ -1231,16 +1231,18 @@ class TradingBot:
                     f"Institutional Review: Trade on {trade['symbol']} ({trade['side']}) closed for ${pnl:.2f} ({pnl_pct:.2f}%). "
                     f"Market Health: {self.stats['market_health']}%. Reason: {reason}. "
                     "As a Senior Strategist, provide a deep bilingual (AR/EN) neural lesson about this outcome. "
-                    "Keep it professional and insightful."
+                    "Explain the 'why' behind this result. Keep it professional."
                 )
-                # This call will trigger rotate_key() inside gemini.ask()
-                result = await asyncio.wait_for(self.gemini.ask(review_prompt), timeout=10.0)
+                # Increased timeout to 15s to allow for full cluster rotation if needed
+                result = await asyncio.wait_for(self.gemini.ask(review_prompt), timeout=15.0)
                 if result:
                     ai_lesson = result
                 # Update UI immediately to reflect rotation
                 self.stats['ai_cluster'] = self.gemini.get_quota_info()
+        except asyncio.TimeoutError:
+            app_logger.warning("Post-Trade Review: Gemini Cluster timed out. Returning cached stability message.")
         except Exception as e:
-            app_logger.warning(f"Post-Trade Review Latency: {e}")
+            app_logger.warning(f"Post-Trade Review Error: {e}")
             
         # Reset Active Trade & Clear Local State
         self.active_trade = None

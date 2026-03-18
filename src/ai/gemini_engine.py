@@ -143,19 +143,25 @@ class GeminiAI:
                     
                     return response.text.strip()
                 
-                return None
+                # If we got here, response was empty for this node
+                app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} returned empty response. Rotating...")
+                self.rotate_key()
+                tries += 1
 
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "quota" in err_str.lower():
                     app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} Quota hit. Rotating...")
                     self.usage_stats[active_key]['limit_hit'] = True
-                    if not self.rotate_key(): break # Only 1 key
-                    tries += 1
                 else:
-                    app_logger.error(f"Gemini Node {self.current_key_idx + 1} Error: {e}")
+                    app_logger.error(f"❌ [AI CLUSTER] Node {self.current_key_idx + 1} Error: {e}")
                     self.usage_stats[active_key]['errors'] += 1
+                
+                # CRITICAL FIX: Always rotate and try next node if available
+                if not self.rotate_key(): 
+                    app_logger.error("🛑 [AI CLUSTER] All nodes failed or only 1 node available.")
                     break 
+                tries += 1
         
         return None
 
