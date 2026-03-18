@@ -15,7 +15,7 @@ class GeminiAI:
         self.api_keys = [k.strip() for k in self.raw_keys.split(',') if k.strip()]
         self.current_key_idx = 0
         self.models = {}  # Cache models for each key
-        self.usage_stats = {key: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0} for key in self.api_keys}
+        self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0} for i in range(len(self.api_keys))}
         self.model_name = 'gemini-1.5-flash-latest' # Canonical stable latest
         self.model = True # Compatibility flag for dashboard checks
         self._initialize_all()
@@ -27,15 +27,18 @@ class GeminiAI:
 
         try:
             import google.generativeai as genai
-            for key in self.api_keys:
+            for i, key in enumerate(self.api_keys):
                 try:
-                    # We don't configure globally here to allow per-call or per-instance keys if needed,
-                    # but the SDK mostly uses global config. We'll use a wrapper approach.
-                    self.models[key] = genai.GenerativeModel(self.model_name)
+                    # Log unique identifiers to verify key diversity for the user
+                    masked = f"{key[:4]}...{key[-4:]}"
+                    app_logger.info(f"🔑 [AI CLUSTER] Verifying Node {i+1}: ID {masked}")
+                    # We don't store the model object here as the SDK uses global config, 
+                    # but we track that it's "ready".
+                    self.models[i] = True 
                 except Exception as e:
-                    app_logger.error(f"Error prepping node for key {key[:8]}...: {e}")
+                    app_logger.error(f"Error prepping node {i+1}: {e}")
             
-            app_logger.info(f"🚀 [AI CLUSTER] Initialized {len(self.models)} intelligence nodes.")
+            app_logger.info(f"🚀 [AI CLUSTER] Initialized {len(self.api_keys)} independent intelligence nodes.")
         except ImportError:
             app_logger.warning("google-generativeai not installed.")
 
@@ -45,7 +48,7 @@ class GeminiAI:
         self.api_keys = [k.strip() for k in self.raw_keys.split(',') if k.strip()]
         self.current_key_idx = 0
         self.models = {}
-        self.usage_stats = {key: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0} for key in self.api_keys}
+        self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0} for i in range(len(self.api_keys))}
         self._initialize_all()
 
     def get_active_key(self):
@@ -62,9 +65,8 @@ class GeminiAI:
         """Calculate estimated usage for dashboard."""
         if not self.api_keys: return []
         info = []
-        for i, key in enumerate(self.api_keys):
-            stats = self.usage_stats.get(key, {})
-            # Free tier usually has 15-20 RPM or 1500 RPD. We'll estimate based on usage.
+        for i in range(len(self.api_keys)):
+            stats = self.usage_stats.get(i, {})
             info.append({
                 'id': i + 1,
                 'status': 'LIMIT HIT' if stats.get('limit_hit') else 'ONLINE',
@@ -77,9 +79,7 @@ class GeminiAI:
         """Ask Gemini with automatic key rotation and model fallback."""
         import google.generativeai as genai
         
-        # Priority list of models to try if the main one fails
         fallback_models = [self.model_name, 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-1.5-flash', 'gemini-1.5-pro']
-        # Remove duplicates while preserving order
         fallback_models = list(dict.fromkeys(fallback_models))
 
         tries = 0
@@ -91,16 +91,12 @@ class GeminiAI:
             
             try:
                 genai.configure(api_key=active_key)
-                
-                # Try models in order until one works
                 response = None
-                last_err = None
                 
                 for m_name in fallback_models:
                     try:
                         model = genai.GenerativeModel(m_name)
                         
-                        # Build prompt
                         if market_context:
                             system_prompt = (
                                 "You are PROSOFT AI, a highly sophisticated institutional trading partner and neural strategist. "
@@ -113,8 +109,8 @@ class GeminiAI:
                         else:
                             full_prompt = f"Detect user language and reply in it. User: {question}"
 
-                        # Track usage
-                        self.usage_stats[active_key]['requests'] += 1
+                        # Track usage (INDEX BASED)
+                        self.usage_stats[self.current_key_idx]['requests'] += 1
                         
                         response = await asyncio.to_thread(
                             model.generate_content,
@@ -122,29 +118,23 @@ class GeminiAI:
                             request_options={"timeout": 12.0}
                         )
                         if response:
-                            # If successful, update the main model name to this working one to avoid future retries
                             if self.model_name != m_name:
                                 app_logger.info(f"💡 [AI CLUSTER] Auto-adjusted model to {m_name}")
                                 self.model_name = m_name
                             break
                     except Exception as e:
-                        last_err = e
                         if "404" in str(e) or "not found" in str(e).lower():
-                            continue # Try next model
+                            continue
                         else:
-                            raise e # Re-raise if it's not a 404 (e.g. 429 quota)
+                            raise e
 
                 if response and hasattr(response, 'text'):
-                    self.usage_stats[active_key]['limit_hit'] = False
-                    self.usage_stats[active_key]['last_success'] = time.time()
-                    
-                    # PROACTIVE ROTATION: Rotate to the next key after success to balance load
+                    self.usage_stats[self.current_key_idx]['limit_hit'] = False
+                    self.usage_stats[self.current_key_idx]['last_success'] = time.time()
                     self.rotate_key()
-                    
                     return response.text.strip()
                 
-                # If we got here, response was empty for this node
-                app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} returned empty response. Rotating...")
+                app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} returned empty. Rotating...")
                 self.rotate_key()
                 tries += 1
 
@@ -152,14 +142,12 @@ class GeminiAI:
                 err_str = str(e)
                 if "429" in err_str or "quota" in err_str.lower():
                     app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} Quota hit. Rotating...")
-                    self.usage_stats[active_key]['limit_hit'] = True
+                    self.usage_stats[self.current_key_idx]['limit_hit'] = True
                 else:
                     app_logger.error(f"❌ [AI CLUSTER] Node {self.current_key_idx + 1} Error: {e}")
-                    self.usage_stats[active_key]['errors'] += 1
+                    self.usage_stats[self.current_key_idx]['errors'] += 1
                 
-                # CRITICAL FIX: Always rotate and try next node if available
                 if not self.rotate_key(): 
-                    app_logger.error("🛑 [AI CLUSTER] All nodes failed or only 1 node available.")
                     break 
                 tries += 1
         
