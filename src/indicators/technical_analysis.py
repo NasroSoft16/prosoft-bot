@@ -7,7 +7,8 @@ class TechnicalAnalysis:
     def calculate_indicators(df):
         """Calculates indicators for the given dataframe."""
         try:
-            # EMA calculations (50 and 200)
+            # EMA calculations (20, 50 and 200)
+            df['EMA_20'] = ta.trend.ema_indicator(df['close'], window=20)
             df['EMA_50'] = ta.trend.ema_indicator(df['close'], window=50)
             df['EMA_200'] = ta.trend.ema_indicator(df['close'], window=200)
 

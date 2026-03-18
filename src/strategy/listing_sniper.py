@@ -33,14 +33,14 @@ class ListingSniper:
                 return None
                 
             # 1. Detection of brand new symbols (not in cache)
-            new_assets = [sym for sym in current_symbols if sym not in self.watched_symbols]
+            new_assets = [sym for sym in current_symbols if sym not in self.watched_symbols and sym.endswith('USDT')]
             
             # 2. Detection of status transitions (e.g. was BREAK or PRE_TRADING, now TRADING)
             activated_assets = []
             for sym, status in current_symbols.items():
                 if sym in self.watched_symbols:
                     old_status = self.watched_symbols[sym]
-                    if old_status != 'TRADING' and status == 'TRADING':
+                    if old_status != 'TRADING' and status == 'TRADING' and sym.endswith('USDT'):
                         activated_assets.append(sym)
             
             # Update cache

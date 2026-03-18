@@ -1170,9 +1170,15 @@ class TradingBot:
                     current_ticker = self.api.get_symbol_ticker(trade['symbol'])
                     est_value = actual_free_balance * current_ticker
                     
-                    if est_value >= 1.0: # Attempt liquidation if worth at least $1 (some allow $1, others $5/$10)
+                    if est_value >= 1.0: # Attempt liquidation if worth at least $1
                         self.add_log(f"Liquidation: Selling {actual_free_balance:.6f} {asset} (~${est_value:.2f})")
                         sell_order = self.orders.place_market_sell(trade['symbol'], actual_free_balance)
+                        
+                        # Fallback for new listings where MARKET sells might be disabled
+                        if not sell_order and est_value >= 10.0:
+                            self.add_log(f"⚠️ MARKET SELL REJECTED. Fallback to LIMIT SELL at 1% discount for {asset}.")
+                            # Attempt to sell via limit slightly below current price to trigger immediately
+                            sell_order = self.orders.place_limit_sell(trade['symbol'], actual_free_balance, current_ticker * 0.99)
                         
                         if sell_order:
                             self.add_log(f"✅ CONVERSION SUCCESS: {asset} successfully converted to USDT.")
@@ -1185,14 +1191,21 @@ class TradingBot:
                                 )
                             except: pass
                         else:
-                            self.add_log(f"⚠️ LIQUIDATION REJECTED: {asset} (~${est_value:.2f}) is likely below Binance minimum ($5-$10).")
-                            try:
-                                await self.telegram.send_message(
-                                    f"⚠️ *LIQUIDATION LIMIT REACHED*\n"
-                                    f"Asset: `{asset}` remained in wallet because its value (${est_value:.2f}) is below the Binance minimum required for selling (usually $10).\n"
-                                    f"Action: You can manually convert it to BNB or hold it."
-                                )
-                            except: pass
+                            if est_value >= 10.0:
+                                self.add_log(f"🛑 CRITICAL: Liquidation failed completely for {asset} despite high value (${est_value:.2f}). Trade will NOT be closed.")
+                                try:
+                                    await self.telegram.send_message(f"🚨 *LIQUIDATION FAILED*\nAsset: `{asset}` (${est_value:.2f}). The system will retry. Check Binance manually.")
+                                except: pass
+                                return # Abort the close process and try again next loop
+                            else:
+                                self.add_log(f"⚠️ LIQUIDATION IGNORED: {asset} (~${est_value:.2f}) is likely below Binance minimum ($5-$10).")
+                                try:
+                                    await self.telegram.send_message(
+                                        f"⚠️ *LIQUIDATION LIMIT REACHED*\n"
+                                        f"Asset: `{asset}` remained in wallet because its value (${est_value:.2f}) is below the Binance minimum required for selling (usually $10).\n"
+                                        f"Action: You can manually convert it to BNB or hold it."
+                                    )
+                                except: pass
                     else:
                         self.add_log(f"Dust Handling: {asset} balance too small to even attempt sell (${est_value:.2f}).")
                 else:
