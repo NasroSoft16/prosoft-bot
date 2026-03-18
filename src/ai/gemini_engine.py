@@ -14,55 +14,55 @@ class GeminiAI:
         self.raw_keys = os.getenv('GEMINI_API_KEY', '')
         self.api_keys = [k.strip() for k in self.raw_keys.split(',') if k.strip()]
         self.current_key_idx = 0
-        self.models = {}  # Cache models for each key
-        self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0} for i in range(len(self.api_keys))}
-        self.model_name = 'gemini-1.5-flash-latest' # Canonical stable latest
-        self.model = True # Compatibility flag for dashboard checks
+        self.models = {}
+        # TRACKING: Using index-based stats to ensure isolation
+        self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
+        self.model_name = 'gemini-1.5-flash-latest'
+        self.model = True # Dashboard flag
+        self.lock = asyncio.Lock() # Protect against parallel scatter
+        self.node_saturation_threshold = 25 # Move to next node after X requests for orderly dash
         self._initialize_all()
     
     def _initialize_all(self):
         if not self.api_keys:
             app_logger.warning("No Gemini API Keys detected. AI will operate in fallback mode.")
             return
-
+        
         try:
-            import google.generativeai as genai
+            # Mask keys for logging to help user verify diversity
             for i, key in enumerate(self.api_keys):
-                try:
-                    # Log unique identifiers to verify key diversity for the user
-                    masked = f"{key[:4]}...{key[-4:]}"
-                    app_logger.info(f"🔑 [AI CLUSTER] Verifying Node {i+1}: ID {masked}")
-                    # We don't store the model object here as the SDK uses global config, 
-                    # but we track that it's "ready".
-                    self.models[i] = True 
-                except Exception as e:
-                    app_logger.error(f"Error prepping node {i+1}: {e}")
-            
-            app_logger.info(f"🚀 [AI CLUSTER] Initialized {len(self.api_keys)} independent intelligence nodes.")
-        except ImportError:
-            app_logger.warning("google-generativeai not installed.")
+                masked = f"{key[:4]}...{key[-4:]}"
+                app_logger.info(f"🔑 [AI CLUSTER] Node {i+1} Ready: ID {masked}")
+            app_logger.info(f"🚀 [AI CLUSTER] Initialized {len(self.api_keys)} nodes (SEQUENTIAL PULSE MODE).")
+        except: pass
 
     def reload(self, raw_keys):
-        """Reload with a new set of API keys."""
+        """Reload system with new keys."""
         self.raw_keys = raw_keys
         self.api_keys = [k.strip() for k in self.raw_keys.split(',') if k.strip()]
         self.current_key_idx = 0
-        self.models = {}
-        self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0} for i in range(len(self.api_keys))}
+        self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
         self._initialize_all()
 
     def get_active_key(self):
         if not self.api_keys: return None
         return self.api_keys[self.current_key_idx]
 
-    def rotate_key(self):
+    def rotate_key(self, force=True):
+        """Rotate to next node. If not 'force', will only happen if saturated."""
         if len(self.api_keys) <= 1: return False
+        
+        idx = self.current_key_idx
+        # Reset current session count on rotation
+        self.usage_stats[idx]['session_reqs'] = 0
+        
+        # Move to next
         self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
-        app_logger.info(f"🔄 [AI CLUSTER] Rotating to Node {self.current_key_idx + 1}/{len(self.api_keys)}")
+        app_logger.info(f"🔄 [AI CLUSTER] Pulse Shift: Moving to Node {self.current_key_idx + 1}/{len(self.api_keys)}")
         return True
 
     def get_quota_info(self):
-        """Calculate estimated usage for dashboard."""
+        """Dashboard data feed."""
         if not self.api_keys: return []
         info = []
         for i in range(len(self.api_keys)):
@@ -76,7 +76,7 @@ class GeminiAI:
         return info
 
     async def ask(self, question, market_context=None):
-        """Ask Gemini with automatic key rotation and model fallback."""
+        """Ask Gemini with Sequential Pulse strategy (User Request)."""
         import google.generativeai as genai
         
         fallback_models = [self.model_name, 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-1.5-flash', 'gemini-1.5-pro']
@@ -86,78 +86,75 @@ class GeminiAI:
         max_tries = len(self.api_keys) if self.api_keys else 1
         
         while tries < max_tries:
-            active_key = self.get_active_key()
-            if not active_key: return None
+            async with self.lock:
+                idx = self.current_key_idx
+                # CHECK: IF current node saturated, move pulse to next BEFORE starting
+                if self.usage_stats[idx]['session_reqs'] >= self.node_saturation_threshold:
+                    app_logger.info(f"📢 [AI CLUSTER] Node {idx+1} saturated ({self.node_saturation_threshold} reqs). Shifting...")
+                    self.rotate_key(force=True)
+                    idx = self.current_key_idx
+                
+                active_key = self.api_keys[idx]
             
             try:
                 genai.configure(api_key=active_key)
                 response = None
                 
+                # Model selection loop
                 for m_name in fallback_models:
                     try:
                         model = genai.GenerativeModel(m_name)
                         
+                        prompt = question
                         if market_context:
-                            system_prompt = (
-                                "You are PROSOFT AI, a highly sophisticated institutional trading partner and neural strategist. "
-                                "Your goal is to provide deep, clear, and human-like insights that inspire confidence. "
-                                "CRITICAL: Detect the user's language. If the user asks in Arabic, reply in a warm, clear, and professional Arabic tone. "
-                                "If in English, provide a refined institutional perspective. Be more than a bot; be a strategist."
-                            )
-                            ctx = f"\nMarket Context: Asset={market_context.get('symbol')}, Price=${market_context.get('price')}, AI Confidence={market_context.get('ai_conf')}%, Market Health={market_context.get('market_health')}%"
-                            full_prompt = f"{system_prompt}{ctx}\n\nUser Question: {question}"
-                        else:
-                            full_prompt = f"Detect user language and reply in it. User: {question}"
+                            system_prompt = "You are PROSOFT AI Senior Strategist. Reply in user's language (AR/EN)."
+                            prompt = f"{system_prompt}\nContext: {market_context}\nQ: {question}"
 
-                        # Track usage (INDEX BASED)
-                        self.usage_stats[self.current_key_idx]['requests'] += 1
+                        # ATOMIC TRACKING
+                        self.usage_stats[idx]['requests'] += 1
+                        self.usage_stats[idx]['session_reqs'] += 1
                         
                         response = await asyncio.to_thread(
                             model.generate_content,
-                            full_prompt,
+                            prompt,
                             request_options={"timeout": 12.0}
                         )
                         if response:
-                            if self.model_name != m_name:
-                                app_logger.info(f"💡 [AI CLUSTER] Auto-adjusted model to {m_name}")
-                                self.model_name = m_name
+                            if self.model_name != m_name: self.model_name = m_name
                             break
                     except Exception as e:
-                        if "404" in str(e) or "not found" in str(e).lower():
-                            continue
-                        else:
-                            raise e
+                        if "404" in str(e) or "not found" in str(e).lower(): continue
+                        raise e
 
                 if response and hasattr(response, 'text'):
-                    self.usage_stats[self.current_key_idx]['limit_hit'] = False
-                    self.usage_stats[self.current_key_idx]['last_success'] = time.time()
-                    self.rotate_key()
+                    self.usage_stats[idx]['limit_hit'] = False
+                    self.usage_stats[idx]['last_success'] = time.time()
                     return response.text.strip()
                 
-                app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} returned empty. Rotating...")
-                self.rotate_key()
+                # If empty, rotate immediately
+                async with self.lock: self.rotate_key(force=True)
                 tries += 1
 
             except Exception as e:
                 err_str = str(e)
-                if "429" in err_str or "quota" in err_str.lower():
-                    app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} Quota hit. Rotating...")
-                    self.usage_stats[self.current_key_idx]['limit_hit'] = True
-                else:
-                    app_logger.error(f"❌ [AI CLUSTER] Node {self.current_key_idx + 1} Error: {e}")
-                    self.usage_stats[self.current_key_idx]['errors'] += 1
-                
-                if not self.rotate_key(): 
-                    break 
+                async with self.lock:
+                    if "429" in err_str or "quota" in err_str.lower():
+                        app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} Limit. Shifting...")
+                        self.usage_stats[self.current_key_idx]['limit_hit'] = True
+                    else:
+                        app_logger.error(f"❌ [AI CLUSTER] Node {self.current_key_idx + 1} Error: {e}")
+                        self.usage_stats[self.current_key_idx]['errors'] += 1
+                    
+                    self.rotate_key(force=True)
                 tries += 1
         
         return None
 
     def analyze_image(self, image_bytes, question="Analyze this chart."):
-        """Synchronous version for dashboard uploads."""
+        """Visual analysis protocol."""
         import google.generativeai as genai
         active_key = self.get_active_key()
-        if not active_key: return "No API Key"
+        if not active_key: return "Link Failure"
         
         try:
             genai.configure(api_key=active_key)
