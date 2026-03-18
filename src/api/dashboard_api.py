@@ -599,6 +599,45 @@ class DashboardAPI:
                 cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('trade_memory', 'revenue_memory')")
                 conn.commit()
                 conn.close()
+                return jsonify({'status': 'success'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
+
+        @self.app.route('/api/accuracy', methods=['GET'])
+        def get_accuracy_chart():
+            """Returns cumulative performance progress for the dashboard chart."""
+            try:
+                if not hasattr(self.bot, 'memory'):
+                    return jsonify([])
+                # Fetch order by ID ascending to build cumulative sum over time
+                # We'll fetch the last 20 trades
+                import sqlite3
+                import pandas as pd
+                conn = sqlite3.connect(self.bot.memory.db_path)
+                df = pd.read_sql_query("SELECT exit_time, profit_loss FROM trade_memory ORDER BY id DESC LIMIT 20", conn)
+                conn.close()
+                
+                if df.empty:
+                    return jsonify([])
+                
+                # Reverse to chronological order
+                df = df.iloc[::-1].reset_index(drop=True)
+                
+                # Calculate Cumulative PNL
+                df['cumulative_pnl'] = df['profit_loss'].cumsum()
+                
+                history = []
+                for _, row in df.iterrows():
+                    time_str = str(row['exit_time']).split(' ')[1][:5] if ' ' in str(row['exit_time']) else str(row['exit_time'])
+                    history.append({
+                        'time': time_str,
+                        'accuracy': round(row['cumulative_pnl'], 2)
+                    })
+                return jsonify(history)
+            except Exception as e:
+                app_logger.error(f"Accuracy Chart API Error: {str(e)}")
+                return jsonify([])
+                conn.close()
                 self.bot.add_log("⚠️ SYSTEM ALERT: Database history has been manually wiped via Dashboard.")
                 return jsonify({'status': 'success', 'message': 'Database cleared successfully.'})
             except Exception as e:
