@@ -1222,21 +1222,43 @@ class TradingBot:
         self.risk.update_performance(pnl_pct / 100)
         self.stats['daily_pnl'] += pnl
         
+        # --- NEW: NEURAL POST-TRADE REVIEW (v12.8) ---
+        ai_lesson = "Strategy performance within expected parameters."
+        try:
+            if self.gemini and self.gemini.api_keys:
+                self.add_log("AI Cluster: Initiating Neural Post-Trade Review & Cluster Rotation...")
+                review_prompt = (
+                    f"Institutional Review: Trade on {trade['symbol']} ({trade['side']}) closed for ${pnl:.2f} ({pnl_pct:.2f}%). "
+                    f"Market Health: {self.stats['market_health']}%. Reason: {reason}. "
+                    "As a Senior Strategist, provide a deep bilingual (AR/EN) neural lesson about this outcome. "
+                    "Keep it professional and insightful."
+                )
+                # This call will trigger rotate_key() inside gemini.ask()
+                result = await asyncio.wait_for(self.gemini.ask(review_prompt), timeout=10.0)
+                if result:
+                    ai_lesson = result
+                # Update UI immediately to reflect rotation
+                self.stats['ai_cluster'] = self.gemini.get_quota_info()
+        except Exception as e:
+            app_logger.warning(f"Post-Trade Review Latency: {e}")
+            
         # Reset Active Trade & Clear Local State
         self.active_trade = None
         self.stats['active_count'] = 0
         self.healer.clear_trade_state()
         
-        # Notify Telegram
+        # Notify Telegram with Neural Insight
         try:
             color_emoji = "🟢" if pnl > 0 else "🔴"
             status_text = "Profitable / رابحة" if pnl > 0 else "Loss / خسارة"
             await self.telegram.send_message(
-                f"{color_emoji} *Position Closed / إغلاق المركز*\n"
-                f"Reason / السبب: `{reason}`\n"
-                f"{trade['symbol']} | Exit: ${price:,.2f}\n"
-                f"Status / الحالة: {status_text}\n"
-                f"PNL: ${pnl:.2f} ({pnl_pct:.2f}%)"
+                f"{color_emoji} *Position Closed | إغلاق المركز*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🔹 *Asset:* `{trade['symbol']}`\n"
+                f"🔹 *Result:* {status_text} (`{pnl_pct:+.2f}%`)\n"
+                f"🔹 *PNL:* `${pnl:+.2f}`\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🧠 *Neural Lesson:*\n{ai_lesson}"
             )
         except: pass
 
