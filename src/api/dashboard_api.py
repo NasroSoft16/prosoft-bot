@@ -823,7 +823,8 @@ class DashboardAPI:
                 try:
                     # Explicitly set async_mode to threading to avoid library conflicts on Railway
                     self.socketio.async_mode = 'threading'
-                    self.socketio.run(self.app, host=host, port=port, debug=False, use_reloader=False)
+                    # allow_unsafe_werkzeug is REQUIRED on Railway for background thread execution
+                    self.socketio.run(self.app, host=host, port=port, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
                 except Exception as e:
                     app_logger.critical(f"❌ DASHBOARD CRITICAL FAILURE: {str(e)}")
 

@@ -206,11 +206,10 @@ class TradingBot:
         else:
             self.active_trades = [] # Empty list for multi-trade processing
 
-        # Dashboard API & Event Sync (MOVED AFTER STATE LOAD)
+        # Dashboard API & Event Sync (INITIALIZED MANUALLY IN MAIN)
         self.main_loop = asyncio.get_event_loop()
         self.wakeup_event = asyncio.Event()
-        self.dashboard = DashboardAPI(self)
-        self.dashboard.run() # No hardcoded port, let it pick from environment (Railway)
+        self.dashboard = None
             
         self.omega_active = False # Protocol Omega State
         self.last_report_date = None # Track daily summary timestamp
@@ -1565,29 +1564,14 @@ class TradingBot:
         )
 
 
-# --- Railway Health Check Server (v13.0) ---
-import http.server
-import socketserver
-import threading
-
-def start_health_server():
-    PORT = int(os.environ.get("PORT", 8080))
-    class HealthHandler(http.server.SimpleHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            self.wfile.write(b"PROSOFT MONSTER-ULTRA: SYSTEM ONLINE")
-    
-    try:
-        with socketserver.TCPServer(("", PORT), HealthHandler) as httpd:
-            print(f"Health Check Server running on port {PORT}")
-            httpd.serve_forever()
-    except Exception as e:
-        print(f"Health Server Error: {e}")
 
 if __name__ == "__main__":
     bot = TradingBot()
+    # Initialize and run Dashboard IMMEDIATELY before the heavy asyncio loop
+    from src.api.dashboard_api import DashboardAPI
+    bot.dashboard = DashboardAPI(bot)
+    bot.dashboard.run() 
+    
     try:
         asyncio.run(bot.run())
     except KeyboardInterrupt:
