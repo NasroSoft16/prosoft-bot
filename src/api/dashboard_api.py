@@ -39,7 +39,8 @@ class DashboardAPI:
         self.bot = bot_instance
         self.license = LicenseManager()
         CORS(self.app, supports_credentials=True) # Support session cookies
-        self.socketio = SocketIO(self.app, cors_allowed_origins="*", manage_session=True)
+        # Explicitly use threading mode for maximum compatibility with the asyncio bot loop
+        self.socketio = SocketIO(self.app, cors_allowed_origins="*", manage_session=True, async_mode='threading')
         self._setup_routes()
         self._start_background_emitter()
 
@@ -88,6 +89,10 @@ class DashboardAPI:
             if not os.path.exists(mob_path):
                 mob_path = os.path.abspath(os.path.join(os.getcwd(), 'mobile.html'))
             return send_file(mob_path)
+
+        @self.app.route('/health', methods=['GET'])
+        def health():
+            return "OK", 200
 
         @self.app.route('/api/login', methods=['POST'])
         def login():
