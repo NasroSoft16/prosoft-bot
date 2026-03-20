@@ -511,6 +511,15 @@ class TradingBot:
                             self.stats['total_equity'] = summ.get('total_value', 0.0)
                             self.stats['balance'] = self.api.get_account_balance('USDT')
                             
+                            # --- PROSOFT SELF-HEALING: VERIFY ACTIVE TRADES ---
+                            current_assets = [a['asset'] for a in summ.get('assets', [])]
+                            for trade in list(self.active_trades):
+                                symbol_base = trade['symbol'].replace('USDT', '')
+                                if symbol_base not in current_assets:
+                                    self.add_log(f"🧠 SELF-HEAL: Asset {trade['symbol']} no longer detected in portfolio (Sold manually?). Removing from trackers.")
+                                    self.active_trades.remove(trade)
+                                    self.stats['active_count'] = len(self.active_trades)
+
                             if self.stats['total_equity'] > 0:
                                 # Run yield farming/launchpool on idle USDT if no active trades
                                 if not self.active_trades and self.execution_mode == 'auto':
