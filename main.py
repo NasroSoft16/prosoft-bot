@@ -850,13 +850,6 @@ class TradingBot:
                             await self.activate_protocol_omega("CRITICAL: Market Health has dropped to dangerous levels.")
                         await asyncio.sleep(self.interval_sec)
                         continue
-                    
-                    # 1. FLASH CRASH KILL-SWITCH (v13.0)
-                    if self.stats.get('price_change_pct', 0) < -4.5:
-                        self.add_log("🛑 FLASH CRASH DETECTED! Rapid Purge Initiated.")
-                        await self.activate_protocol_omega("FLASH CRASH: Market drop > 4.5% in scan window.")
-                        await asyncio.sleep(1200) # Cooldown 20 mins
-                        continue
 
                     if self.omega_active and self.stats.get('market_health', 100) > 30:
                         self.omega_active = False
@@ -868,16 +861,21 @@ class TradingBot:
                         await self.healer.run_health_check()
 
                     # 5. Signal Generation & Logic (v12.8 Sovereign Monster)
-                    # SOVEREIGN GOVERNOR: Dynamic Slot Scarcity
-                    # If we have 2+ consecutive losses, we limit slots to 1 for safety
-                    max_slots = 1 if self.stats.get('consecutive_losses', 0) >= 2 else 3
-                    if self.stats.get('consecutive_losses', 0) >= 2:
+                    target_signal = self.strategy.check_entry_signal(df)
+                    target_symbol = self.symbol
+                    
+                    # SOVEREIGN GOVERNOR: Dynamic Slot Allocation (Smart Request v13.0)
+                    total_eq = self.stats.get('total_equity', 0)
+                    if total_eq < 100:
+                        max_slots = 1 # Force single trade for micro-accounts
+                        self.add_log(f"🛡️ MICRO-ACCOUNT MODE: Restricted to 1 Slot (Equity < $100)")
+                    elif self.stats.get('consecutive_losses', 0) >= 2:
+                        max_slots = 1 # Safety mode
                         self.add_log("🛡️ SOVEREIGN PROTECT: Safety Mode Active (Slots=1) due to Consec. Losses.")
+                    else:
+                        max_slots = 3 # Standard diversification
 
                     if len(self.active_trades) < max_slots:
-                        target_signal = self.strategy.check_entry_signal(df)
-                        target_symbol = self.symbol
-                        
                         # Skip if we already have an active position for this symbol
                         if target_signal['signal'] == 'BUY' and any(t['symbol'] == target_symbol for t in self.active_trades):
                             target_signal = {'signal': 'WAIT'}
@@ -889,28 +887,24 @@ class TradingBot:
                                 self.add_log(f"Market Scan: {self.symbol} is currently in a noise zone. AI is waiting for high-velocity momentum.")
                                 self._last_noise_log = _now
                         
-                        # Single Symbol Focus Mode (Manual Selection only)
+                        # Optimization: Only run expensive AI confirms if technicals trigger
                         if target_signal['signal'] == 'BUY':
-                            # --- Manipulation Shield Check ---
                             shield_result = self.shield.analyze(df)
                             if not shield_result['is_safe']:
                                 self.add_log(f"🛡️ SHIELD BLOCKED: {shield_result['reason']}")
                                 self.voice.alert_manipulation_detected()
-                                target_signal = {'signal': 'WAIT'}  # Override to prevent entry
+                                target_signal = {'signal': 'WAIT'}
                             
                         if target_signal['signal'] == 'BUY':
-                            # AI Filter & Memory Check
                             memory_warning = self.memory.analyze_past_mistakes(target_symbol)
-                            if "Warning" in memory_warning:
+                            if memory_warning:
                                 self.add_log(f"Memory Check: {memory_warning}")
 
-                            # Gemini Sovereign Confirmation
                             is_verified = True
                             if self.gemini and self.gemini.model:
                                 v_prompt = (f"Market Context: Health={self.stats['market_health']:.0f}%, Sentiment={self.stats['sentiment']}. "
                                            f"System suggests a BUY on {target_symbol} @ ${target_signal['entry_price']:.2f}. "
                                            "Do you verify this signal? Analyze technicals and respond with 'VERIFIED' or 'BLOCKED' and a short reason.")
-                                # 12.8 PROSOFT: AI TRIAGE (Added retry mechanism for stability)
                                 verification = None
                                 for attempt in range(3):
                                     verification = await self.gemini.ask(v_prompt)
@@ -920,10 +914,8 @@ class TradingBot:
                                         self.add_log(f"AI Filter: API Lag detected on {target_symbol}. Retrying ({attempt+1}/3)...")
                                         await asyncio.sleep(2)
                                 
-                                # Safety net if Gemini fails to respond (None) after 3 attempts
                                 if verification is None:
                                     self.add_log(f"AI Filter: API Timeout/Error after 3 attempts. Health is {self.stats['market_health']:.0f}%. Assumed Verified.")
-                                    # Fallback: only verify if health is > 45
                                     if self.stats['market_health'] < 45:
                                         self.add_log("AI Filter: Fallback Blocked due to low market health.")
                                         is_verified = False
@@ -935,52 +927,43 @@ class TradingBot:
                                     self.add_log(f"AI Filter: Signal Verified. {verification}")
 
                             if is_verified:
-                                # Recall funds from Earn before normal trade too
                                 await self.farmer.recall_funds()
-                                
-                                # 12.8 PROSOFT: Sovereign Compounding Engine
                                 balance = self.api.get_account_balance('USDT')
-                                
-                                # RESERVATION RULE: Keep $20 for Sniper if balance > $50
                                 sniper_reserve = 20.0 if balance >= 50.0 else 0.0
                                 tradable_balance = balance - sniper_reserve
                                 
-                                # AUTO-COMPOUNDING: Calculate per-slot budget using dynamic division
-                                # Sovereign Rule: If in Safety Mode, use smaller allocation
                                 slots_left = max_slots - len(self.active_trades)
                                 if slots_left <= 0: slots_left = 1
-                                
                                 budget_per_slot = tradable_balance / slots_left
-                                # Safety: Never more than 50% of tradable equity per slot unless micro-account
+                                
                                 if budget_per_slot > (tradable_balance * 0.5) and tradable_balance > 50:
                                     budget_per_slot = tradable_balance * 0.5
                                 
                                 qty = self.risk.calculate_position_size(budget_per_slot, target_signal['entry_price'], target_signal['stop_loss'], ai_conf=self.stats['ai_conf'])
                                 
                                 if qty <= 0 or (qty * target_signal['entry_price']) < 10:
-                                    self.add_log(f"⚠️ Insufficient balance for {target_symbol}. Needed min $10.50 per slot.")
+                                    self.add_log(f"⚠️ Insufficient balance for {target_symbol}. Needed min $10.50 per slot. / رصيد غير كافٍ. المطلوب 10.50 دولار كحد أدنى.")
+                                
                                 elif self.execution_mode == 'auto':
                                     self.voice.alert_buy_signal()
                                     exec_success = await self.execute_trade(target_symbol, 'BUY', qty, target_signal['entry_price'], target_signal['stop_loss'], target_signal['take_profit'], self.stats['ai_conf'])
-                                    if not exec_success:
+                                    if exec_success:
+                                        self.add_log(f"CORE EXECUTION: BUY {target_symbol} @ ${target_signal['entry_price']:.2f} | Qty: {qty:.6f} (${qty*target_signal['entry_price']:.2f})")
+                                        try:
+                                            await self.telegram.send_signal(target_symbol, target_signal['entry_price'], target_signal['stop_loss'], target_signal['take_profit'], self.stats['ai_conf'], 'BUY')
+                                        except: pass
+                                    else:
                                         self.add_log(f"Execution failed on {target_symbol}.")
                                 else:
-                                    # MANUAL APPROVAL PENDING (with real calculated qty)
                                     self.stats['pending_signal'] = {
                                         'symbol': target_symbol, 'side': 'BUY', 'price': target_signal['entry_price'], 
                                         'size': qty, 'sl': target_signal['stop_loss'], 'tp': target_signal['take_profit']
                                     }
-                                    self.add_log(f"CORE EXECUTION: BUY {target_symbol} @ ${target_signal['entry_price']:.2f} | Qty: {qty:.6f} (${qty*target_signal['entry_price']:.2f})")
-                                    try:
-                                        await self.telegram.send_signal(target_symbol, target_signal['entry_price'], target_signal['stop_loss'], target_signal['take_profit'], self.stats['ai_conf'], 'BUY')
-                                    except: pass
-                    
-                    # 6. Active Trade Management (Multi-Trade Monitor)
+
+                    # 6. Active Trade Management (v13.0 Sovereign Monitor)
                     if self.active_trades:
                         for trade in list(self.active_trades):
                             symbol = trade['symbol']
-                            
-                            # Fetch Specific Symbol Intel (v13.0)
                             try:
                                 symbol_df = self.api.get_ohlcv(symbol, self.timeframe)
                                 if symbol_df is None or symbol_df.empty: continue
@@ -994,25 +977,23 @@ class TradingBot:
                                 self.add_log(f"🧠 Sector Intel Lag for {symbol}: {e}")
                                 continue
 
-                            # Performance Metrics
                             pnl_pct = (curr_price - trade['entry_price']) / trade['entry_price'] * 100
                         
-                            # 1. PROFIT EXTENDER: Momentum Chase
+                            # PROFIT EXTENDER: If momentum is explosive, push TP higher
                             if curr_price >= (trade['tp'] * 0.95) and curr_rsi < 68:
                                 trade['tp'] *= 1.006 
-                                trade['sl'] = curr_price * 0.994 # Tight trail
+                                trade['sl'] = curr_price * 0.994 
                                 self.add_log(f"🚀 EXTENDING TP: {symbol} momentum strong! Target pushed up.")
                                 try:
                                     await self.telegram.send_message(f"🚀 *PROFIT EXTENDER* 🚀\nAsset: {symbol}\nMomentum is strong. Chasing peak.")
                                 except: pass
                             
-                            # 2. EXIT VECTOR: STOP LOSS
+                            # Standard Exit Controls
                             if curr_price <= trade['sl']:
                                 self.add_log(f"💥 SL HIT: {symbol} @ {curr_price:.4f}")
                                 await self.close_trade_by_symbol(symbol, 'SELL', curr_price, "SL")
                                 continue
-
-                            # 3. EXIT VECTOR: FULL TAKE PROFIT
+                            
                             elif curr_price >= trade['tp']:
                                 self.add_log(f"🏆 TP HIT: {symbol} @ {curr_price:.4f}")
                                 await self.close_trade_by_symbol(symbol, 'SELL', curr_price, "TP")
@@ -1054,18 +1035,15 @@ class TradingBot:
                                     trade['sl'] = new_sl
                                     self.add_log(f"〽️ ATR TRAIL: {symbol} stop adjusted to {new_sl:.4f}")
 
-                        # 7. Periodic Position Update (Moved to Heartbeat for reliability)
-                        # Handled by dispatch_intelligence_heartbeat every 10 mins
-
-                    # 8. Periodic PDF Report (Every 12 Hours ~ 43200 Sec)
-                    if time.time() - self.stats.get('last_pdf_report', 0) > 43200:
-                        try:
-                            self.add_log("System Protocol: Auto-dispatching Detailed PDF Intel (12h Cycle)...")
-                            report_path = self.reporter.generate_daily_report(self.stats, self.logs)
-                            await self.telegram.send_document(report_path, caption="📄 PROSOFT QUANTUM PRIME — 12-Hour Sector Intel Report")
-                            self.stats['last_pdf_report'] = time.time()
-                        except Exception as e:
-                            self.add_log(f"Report Error: {str(e)}")
+                    # 7. Periodic position & report updates
+                    if loop_count % 5 == 0:
+                        if time.time() - self.stats.get('last_pdf_report', 0) > 43200:
+                            try:
+                                self.add_log("System Protocol: Auto-dispatching Detailed PDF Intel (12h Cycle)...")
+                                report_path = self.reporter.generate_daily_report(self.stats, self.logs)
+                                await self.telegram.send_document(report_path, caption="📄 PROSOFT QUANTUM PRIME — 12-Hour Sector Intel Report")
+                                self.stats['last_pdf_report'] = time.time()
+                            except: pass
 
                     loop_count += 1
                     live.update(self.ui.update_ui(self.symbol, self.timeframe, self.stats, self.logs))
