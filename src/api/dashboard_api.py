@@ -805,10 +805,33 @@ class DashboardAPI:
                 "a technical breakdown, or the overall market health, and I'll give you a masterclass in trading intel.")
 
     def run(self, host='0.0.0.0', port=None):
-        if port is None:
-            port = int(os.environ.get("PORT", 5000))
-        # Start Flask/SocketIO in a separate thread
-        thread = threading.Thread(target=lambda: self.socketio.run(self.app, host=host, port=port, debug=False, use_reloader=False))
-        thread.daemon = True
-        thread.start()
-        app_logger.info(f"--- Dashboard API Started on http://{host}:{port} ---")
+        """Starts the Flask-SocketIO server in a way that works locally and on Railway."""
+        try:
+            if port is None:
+                # Railway provides the port via the PORT environment variable
+                port = int(os.environ.get("PORT", 5000))
+            
+            app_logger.info(f"🚀 INITIALIZING DASHBOARD ON PORT: {port}")
+            
+            # Use eventlet for high-performance Socket.IO if available
+            try:
+                import eventlet
+                eventlet.monkey_patch()
+                app_logger.info("⚡ Eventlet Monkey-Patch Applied for Socket.IO Stability")
+            except ImportError:
+                app_logger.warning("⚠️ Eventlet not found. Falling back to standard threading.")
+
+            # Start Flask/SocketIO in a separate thread so it doesn't block the bot loop
+            def start_server():
+                try:
+                    self.socketio.run(self.app, host=host, port=port, debug=False, use_reloader=False)
+                except Exception as e:
+                    app_logger.critical(f"❌ DASHBOARD CRITICAL FAILURE: {str(e)}")
+
+            thread = threading.Thread(target=start_server, daemon=True)
+            thread.start()
+            
+            app_logger.info(f"✅ DASHBOARD LIVE AT: http://{host}:{port}")
+            
+        except Exception as e:
+            app_logger.error(f"❌ Error during Dashboard startup: {str(e)}")
