@@ -1253,9 +1253,10 @@ class TradingBot:
                 self.add_log(f"Exit Protocol Error: {str(e)}")
 
         # Log to Neural Memory for self-learning
-        entry_t = trade.get('timestamp', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        entry_t = trade.get('timestamp', trade.get('time', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         exit_t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.memory.log_trade(trade['symbol'], trade['side'], trade['entry_price'], price, entry_t, exit_t, pnl, trade['conf'], self.stats['market_health'], self.stats['sentiment'])
+        trade_conf = trade.get('conf', 85.0)
+        self.memory.log_trade(trade['symbol'], trade.get('side', 'BUY'), trade['entry_price'], price, entry_t, exit_t, pnl, trade_conf, self.stats['market_health'], self.stats['sentiment'])
         
         # Update Daily Stats
         self.risk.update_performance(pnl_pct / 100)
@@ -1400,7 +1401,9 @@ class TradingBot:
                         'sl': entry_price * 0.95, # Safety default 5%
                         'tp': entry_price * 1.05, # Safety default 5%
                         'side': 'BUY',
-                        'time': datetime.now().strftime("%H:%M:%S")
+                        'conf': 85.0, # Default confidence for recovered trades
+                        'order_id': 'RECOVERED',
+                        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     self.active_trades.append(new_trade)
                     self.add_log(f"✅ [RECOVERY] Restored {symbol} to monitoring. Entry: ${entry_price:.4f}")
