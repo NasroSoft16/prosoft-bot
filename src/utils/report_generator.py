@@ -7,11 +7,17 @@ class ReportGenerator:
     
     def __init__(self, output_dir=None):
         if output_dir is None:
-            # Always resolve to project root/reports
-            output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "reports")
+            # Check for PROSOFT CLOUD PERSISTENCE (/data volume)
+            root_data = '/data'
+            if os.path.isdir(root_data):
+                output_dir = os.path.join(root_data, "reports")
+            else:
+                # Local fallback
+                output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "reports")
+        
         self.output_dir = output_dir
         if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+            os.makedirs(output_dir, exist_ok=True)
 
     def _clean_text(self, text):
         """Removes emojis and non-Latin-1 characters to prevent FPDF errors."""

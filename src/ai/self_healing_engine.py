@@ -168,42 +168,58 @@ class SelfHealingEngine:
         import json
         import os
         try:
-            # Ensure data directory exists
-            if not os.path.exists('data'):
-                os.makedirs('data')
+            # PROSOFT CLOUD SYNC: Prefer root /data for persistent volumes
+            root_data = '/data'
+            save_dir = root_data if os.path.isdir(root_data) else 'data'
+            
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir, exist_ok=True)
                 
-            with open('data/active_trade.json', 'w') as f:
+            path = os.path.join(save_dir, 'active_trades.json')
+            with open(path, 'w') as f:
                 json.dump(trades_list, f)
         except Exception as e:
-            app_logger.error(f"[Self-Heal] Failed to save state: {e}")
+            app_logger.error(f"[Self-Heal] Failed to save state to {save_dir}: {e}")
 
     def load_trade_state(self):
         """Loads trade state as a list from disk if exists."""
         import json
         import os
-        path = 'data/active_trade.json'
-        if os.path.exists(path):
-            try:
-                with open(path, 'r') as f:
-                    state = json.load(f)
-                
-                # Normalize: always return a list
-                if isinstance(state, dict):
-                    return [state]
-                elif isinstance(state, list):
-                    return state
-                return []
-            except Exception as e:
-                app_logger.error(f"[Self-Heal] Failed to load state: {e}")
-                return []
+        # Search in order: Root /data (Persistent) then local data/
+        root_data = '/data'
+        paths = [
+            os.path.join(root_data, 'active_trades.json'),
+            'data/active_trades.json',
+            'data/active_trade.json' # Legacy fallback
+        ]
+        
+        for path in paths:
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r') as f:
+                        state = json.load(f)
+                    
+                    # Normalize: always return a list
+                    if isinstance(state, dict):
+                        return [state]
+                    elif isinstance(state, list):
+                        return state
+                except Exception as e:
+                    app_logger.error(f"[Self-Heal] Failed to load state from {path}: {e}")
         return []
 
     def clear_trade_state(self):
         """Removes the state file when all trades are closed."""
         import os
-        path = 'data/active_trade.json'
-        if os.path.exists(path):
-            try:
-                os.remove(path)
-                app_logger.info("[Self-Heal] Trade state file removed.")
-            except: pass
+        root_data = '/data'
+        paths = [
+            os.path.join(root_data, 'active_trades.json'),
+            'data/active_trades.json',
+            'data/active_trade.json'
+        ]
+        for path in paths:
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                    app_logger.info(f"[Self-Heal] Trade state file removed: {path}")
+                except: pass
