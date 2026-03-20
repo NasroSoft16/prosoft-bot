@@ -10,7 +10,7 @@ class MarketScanner:
         self.intel = QuantumIntelligence()
         
         # Load user-defined blacklist from env, or use default stablecoin list
-        env_blacklist = os.getenv('BLACKLISTED_COINS', 'USDC,FDUSD,TUSD,USDP,EUR,BUSD,USD1,DAI,USDD,PYUSD,AEUR,GBP,EURI')
+        env_blacklist = os.getenv('BLACKLISTED_COINS', 'USDC,FDUSD,TUSD,USDP,EUR,BUSD,USD1,DAI,USDD,PYUSD,AEUR,GBP,EURI,RLUSD')
         self.blacklist = [coin.strip().upper() for coin in env_blacklist.split(',')]
         self.crash_shield_active = False
 

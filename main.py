@@ -965,7 +965,7 @@ class TradingBot:
                         for trade in list(self.active_trades):
                             symbol = trade['symbol']
                             try:
-                                symbol_df = self.api.get_ohlcv(symbol, self.timeframe)
+                                symbol_df = self.api.get_historical_klines(symbol, self.timeframe)
                                 if symbol_df is None or symbol_df.empty: continue
                                 symbol_df = self.ta.calculate_indicators(symbol_df)
                                 curr_row = symbol_df.iloc[-1]
