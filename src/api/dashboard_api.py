@@ -812,8 +812,9 @@ class DashboardAPI:
     def run(self, host='0.0.0.0', port=None):
         """Starts the Flask-SocketIO server in a way that works locally and on Railway."""
         try:
+            # FORCE Port 5000 to strictly match the user's Railway Networking settings
             if port is None:
-                port = int(os.environ.get("PORT", 5000))
+                port = 5000
             
             app_logger.info(f"🚀 INITIALIZING DASHBOARD ON PORT: {port}")
             
