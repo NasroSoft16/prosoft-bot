@@ -1520,8 +1520,8 @@
                     actionBtn.onclick = executeManual;
                     actionBtn.className = "bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg";
                     actionBtn.innerText = currentLang === 'en' ? 'AUTHORIZE ORDER' : 'تفويض الأمر';
-                } else if (data.active_trade) {
-                    const t = data.active_trade;
+                } else if (data.active_trades && data.active_trades.length > 0) {
+                    const t = data.active_trades[0];
                     const pnl = ((s.price - t.entry_price) * t.qty);
                     const pnlPct = ((s.price / t.entry_price - 1) * 100);
                     document.getElementById('signal-pnl').classList.remove('hidden');

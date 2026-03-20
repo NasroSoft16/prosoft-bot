@@ -291,6 +291,10 @@ class TradingBot:
         
         # Dispatch a startup test notification
         await self.telegram.send_message("🚀 *PROSOFT QUANTUM PRIME SYSTEM STARTUP*\nEngines are online. Trading system engaged.")
+        
+        # --- SOVEREIGN RECOVERY: Audit Binance Portfolio ---
+        await self.sync_from_binance()
+        
         self.voice.alert_bot_started()
         self.voice.say("System diagnostics complete. Artificial Intelligence Core is online and trading operations have commenced.")
         self.add_log("--- SYSTEM STATUS: OPTIMAL | COMMENCING OPERATIONS ---")
@@ -1353,6 +1357,56 @@ class TradingBot:
         if self.active_trades:
             # By default, close the first/current symbol trade
             await self.close_trade_by_symbol(self.symbol, side, price, reason)
+
+    async def sync_from_binance(self):
+        """
+        [PROSOFT SOVEREIGN RECOVERY]
+        Audits Binance portfolio on startup. If an asset is found that isn't in memory,
+        it fetches the entry price from history and restores the trade.
+        """
+        try:
+            balances = self.api.get_all_balances()
+            for b in balances:
+                asset = b['asset']
+                if asset in ['USDT', 'BNB', 'FDUSD', 'USDC']: continue
+                
+                qty = float(b['free']) + float(b['locked'])
+                symbol = f"{asset}USDT"
+                
+                # Check if this asset has value > $1.0
+                ticker = self.api.get_symbol_ticker(symbol)
+                if not ticker or (qty * ticker < 1.0): continue
+                
+                # If not in memory, restore it
+                if not any(t['symbol'] == symbol for t in self.active_trades):
+                    self.add_log(f"🛡️ [RECOVERY] Auditing ghost asset: {asset}...")
+                    
+                    # Fetch entry price from last BUY trade
+                    try:
+                        trades = self.api.client.get_my_trades(symbol=symbol, limit=5)
+                        # Find the latest BUY trade
+                        buy_trades = [t for t in trades if t.get('isBuyer')]
+                        if buy_trades:
+                            entry_price = float(buy_trades[-1]['price'])
+                        else:
+                            entry_price = ticker # Fallback to current price
+                    except:
+                        entry_price = ticker
+                        
+                    new_trade = {
+                        'symbol': symbol,
+                        'entry_price': entry_price,
+                        'qty': qty,
+                        'sl': entry_price * 0.95, # Safety default 5%
+                        'tp': entry_price * 1.05, # Safety default 5%
+                        'side': 'BUY',
+                        'time': datetime.now().strftime("%H:%M:%S")
+                    }
+                    self.active_trades.append(new_trade)
+                    self.add_log(f"✅ [RECOVERY] Restored {symbol} to monitoring. Entry: ${entry_price:.4f}")
+                    
+        except Exception as e:
+            self.add_log(f"Recovery Audit Error: {e}")
 
     async def protocol_omega(self):
         """🚨 PROTOCOL OMEGA: THE ULTIMATE KILL SWITCH 🚨
