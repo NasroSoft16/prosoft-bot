@@ -101,6 +101,7 @@ class TradingBot:
         self.timeframe = os.getenv('TIMEFRAME', timeframe)
         self.interval_sec = int(interval_sec)
         self.ai_threshold = float(os.getenv('AI_CONFIDENCE_THRESHOLD', 0.75))
+        self.version = "13.0 MONSTER-ULTRA (Railway Prep)"
         
         self.execution_mode = os.getenv('EXECUTION_MODE', 'manual')
         self.voice_alerts = os.getenv('VOICE_ALERTS', 'on') == 'on'
@@ -136,6 +137,8 @@ class TradingBot:
             'execution_mode': self.execution_mode,
             'voice_alerts': self.voice_alerts,
             'daily_pnl': 0.0,
+            'daily_pnl_pct': 0.0,
+            'consecutive_losses': 0,
             'trades_count': int(0),
             'active_count': int(0),
             'ai_accuracy_history': [],
@@ -152,7 +155,9 @@ class TradingBot:
             'qty_multiplier': 1.0,
             'btc_dominance': 50.0,
             'last_weekly_review': None,
-            'last_periodic_sync': 0
+            'last_periodic_sync': 0,
+            'last_daily_briefing': time.time(),
+            'last_pdf_report': time.time()
         }
 
         self.whales = WhaleTracker()
@@ -192,20 +197,20 @@ class TradingBot:
         # Performance & AI Evolution Tracking
         self.is_paused = False # Mode to stop all loops if Omega triggered
         
-        # Active Trade Tracking (INITIALIZED BEFORE DASHBOARD TO PREVENT ERRORS)
-        # --- CLOUD RECOVERY: Load previous state if exists ---
-        self.active_trade = self.healer.load_trade_state()
-        if self.active_trade:
-            self.symbol = self.active_trade['symbol']
-            self.add_log(f"💾 SYSTEM RECOVERED: Restored active {self.active_trade['symbol']} trade.")
+        # Active Trade Tracking (v12.8 MULTI-TRADE Architecture)
+        # --- CLOUD RECOVERY: Load previous list if exists ---
+        self.active_trades = self.healer.load_trade_state()
+        if self.active_trades:
+            symbols = [t['symbol'] for t in self.active_trades]
+            self.add_log(f"💾 SYSTEM RECOVERED: Restored {len(self.active_trades)} active trades: {', '.join(symbols)}")
         else:
-            self.active_trade = None # Stores {symbol, side, entry_price, qty, sl, tp, conf}
+            self.active_trades = [] # Empty list for multi-trade processing
 
         # Dashboard API & Event Sync (MOVED AFTER STATE LOAD)
         self.main_loop = asyncio.get_event_loop()
         self.wakeup_event = asyncio.Event()
         self.dashboard = DashboardAPI(self)
-        self.dashboard.run(port=5000)
+        self.dashboard.run() # No hardcoded port, let it pick from environment (Railway)
             
         self.omega_active = False # Protocol Omega State
         self.last_report_date = None # Track daily summary timestamp
@@ -308,6 +313,13 @@ class TradingBot:
                     # 0. Daily Financial Summary (Late Night)
                     await self._check_daily_report()
                     
+                    # 12.8 PROSOFT: DAILY NEURAL BRIEFING (Every 24h)
+                    if time.time() - self.stats.get('last_daily_briefing', 0) > 86400:
+                        await self._send_daily_briefing()
+                        self.stats['last_daily_briefing'] = time.time()
+                        self.stats['daily_pnl'] = 0.0 # Reset for new day
+                        self.stats['daily_pnl_pct'] = 0.0
+                    
                     # 0.1 Periodic Revenue Sync (Every 10 loops)
                     if loop_count % 10 == 0:
                         await self.farmer.sync_rewards(self.memory)
@@ -333,8 +345,8 @@ class TradingBot:
                         self.stats['funding_amount'] = new_fund
                         self.stats['yield_status'] = "FARMING" if self.farmer.is_farming else "IDLE"
                     
-                    # 0.3 Yield Farming: Put idle funds to work (Every 15 loops if no active trade)
-                    if not self.active_trade and loop_count % 15 == 0:
+                    # 0.3 Yield Farming: Put idle funds to work (Every 15 loops if no active trades)
+                    if not self.active_trades and loop_count % 15 == 0:
                         await self.farmer.check_and_farm(threshold_usdt=25.0)
                         self.stats['yield_status'] = "FARMING" if self.farmer.is_farming else "IDLE"
                     
@@ -499,8 +511,8 @@ class TradingBot:
                             self.stats['balance'] = self.api.get_account_balance('USDT')
                             
                             if self.stats['total_equity'] > 0:
-                                # Run yield farming/launchpool on idle USDT if no active trade
-                                if not self.active_trade and self.execution_mode == 'auto':
+                                # Run yield farming/launchpool on idle USDT if no active trades
+                                if not self.active_trades and self.execution_mode == 'auto':
                                     await self.farmer.check_and_farm(threshold_usdt=25.0)
                                     # LAUNCHPOOL INTEGRATION: Stake idle funds for free tokens
                                     if self.stats['balance'] > 50:
@@ -511,7 +523,7 @@ class TradingBot:
                                 # --- NEW: LAUNCHPOOL & SENTIMENT SCAN ---
                                 self.pool_hunter.scan_for_pools()
                                 ai_lead = await self.sentiment_front.analyze_and_front_run()
-                                if ai_lead and self.execution_mode == 'auto' and not self.active_trade:
+                                if ai_lead and self.execution_mode == 'auto' and not self.active_trades:
                                     self.add_log(f"🧠 AI SENTIMENT FRONT-RUN: Switching to {ai_lead['symbol']} for early entry.")
                                     self.switch_symbol(ai_lead['symbol'])
                                     # Signal immediate loop restart to buy
@@ -831,14 +843,21 @@ class TradingBot:
                         self.stats['top_gems'] = self.market_scanner.scan_market()
 
                     # --- PROTOCOL OMEGA: Black Swan Guard ---
-                    if self.stats['market_health'] < 15:
+                    if self.stats.get('market_health', 100) < 15:
                         if not self.omega_active:
                             self.omega_active = True
                             await self.activate_protocol_omega("CRITICAL: Market Health has dropped to dangerous levels.")
                         await asyncio.sleep(self.interval_sec)
                         continue
                     
-                    if self.omega_active and self.stats['market_health'] > 30:
+                    # 1. FLASH CRASH KILL-SWITCH (v13.0)
+                    if self.stats.get('price_change_pct', 0) < -4.5:
+                        self.add_log("🛑 FLASH CRASH DETECTED! Rapid Purge Initiated.")
+                        await self.activate_protocol_omega("FLASH CRASH: Market drop > 4.5% in scan window.")
+                        await asyncio.sleep(1200) # Cooldown 20 mins
+                        continue
+
+                    if self.omega_active and self.stats.get('market_health', 100) > 30:
                         self.omega_active = False
                         self.add_log("System Protocol: Market Stabilized. Protocol Omega Disengaged.")
                         await self.telegram.send_message("🛡️ *PROTOCOL OMEGA DISENGAGED* 🛡️\nMarket conditions have stabilized. Resuming standard operations.")
@@ -847,13 +866,20 @@ class TradingBot:
                     if loop_count > 0 and loop_count % 10 == 0:
                         await self.healer.run_health_check()
 
-                    # 5. Signal Generation & Logic
-                    # If we don't have an active trade, look for entries
-                    if not self.active_trade:
-                        signal = self.strategy.check_entry_signal(df)
+                    # 5. Signal Generation & Logic (v12.8 Sovereign Monster)
+                    # SOVEREIGN GOVERNOR: Dynamic Slot Scarcity
+                    # If we have 2+ consecutive losses, we limit slots to 1 for safety
+                    max_slots = 1 if self.stats.get('consecutive_losses', 0) >= 2 else 3
+                    if self.stats.get('consecutive_losses', 0) >= 2:
+                        self.add_log("🛡️ SOVEREIGN PROTECT: Safety Mode Active (Slots=1) due to Consec. Losses.")
+
+                    if len(self.active_trades) < max_slots:
+                        target_signal = self.strategy.check_entry_signal(df)
                         target_symbol = self.symbol
-                        target_df = df
-                        target_signal = signal
+                        
+                        # Skip if we already have an active position for this symbol
+                        if target_signal['signal'] == 'BUY' and any(t['symbol'] == target_symbol for t in self.active_trades):
+                            target_signal = {'signal': 'WAIT'}
                         
                         if target_signal['signal'] == 'WAIT':
                             import time as _t
@@ -883,11 +909,19 @@ class TradingBot:
                                 v_prompt = (f"Market Context: Health={self.stats['market_health']:.0f}%, Sentiment={self.stats['sentiment']}. "
                                            f"System suggests a BUY on {target_symbol} @ ${target_signal['entry_price']:.2f}. "
                                            "Do you verify this signal? Analyze technicals and respond with 'VERIFIED' or 'BLOCKED' and a short reason.")
-                                verification = await self.gemini.ask(v_prompt)
+                                # 12.8 PROSOFT: AI TRIAGE (Added retry mechanism for stability)
+                                verification = None
+                                for attempt in range(3):
+                                    verification = await self.gemini.ask(v_prompt)
+                                    if verification is not None:
+                                        break
+                                    if attempt < 2:
+                                        self.add_log(f"AI Filter: API Lag detected on {target_symbol}. Retrying ({attempt+1}/3)...")
+                                        await asyncio.sleep(2)
                                 
-                                # Safety net if Gemini fails to respond (None)
+                                # Safety net if Gemini fails to respond (None) after 3 attempts
                                 if verification is None:
-                                    self.add_log(f"AI Filter: API Timeout/Error. Health is {self.stats['market_health']:.0f}%. Assumed Verified.")
+                                    self.add_log(f"AI Filter: API Timeout/Error after 3 attempts. Health is {self.stats['market_health']:.0f}%. Assumed Verified.")
                                     # Fallback: only verify if health is > 45
                                     if self.stats['market_health'] < 45:
                                         self.add_log("AI Filter: Fallback Blocked due to low market health.")
@@ -903,22 +937,30 @@ class TradingBot:
                                 # Recall funds from Earn before normal trade too
                                 await self.farmer.recall_funds()
                                 
-                                # Calculate proper quantity for BOTH modes
+                                # 12.8 PROSOFT: Sovereign Compounding Engine
                                 balance = self.api.get_account_balance('USDT')
-                                qty = self.risk.calculate_position_size(balance, target_signal['entry_price'], target_signal['stop_loss'])
+                                
+                                # RESERVATION RULE: Keep $20 for Sniper if balance > $50
+                                sniper_reserve = 20.0 if balance >= 50.0 else 0.0
+                                tradable_balance = balance - sniper_reserve
+                                
+                                # AUTO-COMPOUNDING: Calculate per-slot budget using dynamic division
+                                # Sovereign Rule: If in Safety Mode, use smaller allocation
+                                slots_left = max_slots - len(self.active_trades)
+                                if slots_left <= 0: slots_left = 1
+                                
+                                budget_per_slot = tradable_balance / slots_left
+                                # Safety: Never more than 50% of tradable equity per slot unless micro-account
+                                if budget_per_slot > (tradable_balance * 0.5) and tradable_balance > 50:
+                                    budget_per_slot = tradable_balance * 0.5
+                                
+                                qty = self.risk.calculate_position_size(budget_per_slot, target_signal['entry_price'], target_signal['stop_loss'], ai_conf=self.stats['ai_conf'])
                                 
                                 if qty <= 0 or (qty * target_signal['entry_price']) < 10:
-                                    self.add_log(f"⚠️ Insufficient balance for trade. Balance: ${balance:.2f}, Min needed: $10.50")
+                                    self.add_log(f"⚠️ Insufficient balance for {target_symbol}. Needed min $10.50 per slot.")
                                 elif self.execution_mode == 'auto':
-                                    # AUTO-TRADE EXECUTION (with Diversification Matrix)
-                                    balance = self.api.get_account_balance('USDT')
-                                    safe_usdt = self.diversifier.get_safe_allocation(target_symbol, balance, self.stats.get('total_equity', balance))
-                                    if safe_usdt < 10:
-                                        self.add_log(f"⚠️ Diversification Matrix: Insufficient safe allocation (${safe_usdt:.2f}). Skipping trade.")
-                                        exec_success = False
-                                    else:
-                                        self.voice.alert_buy_signal()
-                                        exec_success = await self.execute_trade(target_symbol, 'BUY', qty, target_signal['entry_price'], target_signal['stop_loss'], target_signal['take_profit'], self.stats['ai_conf'])
+                                    self.voice.alert_buy_signal()
+                                    exec_success = await self.execute_trade(target_symbol, 'BUY', qty, target_signal['entry_price'], target_signal['stop_loss'], target_signal['take_profit'], self.stats['ai_conf'])
                                     if not exec_success:
                                         self.add_log(f"Execution failed on {target_symbol}.")
                                 else:
@@ -932,96 +974,95 @@ class TradingBot:
                                         await self.telegram.send_signal(target_symbol, target_signal['entry_price'], target_signal['stop_loss'], target_signal['take_profit'], self.stats['ai_conf'], 'BUY')
                                     except: pass
                     
-                    # 6. Active Trade Management (Trailing Stop & Exit)
-                    else:
-                        trade = self.active_trade
-                        curr_price = self.stats['price']
-                        
-                        # Calculate current performance for exit logic
-                        pnl = (curr_price - trade['entry_price']) * trade['qty']
-                        pnl_pct = (curr_price - trade['entry_price']) / trade['entry_price'] * 100
-                        
-                        # Check Stop Loss
-                        if curr_price <= trade['sl']:
-                            self.add_log(f"STOP LOSS HIT for {trade['symbol']} @ {curr_price}")
-                            self.voice.alert_stop_loss()
-                            await self.close_trade('SELL', curr_price, "SL")
-                        # --- Partial Take Profit (TP1 = 50% position at midpoint) ---
-                        elif 'tp1' in trade and curr_price >= trade['tp1'] and not trade.get('partial_done'):
-                            tp1_price = trade['entry_price'] + (trade['tp'] - trade['entry_price']) * 0.5
-                            if curr_price >= tp1_price:
-                                self.add_log(f"💰 PARTIAL TP: Locking 50% profit on {trade['symbol']} @ {curr_price:.2f}")
-                                self.voice.alert_partial_tp()
-                                _, remaining = self.orders.partial_take_profit(trade['symbol'], trade['qty'], curr_price)
-                                self.active_trade['qty'] = remaining
-                                self.active_trade['partial_done'] = True
-                                self.active_trade['sl'] = trade['entry_price'] * 1.001  # Move SL to break-even
-                                self.add_log(f"🛡️ Break-even activated. Remaining qty: {remaining:.6f}")
-                                try:
-                                    await self.telegram.send_message(
-                                        f"💰 *PARTIAL PROFIT LOCKED / جني أرباح جزئي* 💰\n"
-                                        f"{trade['symbol']} @ ${curr_price:,.2f}\n"
-                                        f"Status: Remaining position running to full TP.\n"
-                                        f"الحالة: استمرار باقي الكمية نحو الهدف النهائي."
-                                    )
-                                except: pass
-                        # Check Full Take Profit
-                        elif curr_price >= trade['tp']:
-                            self.add_log(f"TAKE PROFIT HIT for {trade['symbol']} @ {curr_price}")
-                            self.voice.alert_take_profit()
-                            await self.close_trade('SELL', curr_price, "TP")
-                        # Update Trailing Stop & Break-Even
-                        else:
-                            # 1. AGGRESSIVE BREAK-EVEN: 
-                            # Protect capital as soon as price covers 35% of the target distance
-                            profit_target_dist = trade['tp'] - trade['entry_price']
-                            trigger_price = trade['entry_price'] + (profit_target_dist * 0.35)
+                    # 6. Active Trade Management (Multi-Trade Monitor)
+                    if self.active_trades:
+                        for trade in list(self.active_trades):
+                            symbol = trade['symbol']
                             
-                            if curr_price >= trigger_price and trade['sl'] < trade['entry_price']:
-                                new_sl = trade['entry_price'] * 1.0015 # Entry + 0.15% to cover fees
-                                self.active_trade['sl'] = new_sl
-                                self.add_log(f"🛡️ SECURE LOCK: Break-even activated at {new_sl:.2f} (35% Target reached)")
-                                try:
-                                    await self.telegram.send_message(
-                                        f"🛡️ *LIQUIDITY SHIELD / درع السيولة* 🛡️\n"
-                                        f"Asset: `{trade['symbol']}`\n"
-                                        f"Status: Capital protected at Entry (Break-even).\n"
-                                        f"الحالة: حماية رأس المال عند نقطة الدخول."
-                                    )
-                                except: pass
-
-                            # 2. PROSOFT PROACTIVE EXIT (v12.5): Momentum Decay Protection
-                            # If momentum drops sharply while in profit, exit early before the crash
-                            rsi_now = curr['RSI']
-                            rsi_prev = df['RSI'].iloc[-3]
-                            rsi_decay = rsi_prev - rsi_now
-                            
-                            # Neural Awareness: Check if memory suggests a reversal here
-                            memory_insight = self.memory.analyze_past_mistakes(trade['symbol'])
-                            is_risky_zone = "Warning" in memory_insight or "reversal" in memory_insight.lower()
-
-                            if pnl_pct > 0.5 and (rsi_decay > 8 or is_risky_zone):
-                                self.add_log(f"🧠 PROACTIVE EXIT: Momentum decay/Neural Risk detected (Decay: {rsi_decay:.1f}). Securing ${pnl:.2f}")
-                                self.voice.say("Momentum weakening. Executing proactive exit to secure gains.")
-                                await self.close_trade('SELL', curr_price, "PROACTIVE MOMENTUM EXIT")
+                            # Fetch Specific Symbol Intel (v13.0)
+                            try:
+                                symbol_df = self.api.get_ohlcv(symbol, self.timeframe)
+                                if symbol_df is None or symbol_df.empty: continue
+                                symbol_df = self.ta.calculate_indicators(symbol_df)
+                                curr_row = symbol_df.iloc[-1]
+                                curr_price = curr_row['close']
+                                prev_rsi = symbol_df['RSI'].iloc[-3]
+                                curr_rsi = curr_row['RSI']
+                                atr_val = curr_row.get('ATR', curr_price * 0.01)
+                            except Exception as e:
+                                self.add_log(f"🧠 Sector Intel Lag for {symbol}: {e}")
                                 continue
 
-                            # 3. OPTIMIZED TRAILING STOP
-                            new_sl = self.orders.update_trailing_stop(trade['symbol'], curr_price, trade['entry_price'], trade['sl'], 
-                                                                    trailing_pct_activation=0.012, # 1.2% profit activation
-                                                                    trailing_distance=0.008)      # 0.8% distance (tighter)
-                            if new_sl > trade['sl']:
-                                self.active_trade['sl'] = new_sl
+                            # Performance Metrics
+                            pnl_pct = (curr_price - trade['entry_price']) / trade['entry_price'] * 100
+                        
+                            # 1. PROFIT EXTENDER: Momentum Chase
+                            if curr_price >= (trade['tp'] * 0.95) and curr_rsi < 68:
+                                trade['tp'] *= 1.006 
+                                trade['sl'] = curr_price * 0.994 # Tight trail
+                                self.add_log(f"🚀 EXTENDING TP: {symbol} momentum strong! Target pushed up.")
+                                try:
+                                    await self.telegram.send_message(f"🚀 *PROFIT EXTENDER* 🚀\nAsset: {symbol}\nMomentum is strong. Chasing peak.")
+                                except: pass
+                            
+                            # 2. EXIT VECTOR: STOP LOSS
+                            if curr_price <= trade['sl']:
+                                self.add_log(f"💥 SL HIT: {symbol} @ {curr_price:.4f}")
+                                await self.close_trade_by_symbol(symbol, 'SELL', curr_price, "SL")
+                                continue
+
+                            # 3. EXIT VECTOR: FULL TAKE PROFIT
+                            elif curr_price >= trade['tp']:
+                                self.add_log(f"🏆 TP HIT: {symbol} @ {curr_price:.4f}")
+                                await self.close_trade_by_symbol(symbol, 'SELL', curr_price, "TP")
+                                continue
+
+                            # 4. MONITOR: PARTIAL TAKE PROFIT (TP1)
+                            elif not trade.get('partial_done'):
+                                tp1_trigger = trade['entry_price'] + (trade['tp'] - trade['entry_price']) * 0.5
+                                if curr_price >= tp1_trigger:
+                                    self.add_log(f"💰 TP1 SHIELD: Locking 50% on {symbol}")
+                                    _, rem = self.orders.partial_take_profit(symbol, trade['qty'], curr_price)
+                                    trade['qty'] = rem
+                                    trade['partial_done'] = True
+                                    trade['sl'] = trade['entry_price'] * 1.001
+                                    try: 
+                                        await self.telegram.send_message(f"💰 *TP1 SECURED / جني أرباح جزئي* 💰\nAsset: `{symbol}`")
+                                    except: pass
+
+                            # 5. RISK SHIELD: ADAPTIVE DYNAMICS
+                            else:
+                                # Break-Even Protection (at 35% to target)
+                                trigger_be = trade['entry_price'] + ((trade['tp'] - trade['entry_price']) * 0.35)
+                                if curr_price >= trigger_be and trade['sl'] < trade['entry_price']:
+                                    trade['sl'] = trade['entry_price'] * 1.001
+                                    self.add_log(f"🛡️ SECURE: {symbol} locked at break-even.")
+
+                            # 5. PROSOFT PROACTIVE EXIT: Momentum Decay
+                            rsi_decay = prev_rsi - curr_rsi
+                            if pnl_pct > 0.6 and rsi_decay > 9:
+                                self.add_log(f"🧠 PROACTIVE: {symbol} RSI decay ({rsi_decay:.1f}). Securing gains.")
+                                await self.close_trade_by_symbol(symbol, 'SELL', curr_price, "PROACTIVE RSI")
+                                continue
+
+                            # 6. ATR-ADAPTIVE TRAILING STOP (v13.0)
+                            trail_activation = trade['entry_price'] + (atr_val * 2.0)
+                            if curr_price >= trail_activation:
+                                new_sl = curr_price - (atr_val * 1.5)
+                                if new_sl > trade['sl']:
+                                    trade['sl'] = new_sl
+                                    self.add_log(f"〽️ ATR TRAIL: {symbol} stop adjusted to {new_sl:.4f}")
 
                         # 7. Periodic Position Update (Moved to Heartbeat for reliability)
                         # Handled by dispatch_intelligence_heartbeat every 10 mins
 
-                    # 8. Periodic PDF Report (Every 120 loops ~ 120 min)
-                    if loop_count > 0 and loop_count % 120 == 0:
+                    # 8. Periodic PDF Report (Every 12 Hours ~ 43200 Sec)
+                    if time.time() - self.stats.get('last_pdf_report', 0) > 43200:
                         try:
-                            self.add_log("System Protocol: Auto-dispatching Detailed PDF Intel...")
+                            self.add_log("System Protocol: Auto-dispatching Detailed PDF Intel (12h Cycle)...")
                             report_path = self.reporter.generate_daily_report(self.stats, self.logs)
-                            await self.telegram.send_document(report_path, caption="📄 PROSOFT QUANTUM PRIME — 2-Hour Sector Intel Report")
+                            await self.telegram.send_document(report_path, caption="📄 PROSOFT QUANTUM PRIME — 12-Hour Sector Intel Report")
+                            self.stats['last_pdf_report'] = time.time()
                         except Exception as e:
                             self.add_log(f"Report Error: {str(e)}")
 
@@ -1083,7 +1124,7 @@ class TradingBot:
             # Fetch actual quantity bought (minus fees sometimes)
             executed_qty = sum(float(fill['qty']) for fill in order_res.get('fills', [])) if 'fills' in order_res else qty
             
-            self.active_trade = {
+            trade_obj = {
                 'symbol': symbol,
                 'side': side,
                 'entry_price': price,
@@ -1091,15 +1132,19 @@ class TradingBot:
                 'sl': sl,
                 'tp': tp,
                 'conf': conf,
-                'order_id': order_res.get('orderId', 'SIMULATED')
+                'order_id': order_res.get('orderId', 'SIMULATED'),
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
-            self.stats['active_count'] = 1
+            self.active_trades.append(trade_obj)
+            self.healer.save_trade_state(self.active_trades) # Update persistent storage immediately
+            self.stats['active_count'] = len(self.active_trades)
             
             # --- NEW: IRON-CLAD OCO (REAL TP/SL ON BINANCE) ---
             try:
                 oco_res = self.orders.place_oco_order(symbol, executed_qty, tp, sl)
                 if oco_res:
-                    self.active_trade['oco_id'] = oco_res.get('orderListId')
+                    # Update identifying info in the last added trade
+                    self.active_trades[-1]['oco_id'] = oco_res.get('orderListId')
                     self.add_log(f"🛡️ Iron-Clad Protection: OCO (TP/SL) set on Binance for {symbol}")
             except Exception as e:
                 self.add_log(f"OCO Warning: Failed to set remote TP/SL. Bot will monitor locally. Error: {e}")
@@ -1123,10 +1168,12 @@ class TradingBot:
             self.add_log("CRITICAL: Order placement failed. Check Balance or API Permissions.")
             return False
 
-    async def close_trade(self, side, price, reason):
-        if not self.active_trade: return
-        
-        trade = self.active_trade
+    async def close_trade_by_symbol(self, symbol, side, price, reason):
+        # Find the trade in our list
+        trade = next((t for t in self.active_trades if t['symbol'] == symbol), None)
+        if not trade: 
+            self.add_log(f"Close Trade Error: No active trade found for {symbol}")
+            return
         
         # --- NEW: CLEANUP PENDING OCO ORDERS ---
         if 'oco_id' in trade:
@@ -1221,7 +1268,15 @@ class TradingBot:
         # Update Daily Stats
         self.risk.update_performance(pnl_pct / 100)
         self.stats['daily_pnl'] += pnl
+        self.stats['daily_pnl_pct'] += pnl_pct
+        self.stats['trades_count'] += 1
         
+        # Track consecutive losses for Sovereign Governor
+        if pnl < 0:
+            self.stats['consecutive_losses'] += 1
+        else:
+            self.stats['consecutive_losses'] = 0
+            
         # --- NEW: NEURAL POST-TRADE REVIEW (v12.8) ---
         ai_lesson = "Strategy performance within expected parameters. (Node Latency: AI Insight Deferred)"
         try:
@@ -1244,10 +1299,9 @@ class TradingBot:
         except Exception as e:
             app_logger.warning(f"Post-Trade Review Error: {e}")
             
-        # Reset Active Trade & Clear Local State
-        self.active_trade = None
-        self.stats['active_count'] = 0
-        self.healer.clear_trade_state()
+        # Update UI count and Save state to disk for recovery persistence
+        self.stats['active_count'] = len(self.active_trades)
+        self.healer.save_trade_state(self.active_trades)
         
         # Notify Telegram with Neural Insight
         try:
@@ -1263,6 +1317,54 @@ class TradingBot:
                 f"🧠 *Neural Lesson:*\n{ai_lesson}"
             )
         except: pass
+        
+        # --- FINAL CLEANUP: Remove from memory and save state ---
+        if trade in self.active_trades:
+            self.active_trades.remove(trade)
+        
+        # Save state to disk for recovery persistence
+        self.healer.save_trade_state(self.active_trades)
+        
+        # If no trades left, clear the state file for cleanliness
+        if not self.active_trades:
+            self.healer.clear_trade_state()
+
+    async def _send_daily_briefing(self):
+        """Generates a deep bilingual (AR/EN) Daily Neural Briefing with learning tips."""
+        try:
+            self.add_log("AI Cluster: Generating Daily Neural Briefing...")
+            
+            pnl_status = "🟢 PROFIT" if self.stats['daily_pnl'] > 0 else "🔴 LOSS"
+            
+            prompt = (
+                f"Sovereign Briefing: Today's performance: ${self.stats['daily_pnl']:.2f} ({self.stats['daily_pnl_pct']:.2f}%). "
+                f"Total Trades: {self.stats['trades_count']}. Market Health: {self.stats['market_health']}%. "
+                "Task: Provide a detailed professional summary in Arabic about this performance. "
+                "Include a 'Learning Section' (نصيحة تعليمية) explaining a concept like momentum, risk/reward, or capital preservation for the user to learn from today's outcomes. "
+                "Make it encouraging and bilingual at important headings."
+            )
+            
+            briefing = await self.gemini.ask(prompt)
+            if not briefing: briefing = "Unable to generate summary. Performance secured."
+            
+            await self.telegram.send_message(
+                f"📊 *DAILY NEURAL BRIEFING | الموجز العصبي اليومي*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🔹 *Status:* {pnl_status}\n"
+                f"🔹 *Total PNL:* `${self.stats['daily_pnl']:+.2f}` (`{self.stats['daily_pnl_pct']:+.2f}%`)\n"
+                f"🔹 *Trades:* {self.stats['trades_count']}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"{briefing}"
+            )
+            self.add_log("Daily Neural Briefing dispatched to Telegram.")
+        except Exception as e:
+            self.add_log(f"Briefing Error: {e}")
+
+    async def close_trade(self, side, price, reason):
+        """Compatibility wrapper for single-trade logic calls."""
+        if self.active_trades:
+            # By default, close the first/current symbol trade
+            await self.close_trade_by_symbol(self.symbol, side, price, reason)
 
     async def protocol_omega(self):
         """🚨 PROTOCOL OMEGA: THE ULTIMATE KILL SWITCH 🚨
@@ -1275,17 +1377,17 @@ class TradingBot:
         # 1. Stop all execution
         self.is_paused = True
         
-        # 2. Close Active Trade if any
-        if self.active_trade:
-            # Get current price
-            try:
-                curr_p = self.api.get_symbol_ticker(self.active_trade['symbol'])
-                await self.close_trade('SELL', curr_p, "PROTOCOL OMEGA / قفل احترازي")
-            except: pass
+        # 2. Close ALL Active Trades correctly
+        if self.active_trades:
+            for trade in list(self.active_trades):
+                try:
+                    curr_p = self.api.get_symbol_ticker(trade['symbol'])
+                    await self.close_trade_by_symbol(trade['symbol'], 'SELL', curr_p, "PROTOCOL OMEGA / Extreme Risk Shutdown")
+                except: pass
             
         # 3. Cancel ALL Open Orders for ALL symbols (aggressive)
         try:
-            self.api.client._cancel_all_open_orders() # Using semi-private or specific endpoint if supported
+            self.api.client._cancel_all_open_orders() 
             self.add_log("Omega: All open orders on Binance cancelled.")
         except:
             self.add_log("Omega: Individual order cleanup triggered.")
@@ -1397,17 +1499,17 @@ class TradingBot:
             )
 
             # 2. Position Status (The core request)
-            if self.active_trade:
-                t = self.active_trade
-                pnl_pct = (self.stats['price'] / t['entry_price'] - 1) * 100
-                color = "🟢" if pnl_pct > 0 else "🔴"
-                report += (
-                    f"📈 *ACTIVE POSITION / الصفقة الحالية*\n"
-                    f"Asset: `{t['symbol']}`\n"
-                    f"Entry: `${t['entry_price']:,.2f}` | PNL: {color} `{pnl_pct:+.2f}%`\n"
-                    f"SL: `${t['sl']:,.2f}` | TP: `${t['tp']:,.2f}`\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                )
+            if self.active_trades:
+                report += f"📈 *ACTIVE POSITIONS ({len(self.active_trades)}) / الصفقات الحالية*\n"
+                for t in self.active_trades:
+                    # Get specific price for this symbol if available, else use global
+                    t_price = self.stats.get('price', 0)
+                    pnl_pct = (t_price / t['entry_price'] - 1) * 100
+                    color = "🟢" if pnl_pct > 0 else "🔴"
+                    report += (
+                        f"• `{t['symbol']}` | PNL: {color} `{pnl_pct:+.2f}%` | SL: `${t['sl']:,.2f}`\n"
+                    )
+                report += f"━━━━━━━━━━━━━━━━━━━━\n"
             else:
                 report += "🔍 *STATUS:* Scanning for institutional entries... / جاري البحث عن سيولة مؤسسية...\n━━━━━━━━━━━━━━━━━━━━\n"
 
@@ -1437,8 +1539,11 @@ class TradingBot:
         self.add_log(f"🚨 ALERT: PROTOCOL OMEGA ACTIVATED! Reason: {reason}")
         
         # 1. Close Active Trades immediately
-        if self.active_trade:
-            await self.close_trade('SELL', self.stats['price'], "OMEGA EXIT")
+        # 1. Close ALL Active Trades immediately
+        if self.active_trades:
+            for trade in list(self.active_trades):
+                curr_p = self.api.get_symbol_ticker(trade['symbol']) or trade['entry_price']
+                await self.close_trade_by_symbol(trade['symbol'], 'SELL', curr_p, "OMEGA EXIT")
             
         # 2. Cancel all pending orders (Simulated for this implementation)
         self.stats['pending_signal'] = None
@@ -1458,6 +1563,30 @@ class TradingBot:
         )
 
 
+# --- Railway Health Check Server (v13.0) ---
+import http.server
+import socketserver
+import threading
+
+def start_health_server():
+    PORT = int(os.environ.get("PORT", 8080))
+    class HealthHandler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b"PROSOFT MONSTER-ULTRA: SYSTEM ONLINE")
+    
+    try:
+        with socketserver.TCPServer(("", PORT), HealthHandler) as httpd:
+            print(f"Health Check Server running on port {PORT}")
+            httpd.serve_forever()
+    except Exception as e:
+        print(f"Health Server Error: {e}")
+
 if __name__ == "__main__":
     bot = TradingBot()
-    asyncio.run(bot.run())
+    try:
+        asyncio.run(bot.run())
+    except KeyboardInterrupt:
+        print("Bot Stopped by User.")

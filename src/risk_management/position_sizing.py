@@ -2,7 +2,8 @@ import os
 from src.utils.logger import app_logger
 
 class RiskManager:
-    def __init__(self, risk_per_trade=0.01, max_daily_loss_pct=0.03, max_consecutive_losses=2):
+    def __init__(self, risk_per_trade=0.015, max_daily_loss_pct=0.04, max_consecutive_losses=3):
+        # 12.8 PROSOFT: Monster Defaults (1.5% risk, 4% daily cap)
         self.risk_per_trade = float(os.getenv('RISK_PER_TRADE', risk_per_trade))
         self.max_daily_loss_pct = float(os.getenv('MAX_DAILY_LOSS_PCT', max_daily_loss_pct))
         self.max_consecutive_losses = int(os.getenv('MAX_CONSEC_LOSSES', max_consecutive_losses))
@@ -12,85 +13,72 @@ class RiskManager:
         self.consecutive_losses = 0
         self.trades_today = 0
 
-    def calculate_position_size(self, balance, price, stop_loss):
-        """Calculates position size based on 1% risk rule with Micro-Account support."""
+    def calculate_position_size(self, budget_per_slot, price, stop_loss, ai_conf=0.85):
+        """
+        12.8 PROSOFT: Compounding Position Engine.
+        Uses the provided budget_per_slot (fraction of equity) 
+        and adjusts based on AI Confidence and Risk distance.
+        """
         try:
-            # 1. Standard Risk Calculation
-            risk_amount = balance * self.risk_per_trade
-            risk_per_unit = abs(price - stop_loss)
+            # 1. Distance Risk Calculation
+            # How much % the stop loss is from current price
+            risk_distance_pct = abs(price - stop_loss) / price
+            if risk_distance_pct == 0: return 0.0
             
-            if risk_per_unit == 0:
-                return 0.0
+            # 2. AI Confidence Multiplier
+            # Baseline 0.85. 
+            ai_multiplier = max(0.7, min(1.3, ai_conf / 0.85))
             
-            position_size = risk_amount / risk_per_unit
+            # 3. Sovereign Risk Governor: Scale down if we have losses
+            sovereign_mult = 1.0
+            if self.consecutive_losses == 1: sovereign_mult = 0.75
+            elif self.consecutive_losses >= 2: sovereign_mult = 0.5
             
-            # --- MICRO-ACCOUNT OPTIMIZATION (For $10 - $100 Accounts) ---
-            # Binance minimum order is 10 USDT.
-            if balance < 100:
-                min_usdt = 10.5 # A bit above $10 to be safe
-                if balance >= min_usdt:
-                    required_size = min_usdt / price
-                    # If our risk calculation is smaller than the min allowed by Binance,
-                    # we use the minimum size as long as it's within 95% of our capital.
-                    if position_size < required_size:
-                        position_size = required_size
+            # 4. Final Budget Allocation
+            # We risk a portion of the slot budget based on the SL distance
+            # If distance is small (0.5%), we can use more of the budget.
+            # If distance is large (5%), we use less.
+            # Base risk is set to 1.5% of the budget per 1% of distance.
+            base_risk_factor = 0.015 
+            target_risk_amount = budget_per_slot * base_risk_factor * ai_multiplier * sovereign_mult
             
-            # 2. Safety Bounds
-            total_cost = position_size * price
+            position_size = target_risk_amount / risk_distance_pct / price
             
-            # Never use more than 95% of balance for one trade (buffer for fees)
-            if total_cost > (balance * 0.95):
-                position_size = (balance * 0.95) / price
-                
-            # --- AUTO-COMPOUNDER (Hyper-Growth for Micro Accounts) ---
-            # Phase 3: Zero-Waste Compounding
-            # If the account has grown past its initial benchmark, 
-            # we allocate a percentage of profits into the next trade.
-            initial_deposit = float(os.getenv('INITIAL_DEPOSIT', 15.0))
-            compound_ratio = float(os.getenv('COMPOUNDING_RATIO', 0.50)) # Default 50% of profits
+            # Final Safety: Never exceed allocated budget for the slot
+            max_qty = budget_per_slot / price
+            if (position_size * price) > budget_per_slot:
+                position_size = max_qty * 0.98 # 2% buffer for fees
             
-            if balance > initial_deposit:
-                profit_pool = balance - initial_deposit
-                bonus_allocation = profit_pool * compound_ratio
-                bonus_size = bonus_allocation / price
-                position_size += bonus_size
-                app_logger.info(f"🧬 [AUTO-COMPOUNDER] Strategy v12.0: Added {bonus_size:.6f} to size from Profit Pool (${bonus_allocation:.2f})")
+            # Micro-Account Boost
+            if budget_per_slot < 20: 
+                # If budget is very small, we must use at least $10.5 to meet Binance min
+                if budget_per_slot >= 10.5:
+                    position_size = 10.5 / price
             
-            # Recalculate cost after compounder
-            total_cost = position_size * price
-            if total_cost > (balance * 0.95):
-                position_size = (balance * 0.95) / price
-            
-            app_logger.info(f"Capital Strategy: Base Risk Amount {risk_amount:.2f} USDT | Final Compounded Size: {position_size:.6f} (${position_size*price:.2f})")
+            app_logger.info(f"Sovereign Risk: Mult {ai_multiplier:.2f}x | Sov {sovereign_mult:.2f}x | Size: ${position_size*price:.2f}")
             return position_size
+            
         except Exception as e:
-            app_logger.error(f"Risk Management Error: {e}")
+            app_logger.error(f"Sovereign Sizing Error: {e}")
             return 0.0
 
     def update_performance(self, profit_loss_pct):
-        """Updates internal risk trackers after a trade closes."""
+        """Updates internal risk trackers."""
         self.daily_pnl_pct += profit_loss_pct
         if profit_loss_pct < 0:
             self.consecutive_losses += 1
         else:
             self.consecutive_losses = 0
-        
         self.trades_today += 1
 
     def can_trade(self):
-        """Checks if current risk limits allow for a new trade."""
+        """Sovereign Guard: Prevents trading if daily limits are breached."""
         if self.daily_pnl_pct <= -self.max_daily_loss_pct:
-            app_logger.warning("Daily loss limit reached. Trading halted today.")
+            app_logger.warning("SOVEREIGN BLOCK: Daily loss limit reached. Cooling down.")
             return False
-        
-        if self.consecutive_losses >= self.max_consecutive_losses:
-            app_logger.warning(f"{self.max_consecutive_losses} consecutive losses reached. Taking a break.")
-            return False
-            
         return True
 
     def reset_daily_stats(self):
-        """Resets stats for a new day."""
         self.daily_pnl_pct = 0.0
         self.consecutive_losses = 0
         self.trades_today = 0

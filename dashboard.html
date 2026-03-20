@@ -992,7 +992,8 @@
                     <thead
                         class="text-[10px] uppercase bg-[#171b26] text-purple-400 font-bold tracking-widest sticky top-0">
                         <tr>
-                            <th class="px-3 py-3 rounded-tl" data-en="Time" data-ar="الوقت">Time</th>
+                            <th class="px-3 py-3 rounded-tl">#</th>
+                            <th class="px-3 py-3" data-en="Time" data-ar="الوقت">Time</th>
                             <th class="px-3 py-3" data-en="Date" data-ar="التاريخ">Date</th>
                             <th class="px-3 py-3">Asset</th>
                             <th class="px-3 py-3">Side</th>
@@ -1016,7 +1017,8 @@
                     <thead
                         class="text-[10px] uppercase bg-[#171b26] text-emerald-400 font-bold tracking-widest sticky top-0">
                         <tr>
-                            <th class="px-3 py-3 rounded-tl" data-en="Time" data-ar="الوقت">Time</th>
+                            <th class="px-3 py-3 rounded-tl">#</th>
+                            <th class="px-3 py-3" data-en="Time" data-ar="الوقت">Time</th>
                             <th class="px-3 py-3" data-en="Date" data-ar="التاريخ">Date</th>
                             <th class="px-3 py-3">Mechanism</th>
                             <th class="px-3 py-3">Asset</th>
@@ -1748,6 +1750,7 @@
                     const [exitDate, exitTime] = exitTimeStr.includes(' ') ? exitTimeStr.split(' ') : [exitTimeStr, ''];
                     return `
                     <tr class="hover:bg-white/5 transition">
+                        <td class="px-3 py-3 font-mono text-purple-500 font-bold">${m.id}</td>
                         <td class="px-3 py-3 font-mono text-slate-500">${entryTime || 'N/A'}</td>
                         <td class="px-3 py-3 font-mono text-slate-500">${entryDate || 'N/A'}</td>
                         <td class="px-3 py-3 font-bold text-white">${m.symbol}</td>
@@ -1782,6 +1785,7 @@
                     const [date, time] = r.timestamp.split(' ');
                     return `
                     <tr class="hover:bg-white/5 transition">
+                        <td class="px-3 py-3 font-mono text-emerald-500 font-bold">${r.id}</td>
                         <td class="px-3 py-3 font-mono text-slate-500">${time}</td>
                         <td class="px-3 py-3 font-mono text-slate-500">${date}</td>
                         <td class="px-3 py-3 font-bold text-white">${r.source}</td>

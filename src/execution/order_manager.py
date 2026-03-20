@@ -99,10 +99,12 @@ class OrderManager:
                 symbol=symbol,
                 side='SELL',
                 quantity=formatted_qty,
-                price=str(round(take_profit, 2)),
-                stopPrice=str(round(stop_loss * 1.01, 2)), # trigger price
-                stopLimitPrice=str(round(stop_loss, 2)),    # actual sell price
-                stopLimitTimeInForce='GTC'
+                aboveType='LIMIT_MAKER',
+                abovePrice=str(round(take_profit, 2)),
+                belowType='STOP_LOSS_LIMIT',
+                belowStopPrice=str(round(stop_loss * 1.01, 2)), # trigger price
+                belowPrice=str(round(stop_loss, 2)),            # actual sell price
+                belowTimeInForce='GTC'
             )
             app_logger.info(f"OCO Order (SL/TP) placed: {order['orderListId']}")
             return order
@@ -113,18 +115,32 @@ class OrderManager:
             app_logger.error(f"Error placing OCO order: {e}")
             return None
 
-    def update_trailing_stop(self, symbol, current_price, entry_price, current_sl, trailing_pct_activation=0.03, trailing_distance=0.015):
+    def update_trailing_stop(self, symbol, current_price, entry_price, current_sl, trailing_pct_activation=0.02, trailing_distance=0.012):
         """
-        PROSOFT AI LIQUIDITY SHIELD (Trailing Stop-Loss).
-        Activates when profit reaches >3%, moves Stop Loss to 1.5% below current price.
+        PROSOFT AI LIQUIDITY SHIELD (Refined).
+        Intelligently moves Stop Loss to lock profits. 
+        trailing_pct_activation: Profit % needed to start trailing (e.g., 0.02 = 2%)
+        trailing_distance: % distance to maintain from the new peak (e.g., 0.012 = 1.2%)
         """
-        profit_pct = (current_price - entry_price) / entry_price
-        
-        if profit_pct > trailing_pct_activation:
-            new_sl = current_price * (1 - trailing_distance)
-            if new_sl > current_sl:
-                app_logger.info(f"🛡️ [Liquidity Shield Active] {symbol} Trailing Stop moved to {new_sl:.2f} (Locked Profit)")
-                return new_sl
+        try:
+            profit_pct = (current_price - entry_price) / entry_price
+            
+            # 12.8 PROSOFT: Intelligent Threshold
+            if profit_pct >= trailing_pct_activation:
+                # Calculate what the new SL should be
+                potential_new_sl = current_price * (1 - trailing_distance)
+                
+                # Only move if the NEW SL is higher than the OLD SL + a small buffer (0.1%)
+                # to prevent micro-adjustments and 'suffocating' the trade
+                move_buffer = current_price * 0.001 
+                
+                if potential_new_sl > (current_sl + move_buffer):
+                    app_logger.info(f"🛡️ [Intelligent Trailing] {symbol} SL moving up: ${current_sl:.2f} -> ${potential_new_sl:.4f} (Locked Profit)")
+                    return potential_new_sl
+                    
+        except Exception as e:
+            app_logger.error(f"Trailing Stop Calculation Error for {symbol}: {e}")
+            
         return current_sl
 
     def partial_take_profit(self, symbol, total_qty, tp1_price, tp1_pct=0.5):

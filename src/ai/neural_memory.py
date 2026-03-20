@@ -70,8 +70,9 @@ class NeuralMemory:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (symbol, side, entry, exit_p, entry_t, exit_t, pnl, conf, health, sentiment, lesson))
             conn.commit()
+            trade_id = cursor.lastrowid
             conn.close()
-            app_logger.info(f"💾 Trade Logged in Neural Memory: {symbol} | PNL: {pnl:.2f}")
+            app_logger.info(f"💾 [TRADE #{trade_id}] Logged in Neural Memory: {symbol} | PNL: {pnl:.2f}")
         except Exception as e:
             app_logger.error(f"DB Insert Error: {e}")
 

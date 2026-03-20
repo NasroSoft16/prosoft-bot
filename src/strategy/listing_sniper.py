@@ -12,7 +12,7 @@ class ListingSniper:
         self.tg = telegram_bot
         self.watched_symbols = {}
         self.last_scan_time = 0
-        self.scan_throttle = 10 # seconds
+        self.scan_throttle = 1 # Accelerated Scan (Cycle 4)
 
     def scan_for_new_listings(self):
         """Checks for new symbols or status transitions (e.g. TRADING enabled) with throttling."""
@@ -60,25 +60,41 @@ class ListingSniper:
 
     async def monitor_new_listings(self):
         """Asynchronous wrapper for background monitoring."""
+        # 12.8 PROSOFT: Accelerated Scan (2s)
         while True:
             new_asset = self.scan_for_new_listings()
             if new_asset:
                 await self.execute_snipe(new_asset)
-            await asyncio.sleep(60) # Deep scan every minute
+            await asyncio.sleep(2) 
 
-    async def execute_snipe(self, symbol, amount_usdt=20.0):
-        """Executes a market buy on a new listing immediately."""
-        app_logger.warning(f"LISTING DETECTED: Sniping {symbol} with ${amount_usdt}...")
+    async def execute_snipe(self, symbol):
+        """Executes a market buy on a new listing with intelligent allocation."""
         try:
-            # 1. Place Market Buy
+            # 12.8 PROSOFT: Sniper Reservation Rule
+            balance = self.api.get_account_balance('USDT')
+            
+            # Rule: If Balance >= $50, use 20%. Else use standard fallback.
+            if balance >= 50.0:
+                amount_usdt = balance * 0.20
+                app_logger.warning(f"💎 SNIPER RESERVE TRIGGERED: Using 20% (${amount_usdt:.2f}) for {symbol}")
+            else:
+                amount_usdt = 15.0 # Low balance fallback
+            
+            # Safety checks
+            if amount_usdt > balance * 0.95: amount_usdt = balance * 0.95
+            if amount_usdt < 10.5: amount_usdt = 10.5
+            
+            app_logger.warning(f"LISTING DETECTED: Sniping {symbol} with ${amount_usdt:.2f}...")
+            
+            # 1. Place Market Buy (Market order for speed)
             order = self.api.client.order_market_buy(symbol=symbol, quoteOrderQty=amount_usdt)
             if order:
-                app_logger.info(f"SNIPE SUCCESS: {symbol} bought. Setting OCO exit...")
+                app_logger.info(f"SNIPE SUCCESS: {symbol} bought. Protection logic active.")
                 # Log hit to revenue memory
                 try:
                     from src.ai.neural_memory import NeuralMemory
                     memory = NeuralMemory()
-                    memory.log_revenue("ListingSniper", symbol.replace("USDT", ""), 0.0, f"Successful Flash Snipe on {symbol}")
+                    memory.log_revenue("ListingSniper", symbol.replace("USDT", ""), 0.0, f"Successful Flash Snipe on {symbol} (${amount_usdt:.2f})")
                 except: pass
                 return True
         except Exception as e:

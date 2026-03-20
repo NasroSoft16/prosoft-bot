@@ -52,7 +52,7 @@ class DashboardAPI:
                     status_data = {
                         'bot_stats': self.bot.stats,
                         'current_symbol': self.bot.symbol,
-                        'active_trade': self.bot.active_trade,
+                        'active_trades': self.bot.active_trades, # List of all positions
                         'equity': self.bot.stats.get('total_equity', 0)
                     }
                     self.socketio.emit('status_update', status_data)
@@ -144,7 +144,7 @@ class DashboardAPI:
             return jsonify({
                 'bot_stats': self.bot.stats,
                 'current_symbol': self.bot.symbol,
-                'active_trade': self.bot.active_trade,
+                'active_trades': self.bot.active_trades,
                 'logs': list(self.bot.logs[-50:]),
                 'historical_bars': self.bot.last_df.tail(60).to_dict('records') if hasattr(self.bot, 'last_df') and hasattr(self.bot.last_df, 'tail') else []
             })

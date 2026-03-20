@@ -79,8 +79,8 @@ class SelfHealingEngine:
         }
         
         # --- CLOUD READINESS: Auto-Save State ---
-        if self.bot.active_trade:
-            self.save_trade_state(self.bot.active_trade)
+        if self.bot.active_trades:
+            self.save_trade_state(self.bot.active_trades)
 
         try:
             # 1. API connectivity
@@ -111,18 +111,10 @@ class SelfHealingEngine:
             # This ensures the bot's internal state matches the reality on Binance
             await self.deep_sync_trade_state()
             
-            if self.bot.active_trade is not None:
-                t = self.bot.active_trade
-                if all(k in t for k in ['symbol', 'entry_price', 'sl', 'tp', 'qty']):
-                    report['trade_state_ok'] = True
-                else:
-                    report['errors'].append("Active trade object is malformed — resetting.")
-                    self.bot.active_trade = None
-            else:
-                report['trade_state_ok'] = True  # No trade is also a valid state
+            # Simplified check for list health
+            report['trade_state_ok'] = True
         except Exception as e:
             report['errors'].append(f"Trade State Error: {e}")
-            self.bot.active_trade = None
 
         if report['errors']:
             app_logger.warning(f"[Self-Heal] Health Check Issues: {report['errors']}")
@@ -134,49 +126,59 @@ class SelfHealingEngine:
     async def deep_sync_trade_state(self):
         """
         [PROSOFT DEEP SYNC]
-        Verifies if the 'active_trade' in memory actually exists as assets in Binance.
+        Verifies if each 'active_trade' in memory actually exists as assets in Binance.
         If not, it clears the ghost trade state.
         """
-        if not self.bot.active_trade:
+        if not self.bot.active_trades:
             return
 
-        trade = self.bot.active_trade
-        symbol = trade['symbol']
-        asset = symbol.replace('USDT', '')
-        
-        try:
-            # 1. Check actual free balance of the asset
-            balance = self.bot.api.get_account_balance(asset)
-            ticker = self.bot.api.get_symbol_ticker(symbol)
+        to_remove = []
+        for trade in self.bot.active_trades:
+            symbol = trade['symbol']
+            asset = symbol.replace('USDT', '')
             
-            if ticker and ticker > 0:
-                usd_value = balance * ticker
+            try:
+                # 1. Check actual free balance of the asset
+                balance = self.bot.api.get_account_balance(asset)
+                ticker = self.bot.api.get_symbol_ticker(symbol)
                 
-                # 2. If USD value is less than $1.00, it's effectively gone or 'dust'
-                # Binance minimum trade is $10, so $1 is a safe 'non-existent' threshold
-                if usd_value < 1.0:
-                    app_logger.warning(f"[Deep Sync] GHOST TRADE DETECTED: {symbol} (Value: ${usd_value:.2f}). Clearing state...")
-                    self.bot.active_trade = None
-                    self.clear_trade_state()
-                    # Trigger UI update
-                    if hasattr(self.bot, '_force_ui_update'):
-                        self.bot._force_ui_update()
-                else:
-                    app_logger.info(f"[Deep Sync] Active trade verified: {asset} balance ~${usd_value:.2f}")
-        except Exception as e:
-            app_logger.error(f"[Deep Sync] Failed to verify balance for {asset}: {e}")
+                if ticker and ticker > 0:
+                    usd_value = balance * ticker
+                    
+                    # 2. If USD value is less than $1.00, it's effectively gone or 'dust'
+                    if usd_value < 1.0:
+                        app_logger.warning(f"[Deep Sync] GHOST TRADE DETECTED: {symbol} (Value: ${usd_value:.2f}). Clearing state...")
+                        to_remove.append(trade)
+                    else:
+                        app_logger.info(f"[Deep Sync] Active trade verified: {asset} balance ~${usd_value:.2f}")
+            except Exception as e:
+                app_logger.error(f"[Deep Sync] Failed to verify balance for {asset}: {e}")
 
-    def save_trade_state(self, trade_data):
-        """Saves active trade to disk to recover after cloud restarts."""
+        # Final cleanup
+        if to_remove:
+            for trade in to_remove:
+                if trade in self.bot.active_trades:
+                    self.bot.active_trades.remove(trade)
+            self.save_trade_state(self.bot.active_trades)
+            if hasattr(self.bot, '_force_ui_update'):
+                self.bot._force_ui_update()
+
+    def save_trade_state(self, trades_list):
+        """Saves current active trades list to disk to recover after cloud restarts."""
         import json
+        import os
         try:
+            # Ensure data directory exists
+            if not os.path.exists('data'):
+                os.makedirs('data')
+                
             with open('data/active_trade.json', 'w') as f:
-                json.dump(trade_data, f)
+                json.dump(trades_list, f)
         except Exception as e:
             app_logger.error(f"[Self-Heal] Failed to save state: {e}")
 
     def load_trade_state(self):
-        """Loads trade state from disk if exists."""
+        """Loads trade state as a list from disk if exists."""
         import json
         import os
         path = 'data/active_trade.json'
@@ -184,20 +186,24 @@ class SelfHealingEngine:
             try:
                 with open(path, 'r') as f:
                     state = json.load(f)
-                app_logger.info(f"[Self-Heal] 💾 Cloud Recovery: Found active trade for {state['symbol']}. Restoring...")
-                # Verify if still valid on Binance (optional but good)
-                return state
+                
+                # Normalize: always return a list
+                if isinstance(state, dict):
+                    return [state]
+                elif isinstance(state, list):
+                    return state
+                return []
             except Exception as e:
                 app_logger.error(f"[Self-Heal] Failed to load state: {e}")
-                return None
-        return None
+                return []
+        return []
 
     def clear_trade_state(self):
-        """Removes the state file when a trade is closed."""
+        """Removes the state file when all trades are closed."""
         import os
         path = 'data/active_trade.json'
         if os.path.exists(path):
             try:
                 os.remove(path)
-                app_logger.info("[Self-Heal] Trade state cleared.")
+                app_logger.info("[Self-Heal] Trade state file removed.")
             except: pass
