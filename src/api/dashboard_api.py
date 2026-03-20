@@ -808,22 +808,15 @@ class DashboardAPI:
         """Starts the Flask-SocketIO server in a way that works locally and on Railway."""
         try:
             if port is None:
-                # Railway provides the port via the PORT environment variable
                 port = int(os.environ.get("PORT", 5000))
             
             app_logger.info(f"🚀 INITIALIZING DASHBOARD ON PORT: {port}")
             
-            # Use eventlet for high-performance Socket.IO if available
-            try:
-                import eventlet
-                eventlet.monkey_patch()
-                app_logger.info("⚡ Eventlet Monkey-Patch Applied for Socket.IO Stability")
-            except ImportError:
-                app_logger.warning("⚠️ Eventlet not found. Falling back to standard threading.")
-
-            # Start Flask/SocketIO in a separate thread so it doesn't block the bot loop
+            # Use threading mode for maximum compatibility with the bot's asyncio loop
             def start_server():
                 try:
+                    # Explicitly set async_mode to threading to avoid library conflicts on Railway
+                    self.socketio.async_mode = 'threading'
                     self.socketio.run(self.app, host=host, port=port, debug=False, use_reloader=False)
                 except Exception as e:
                     app_logger.critical(f"❌ DASHBOARD CRITICAL FAILURE: {str(e)}")
@@ -831,7 +824,7 @@ class DashboardAPI:
             thread = threading.Thread(target=start_server, daemon=True)
             thread.start()
             
-            app_logger.info(f"✅ DASHBOARD LIVE AT: http://{host}:{port}")
+            app_logger.info(f"✅ DASHBOARD LIVE AT: http://{host}:{port} (Mode: Threading)")
             
         except Exception as e:
             app_logger.error(f"❌ Error during Dashboard startup: {str(e)}")
