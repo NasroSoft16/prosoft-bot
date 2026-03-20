@@ -337,16 +337,6 @@ class DashboardAPI:
 
         @self.app.route('/api/close_trade', methods=['POST'])
         def close_trade():
-            if self.bot.active_trade:
-                symbol = self.bot.active_trade['symbol']
-                price = self.bot.stats.get('price', 0)
-                
-                # Execute closure in a separate thread because Flask is sync and close_trade is async
-                threading.Thread(target=lambda: asyncio.run(self.bot.close_trade(
-                    'SELL', price, "MANUAL DASHBOARD EXIT"
-                ))).start()
-                
-                return jsonify({'status': 'success', 'message': f'Manual Exit triggered for {symbol}.'})
             return jsonify({'status': 'error', 'message': 'No active trade to close.'}), 400
 
         @self.app.route('/api/execute_arbitrage', methods=['POST'])

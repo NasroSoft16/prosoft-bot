@@ -377,7 +377,7 @@ class TradingBot:
                                             # Set emergency SL/TP for sniper trades
                                             snipe_sl = snipe_price * 0.95   # 5% SL
                                             snipe_tp = snipe_price * 1.10   # 10% TP
-                                            self.active_trade = {
+                                            snipe_trade = {
                                                 'symbol': new_asset,
                                                 'side': 'BUY',
                                                 'entry_price': snipe_price,
@@ -387,6 +387,8 @@ class TradingBot:
                                                 'conf': 1.0,
                                                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                             }
+                                            self.active_trades.append(snipe_trade)
+                                            self.stats['active_count'] = len(self.active_trades)
                                             self.voice.alert_sniper_hit(new_asset)
                                             self.add_log(f"⚡ SNIPE SUCCESS: Target {new_asset} engaged at {snipe_price}")
                                             self.switch_symbol(new_asset)
@@ -480,7 +482,7 @@ class TradingBot:
 
                         # --- NEW: MEME ROCKET SNIPER CHECK ---
                         rocket = self.rocket_sniper.detect_rocket(df, self.symbol)
-                        if rocket and self.execution_mode == 'auto' and not self.active_trade:
+                        if rocket and self.execution_mode == 'auto' and not self.active_trades:
                             self.add_log(f"🚀 MEME ROCKET ENGAGED: Executing scalp on {self.symbol}")
                             # Use aggressive rocket parameters
                             balance = self.api.get_account_balance('USDT')
@@ -498,7 +500,7 @@ class TradingBot:
                             )
                     else:
                         self.add_log("Data Warning: Insufficient data for analysis. Waiting...")
-                        if not self.active_trade:
+                        if not self.active_trades:
                             await asyncio.sleep(self.interval_sec)
                             continue
 
@@ -541,7 +543,7 @@ class TradingBot:
                             self.add_log(f"Portfolio Sync Error: {str(e)}")
 
                     # 3.5 Auto-Rotation: Intelligent Market Hunting (Every 3 loops ~ 1 minute)
-                    if not self.active_trade and loop_count > 0 and loop_count % 3 == 0:
+                    if not self.active_trades and loop_count > 0 and loop_count % 3 == 0:
                         try:
                             # 1. Scan for Top Candidates
                             scan_results = self.market_scanner.scan_market()
@@ -674,7 +676,7 @@ class TradingBot:
                                             self.market_scanner.blacklist.append(t)
 
                         # 4.3.2 Alpha Shadow Tracking (Periodic scan)
-                        if not self.active_trade and loop_count % 15 == 0:
+                        if not self.active_trades and loop_count % 15 == 0:
                             lead = self.alpha_tracker.scan_alpha_leads()
                             if lead:
                                 alert_msg = (f"🔱 *SHADOW PROTOCOL ALERT / تنبيه تتبع النخبة* 🔱\n"
@@ -805,7 +807,7 @@ class TradingBot:
                         # 4.6. PROSOFT INTELLIGENCE HEARTBEAT (Dynamic: 10m with trade / 25m idle)
                         current_time = time.time()
                         # 600s = 10m | 1500s = 25m
-                        sync_threshold = 600 if self.active_trade else 1500
+                        sync_threshold = 600 if self.active_trades else 1500
                         if (current_time - self.stats.get('last_periodic_sync', 0)) >= sync_threshold:
                             self.stats['last_periodic_sync'] = current_time
                             await self.dispatch_intelligence_heartbeat()
