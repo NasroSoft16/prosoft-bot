@@ -156,8 +156,8 @@ class TradingBot:
             'btc_dominance': 50.0,
             'last_weekly_review': None,
             'last_periodic_sync': 0,
-            'last_daily_briefing': time.time(),
-            'last_pdf_report': time.time()
+            'last_daily_briefing': 0, # Send exactly upon bot start to fix missing reports
+            'last_pdf_report': 0 # Send exactly upon bot start
         }
 
         self.whales = WhaleTracker()
@@ -993,9 +993,11 @@ class TradingBot:
                             pnl_pct = (curr_price - trade['entry_price']) / trade['entry_price'] * 100
                         
                             # PROFIT EXTENDER: If momentum is explosive, push TP higher
-                            if curr_price >= (trade['tp'] * 0.95) and curr_rsi < 68:
-                                trade['tp'] *= 1.006 
-                                trade['sl'] = curr_price * 0.994 
+                            if curr_price >= (trade['tp'] * 0.95) and curr_rsi < 75:
+                                trade['tp'] *= 1.004 
+                                new_sl_ext = curr_price * 0.995 # 0.5% dynamic distance
+                                if new_sl_ext > trade['sl']:
+                                    trade['sl'] = new_sl_ext
                                 self.add_log(f"🚀 EXTENDING TP: {symbol} momentum strong! Target pushed up.")
                                 try:
                                     await self.telegram.send_message(f"🚀 *PROFIT EXTENDER* 🚀\nAsset: {symbol}\nMomentum is strong. Chasing peak.")
@@ -1033,20 +1035,33 @@ class TradingBot:
                                     trade['sl'] = trade['entry_price'] * 1.001
                                     self.add_log(f"🛡️ SECURE: {symbol} locked at break-even.")
 
-                            # 5. PROSOFT PROACTIVE EXIT: Momentum Decay
+                            # 5. PROSOFT PROACTIVE EXIT: Momentum Decay (Accelerated Scalping)
                             rsi_decay = prev_rsi - curr_rsi
-                            if pnl_pct > 0.6 and rsi_decay > 9:
-                                self.add_log(f"🧠 PROACTIVE: {symbol} RSI decay ({rsi_decay:.1f}). Securing gains.")
-                                await self.close_trade_by_symbol(symbol, 'SELL', curr_price, "PROACTIVE RSI")
+                            if pnl_pct > 0.35 and (rsi_decay > 7 or curr_rsi < 50):
+                                self.add_log(f"🧠 PROACTIVE SCALP SECURE: {symbol} RSI weakness ({rsi_decay:.1f}). Securing quick gain.")
+                                await self.close_trade_by_symbol(symbol, 'SELL', curr_price, "PROACTIVE SCALP")
                                 continue
 
-                            # 6. ATR-ADAPTIVE TRAILING STOP (v13.0)
-                            trail_activation = trade['entry_price'] + (atr_val * 2.0)
+                            # 6. INFINITE CHASER (Dual Trailing SL + TP)
+                            # Activate when in 0.5% profit, distance is 0.35% from current
+                            trail_activation = trade['entry_price'] * 1.005
                             if curr_price >= trail_activation:
-                                new_sl = curr_price - (atr_val * 1.5)
+                                new_sl = curr_price * 0.9965
                                 if new_sl > trade['sl']:
+                                    sl_bump = new_sl - trade['sl']
                                     trade['sl'] = new_sl
-                                    self.add_log(f"〽️ ATR TRAIL: {symbol} stop adjusted to {new_sl:.4f}")
+                                    trade['tp'] += sl_bump # Push TP up by exactly the same amount
+                                    
+                                    self.add_log(f"〽️ INFINITE CHASER: {symbol} SL raised to {new_sl:.4f} | TP escaped to {trade['tp']:.4f}")
+                                    
+                                    # If remote OCO exists, we must cancel it so it doesn't kill the pump at the old TP
+                                    if 'oco_id' in trade:
+                                        try:
+                                            self.api.client.cancel_order_list(symbol=symbol, orderListId=trade['oco_id'])
+                                            del trade['oco_id'] # Switch to hyperspeed local trailing
+                                            self.add_log(f"🌐 Remote OCO removed for {symbol}. Trailing managed locally for maximum pump capture.")
+                                        except Exception as e:
+                                            pass
 
                     # 7. Periodic position & report updates
                     if loop_count % 5 == 0:
