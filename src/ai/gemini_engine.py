@@ -79,8 +79,13 @@ class GeminiAI:
         """Ask Gemini with Sequential Pulse strategy (User Request)."""
         import google.generativeai as genai
         
-        fallback_models = [self.model_name, 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-1.5-flash', 'gemini-1.5-pro']
-        fallback_models = list(dict.fromkeys(fallback_models))
+        # Revised fallback strategy for modern Gemini API
+        fallback_models = [
+            'gemini-1.5-flash',
+            'gemini-1.5-pro',
+            'gemini-pro',
+            'gemini-1.5-flash-latest'
+        ]
 
         tries = 0
         max_tries = len(self.api_keys) if self.api_keys else 1

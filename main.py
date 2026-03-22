@@ -928,10 +928,13 @@ class TradingBot:
                                         await asyncio.sleep(2)
                                 
                                 if verification is None:
-                                    self.add_log(f"AI Filter: API Timeout/Error after 3 attempts. Health is {self.stats['market_health']:.0f}%. Assumed Verified.")
-                                    if self.stats['market_health'] < 45:
-                                        self.add_log("AI Filter: Fallback Blocked due to low market health.")
+                                    # STRATEGIC LOCKDOWN (v13.1): If AI is unreachable, require elite market health
+                                    if self.stats['market_health'] < 68:
+                                        self.add_log(f"🛡️ AI FALLBACK BLOCKED: Gemini Node failure and Market Health ({self.stats['market_health']:.0f}%) is below security threshold (68%). Skipping trade.")
                                         is_verified = False
+                                    else:
+                                        self.add_log(f"⚠️ AI FALLBACK WARNING: Gemini failure, but Health is elite ({self.stats['market_health']:.0f}%). Proceeding with extreme caution.")
+                                        is_verified = True
                                         
                                 elif "BLOCKED" in verification.upper():
                                     self.add_log(f"AI Filter: Signal Blocked on {target_symbol}. Reason: {verification}")
