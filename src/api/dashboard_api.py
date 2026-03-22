@@ -213,60 +213,48 @@ class DashboardAPI:
 
         @self.app.route('/api/test_gemini', methods=['POST'])
         def test_gemini():
+            """Test Gemini connection using Direct REST API (No SDK)."""
+            import requests as http_req
+            
             data = request.json
             raw_keys = data.get('gemini_key', '').strip()
             if not raw_keys:
                 return jsonify({'status': 'error', 'message': 'Missing API Key'}), 400
             
-            # Remove any non-alphanumeric junk that might have been pasted
             keys = [k.strip() for k in raw_keys.split(',') if k.strip()]
             results = []
+            test_models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash']
+            api_base = "https://generativelanguage.googleapis.com/v1beta/models"
             
             try:
-                import google.generativeai as genai
                 for i, key in enumerate(keys):
-                    try:
-                        clean_key = key.strip()
-                        genai.configure(api_key=clean_key)
-                        
-                        # 1. Try to list models to find what's available for THIS key
-                        available = []
+                    success = False
+                    used_model = "NONE"
+                    
+                    for m_name in test_models:
                         try:
-                            for m in genai.list_models():
-                                if 'generateContent' in m.supported_generation_methods:
-                                    available.append(m.name)
-                        except: pass
-                        
-                        # 2. Pick best candidate
-                        candidates = available if available else ['models/gemini-1.5-flash', 'models/gemini-pro', 'models/gemini-1.5-pro']
-                        
-                        success = False
-                        used_model = "NONE"
-                        for target in candidates:
-                            try:
-                                model = genai.GenerativeModel(target)
-                                response = model.generate_content("ping", 
-                                                                 generation_config={"max_output_tokens": 5},
-                                                                 request_options={"timeout": 5.0})
-                                if response:
-                                    success = True
-                                    used_model = target.split('/')[-1]
-                                    break
-                            except: continue
-                            
-                        if success:
-                            results.append(f"Node {i+1}: {used_model}")
-                        else:
-                            results.append(f"Node {i+1}: FAIL")
-
-                    except Exception as node_err:
-                        app_logger.error(f"Gemini Test Node {i+1} Exception: {str(node_err)}")
-                        results.append(f"Node {i+1}: ERR")
+                            url = f"{api_base}/{m_name}:generateContent?key={key}"
+                            payload = {
+                                "contents": [{"parts": [{"text": "ping"}]}],
+                                "generationConfig": {"maxOutputTokens": 5}
+                            }
+                            resp = http_req.post(url, json=payload, timeout=8)
+                            if resp.status_code == 200:
+                                success = True
+                                used_model = m_name
+                                break
+                            elif resp.status_code == 404:
+                                continue  # Try next model
+                        except: continue
+                    
+                    if success:
+                        results.append(f"Node {i+1}: {used_model}")
+                    else:
+                        results.append(f"Node {i+1}: FAIL")
                 
                 summary = " | ".join(results)
-                # Success if ANY node didn't result in FAIL or ERR
                 if any(not (r.endswith("FAIL") or r.endswith("ERR")) for r in results):
-                    self.bot.add_log(f"AI Matrix: Cluster Nodes Verified. {summary}")
+                    self.bot.add_log(f"AI Matrix: Cluster Verified (REST). {summary}")
                     return jsonify({'status': 'success', 'message': summary})
                 
                 return jsonify({'status': 'error', 'message': f"All Failed: {summary}"}), 400
@@ -615,7 +603,7 @@ class DashboardAPI:
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)}), 500
 
-        @self.app.route('/api/accuracy', methods=['GET'])
+        @self.app.route('/api/accuracy_chart', methods=['GET'])
         def get_accuracy_chart():
             """Returns cumulative performance progress for the dashboard chart."""
             try:
@@ -649,11 +637,6 @@ class DashboardAPI:
             except Exception as e:
                 app_logger.error(f"Accuracy Chart API Error: {str(e)}")
                 return jsonify([])
-                conn.close()
-                self.bot.add_log("⚠️ SYSTEM ALERT: Database history has been manually wiped via Dashboard.")
-                return jsonify({'status': 'success', 'message': 'Database cleared successfully.'})
-            except Exception as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 500
 
         @self.app.route('/api/maintenance/delete_record', methods=['POST'])
         def delete_specific_record():

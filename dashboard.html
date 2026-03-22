@@ -1592,7 +1592,7 @@
         let accChart = null;
         async function updateAccuracyChart() {
             try {
-                const res = await fetch(`${API_BASE}/accuracy`);
+                const res = await fetch(`${API_BASE}/accuracy_chart`);
                 const history = await res.json();
                 if (history.length < 2) return;
 

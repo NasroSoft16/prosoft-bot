@@ -763,8 +763,6 @@ class TradingBot:
                                         self.add_log(f"🌍 [MACRO] Linked: {macro['market_regime']} | FGI: {macro['fear_greed_index']}")
                                 except Exception as e:
                                     self.add_log(f"⚠️ Macro Sync Warning: {str(e)[:50]}")
-                                except Exception as e:
-                                    self.add_log(f"⚠️ Macro Sync Warning: {str(e)[:50]}")
                                 
                                 # Check if macro conditions block trading
                                 permission = self.macro_filter.get_trading_permission()
@@ -1488,58 +1486,91 @@ class TradingBot:
             app_logger.error(f"Accuracy Update Error: {e}")
 
     async def _check_daily_report(self):
-        """Compiles and sends a high-level summary of all revenue streams at 23:00."""
+        """Compiles and sends a high-level summary of all revenue streams at 23:00 (11 PM)."""
         try:
             from datetime import datetime, timezone, timedelta
-            now = datetime.now(timezone.utc) + timedelta(hours=1)
+            now = datetime.now(timezone.utc) + timedelta(hours=1) # Algeria/GMT+1
             today_str = now.strftime("%Y-%m-%d")
             
-            # Dispatch once per day when hour is 23 (11 PM)
+            # Dispatch once per day when hour is 23 (11 PM) or slightly later
             if self.last_report_date != today_str and now.hour >= 23:
                 data = self.memory.get_daily_report_data()
                 if not data: return
                 
                 self.last_report_date = today_str
                 
-                # Passive Income Processing
+                # 1. Passive Revenue
                 rev_total = 0
                 rev_lines = ""
                 for r in data['revenue']:
                     rev_total += r['total']
                     src_map = {
-                        "YieldFarmer": "🌾 Yield Farming (زراعة)", 
-                        "ListingSniper": "🚀 Listing Sniper (قنص)", 
-                        "FundingArb": "⚖️ Funding Arb (تحكيم)"
+                        "YieldFarmer": "🌾 زراعة الأصول (Farming)", 
+                        "ListingSniper": "🚀 قناص العملات الجديدة", 
+                        "FundingArb": "⚖️ موازنة التمويل (Arb)"
                     }
                     src_label = src_map.get(r['source'], r['source'])
                     rev_lines += f"🔹 {src_label}: `+${r['total']:.4f}`\n"
                 
-                # Trading Performance Processing
-                trade_stats = data.get('trades', {})
-                trade_pnl = trade_stats.get('total_pnl', 0) if trade_stats else 0
-                win_count = trade_stats.get('wins', 0) if trade_stats else 0
-                total_pos = trade_stats.get('count', 0) if trade_stats else 0
+                # 2. Detailed Trading Performance
+                trades = self.memory.get_today_detailed_trades()
+                trade_pnl = 0
+                win_count = 0
+                trade_lines = ""
+                
+                if trades:
+                    for t in trades[:15]: # Last 15 trades
+                        pnl = t['profit_loss']
+                        trade_pnl += pnl
+                        if pnl > 0: win_count += 1
+                        
+                        emoji = "🟢" if pnl > 0 else "🔴"
+                        side_ar = "شراء" if t['side'] == 'BUY' else "بيع"
+                        trade_lines += f"{emoji} `{t['symbol']}` ({side_ar}): `{pnl:+.2f}$`\n"
+                
+                total_pos = len(trades)
                 win_rate = (win_count / total_pos * 100) if total_pos > 0 else 0
                 
-                # Aggregate
+                # 3. AI STRATEGIC TIP / نصيحة تداول
+                ai_tip = "استمر في مراقبة السوق بحذر. حافظ على إدارة المخاطر."
+                try:
+                    if self.gemini and self.gemini.api_keys:
+                        perf_context = f"PNL Today: {trade_pnl:.2f}. Win Rate: {win_rate:.1f}%. Total Positions: {total_pos}. Yield Earned: {rev_total:.4f}."
+                        prompt = (f"Market Performance Summary: {perf_context}. "
+                                 "Based on today's performance, generate a professional, inspiring, and concise 'Trading Tip or Lesson' in Arabic. "
+                                 "Focus on psychology or strategy. Use a human-like analyst tone.")
+                        result = await self.gemini.ask(prompt)
+                        if result: ai_tip = result
+                except: pass
+                
+                # 4. Final Aggregation
                 total_day = rev_total + trade_pnl
                 p_emoji = "💎" if total_day >= 0 else "📉"
                 
+                header = "📊 *PROSOFT: التقرير اليومي الشامل*"
+                footer = "🤖 *ذكاء PROSOFT يوفر لك الأمان والعائد المستمر.*"
+                
                 report = (
-                    f"📊 *DAILY INTELLIGENCE SUMMARY / ملخص ذكاء اليوم*\n"
-                    f"📅 *Date / التاريخ:* `{today_str}`\n\n"
-                    f"--- 🍃 *PASSIVE REVENUE / الدخل الخامل* ---\n"
-                    f"{rev_lines if rev_lines else 'No passive records / لا توجد سجلات.'}\n"
-                    f"--- 💹 *TRADING ENGINE / آداء التداول* ---\n"
-                    f"🔢 *Positions / اجمالي الصفقات:* `{total_pos}`\n"
-                    f"🏆 *Win Rate / نسبة النجاح:* `{win_rate:.1f}%`\n"
-                    f"💵 *Trade PNL / ربح التداول:* `${trade_pnl:+.2f}`\n\n"
-                    f"{p_emoji} *TOTAL DAILY PROFIT / إجمالي الربح اليومي:* `{total_day:+.2f}$`\n\n"
-                    f"🤖 *PROSOFT QUANTUM PRIME AI is securing your assets.*"
+                    f"{header}\n\n"
+                    f"📅 *تاريخ اليوم:* `{today_str}`\n"
+                    f"🕒 *وقت الإنشاء:* `{now.strftime('%H:%M:%S')}`\n\n"
+                    f"--- 💹 *استراتيجيات التداول الذكي* ---\n"
+                    f"🔢 *عدد الصفقات:* `{total_pos}`\n"
+                    f"🏆 *نسبة النجاح:* `{win_rate:.1f}%`\n"
+                    f"💵 *صافي ربح الصفقات:* `${trade_pnl:+.2f}`\n\n"
+                    f"📜 *تفاصيل صفقات اليوم:*\n"
+                    f"{trade_lines if trade_lines else 'لم يتم تنفيذ صفقات اليوم.'}\n\n"
+                    f"--- 🍃 *مصادر الدخل السلبي* ---\n"
+                    f"{rev_lines if rev_lines else 'لا توجد مداخيل خاملة مسجلة.'}\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"{p_emoji} *إجمالي الربح الصافي اليوم:* `{total_day:+.2f}$`\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"💡 *نصيحة الفريق الاستراتيجي:*\n_{ai_tip}_\n\n"
+                    f"{footer}"
                 )
                 
                 await self.telegram.send_message(report)
-                self.add_log(f"Daily Intelligence Summary dispatched. Total: ${total_day:.2f}")
+                self.add_log(f"Daily Intelligence Summary dispatched in Arabic. Total: ${total_day:.2f}")
         except Exception as e:
             app_logger.error(f"Daily Report Thread Error: {e}")
 

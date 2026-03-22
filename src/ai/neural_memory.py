@@ -206,3 +206,17 @@ class NeuralMemory:
         except Exception as e:
             app_logger.error(f"Error compiling daily report: {e}")
             return None
+
+    def get_today_detailed_trades(self):
+        """Fetches all trades executed in the last 24 hours with details for the Arabic report."""
+        try:
+            from datetime import timedelta
+            cutoff = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+            conn = sqlite3.connect(self.db_path)
+            query = f"SELECT symbol, side, entry_price, exit_price, profit_loss, lesson_learned FROM trade_memory WHERE entry_time > '{cutoff}' ORDER BY id DESC"
+            df = pd.read_sql_query(query, conn)
+            conn.close()
+            return df.to_dict(orient='records')
+        except Exception as e:
+            app_logger.error(f"Error fetching today's detailed trades: {e}")
+            return []
