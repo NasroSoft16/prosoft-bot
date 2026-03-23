@@ -1015,32 +1015,71 @@ class TradingBot:
                                 await self.close_trade_by_symbol(symbol, 'SELL', curr_price, "TP")
                                 continue
 
-                            # 4. MONITOR: PARTIAL TAKE PROFIT (TP1)
+                            # 4. MONITOR: PARTIAL TAKE PROFIT (TP1) - DYNAMIC MODE
                             elif not trade.get('partial_done'):
-                                tp1_trigger = trade['entry_price'] + (trade['tp'] - trade['entry_price']) * 0.5
+                                mkt_health = self.stats.get('market_health', 50)
+                                is_fear_mode = mkt_health < 50
+                                
+                                if is_fear_mode:
+                                    tp1_trigger = trade['entry_price'] * 1.01 # +1.0% profit trigger in Fear Mode
+                                else:
+                                    tp1_trigger = trade['entry_price'] + (trade['tp'] - trade['entry_price']) * 0.5 # Normal 50% distance
+                                
                                 if curr_price >= tp1_trigger:
-                                    self.add_log(f"💰 TP1 SHIELD: Locking 50% on {symbol}")
+                                    mode_str = "(FEAR MODE)" if is_fear_mode else "(NORMAL MODE)"
+                                    self.add_log(f"💰 TP1 SHIELD {mode_str}: Locking 50% on {symbol}")
                                     _, rem = self.orders.partial_take_profit(symbol, trade['qty'], curr_price)
                                     trade['qty'] = rem
                                     trade['partial_done'] = True
-                                    trade['sl'] = trade['entry_price'] * 1.001
+                                    trade['sl'] = trade['entry_price'] * 1.002 if is_fear_mode else trade['entry_price'] * 1.001
                                     try: 
-                                        await self.telegram.send_message(f"💰 *TP1 SECURED / جني أرباح جزئي* 💰\nAsset: `{symbol}`")
+                                        await self.telegram.send_message(f"💰 *TP1 SECURED {mode_str} / جني أرباح جزئي* 💰\nAsset: `{symbol}`")
                                     except: pass
 
                             # 5. RISK SHIELD: ADAPTIVE DYNAMICS
                             else:
-                                # Break-Even Protection (at 35% to target)
-                                trigger_be = trade['entry_price'] + ((trade['tp'] - trade['entry_price']) * 0.35)
+                                # Break-Even Protection
+                                if is_fear_mode:
+                                    trigger_be = trade['entry_price'] * 1.005 # Early Armor at +0.5%
+                                else:
+                                    trigger_be = trade['entry_price'] + ((trade['tp'] - trade['entry_price']) * 0.35) # Normal 35% distance
+                                    
                                 if curr_price >= trigger_be and trade['sl'] < trade['entry_price']:
                                     trade['sl'] = trade['entry_price'] * 1.001
-                                    self.add_log(f"🛡️ SECURE: {symbol} locked at break-even.")
+                                    mode_str = "(FEAR MODE - Early Armor)" if is_fear_mode else "(NORMAL MODE)"
+                                    self.add_log(f"🛡️ SECURE {mode_str}: {symbol} locked at break-even.")
 
-                            # 5. PROSOFT PROACTIVE EXIT: Momentum Decay (Accelerated Scalping)
+                            # 5. PROSOFT PROACTIVE EXIT: Momentum / Time Decay (Accelerated Scalping)
+                            mkt_health = self.stats.get('market_health', 50)
+                            is_fear_mode = mkt_health < 50
                             rsi_decay = prev_rsi - curr_rsi
-                            if pnl_pct > 0.35 and (rsi_decay > 7 or curr_rsi < 50):
-                                self.add_log(f"🧠 PROACTIVE SCALP SECURE: {symbol} RSI weakness ({rsi_decay:.1f}). Securing quick gain.")
-                                await self.close_trade_by_symbol(symbol, 'SELL', curr_price, "PROACTIVE SCALP")
+                            
+                            # Time Decay Logic
+                            time_active_mins = 0
+                            if 'timestamp' in trade:
+                                try:
+                                    t_obj = datetime.strptime(trade['timestamp'], "%Y-%m-%d %H:%M:%S")
+                                    time_active_mins = (datetime.now() - t_obj).total_seconds() / 60
+                                except Exception: 
+                                    pass
+                                
+                            # Exit logic: strict in Fear Mode, relaxed in Normal Mode
+                            should_exit = False
+                            exit_reason = ""
+                            
+                            if is_fear_mode:
+                                if pnl_pct > 0.3 and (rsi_decay > 7 or curr_rsi < 50 or time_active_mins > 30):
+                                    should_exit = True
+                                    exit_reason = "TIME DECAY SCALP (FEAR MODE)" if time_active_mins > 30 else "PROACTIVE SCALP (FEAR MODE)"
+                            else:
+                                # In Normal Mode, be more patient. Allow up to 3 hours (180 mins) or large momentum drop
+                                if pnl_pct > 0.35 and (rsi_decay > 12 or curr_rsi < 45 or time_active_mins > 180):
+                                    should_exit = True
+                                    exit_reason = "TIME DECAY SCALP (NORMAL MODE)" if time_active_mins > 180 else "PROACTIVE SCALP (NORMAL MODE)"
+                                    
+                            if should_exit:
+                                self.add_log(f"🧠 PROACTIVE SECURE: {symbol} {exit_reason}. Securing gain +{pnl_pct:.2f}%.")
+                                await self.close_trade_by_symbol(symbol, 'SELL', curr_price, exit_reason)
                                 continue
 
                             # 6. INFINITE CHASER (Dual Trailing SL + TP)
