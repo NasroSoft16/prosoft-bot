@@ -15,14 +15,14 @@ from src.utils.logger import app_logger
 
 # ─── Timeframe weights (longer = more reliable) ───────────────────────────────
 TIMEFRAMES = {
-    '1m':  1,   # دقيقة  — وزن 1 (ضوضاء عالية)
-    '15m': 2,   # ربع ساعة — وزن 2
-    '1h':  3,   # ساعة  — وزن 3
-    '4h':  4,   # 4 ساعات — وزن 4 (الأهم)
+    '1m':  1,   # دقيقة  — وزن 1 (زخم لحظي)
+    '5m':  3,   # 5 دقائق — وزن 3 (الأصل الجديد)
+    '15m': 2,   # ربع ساعة — وزن 2 (تأكيد متوسط)
+    '1h':  2,   # ساعة  — وزن 2 (فلتر الاتجاه القريب)
 }
 
-# Minimum weighted agreement needed to issue BUY/SELL (60%)
-CONSENSUS_THRESHOLD = 0.60
+# Minimum weighted agreement needed to issue BUY/SELL (55% for Scalping)
+CONSENSUS_THRESHOLD = 0.55
 # ─────────────────────────────────────────────────────────────────────────────
 
 
