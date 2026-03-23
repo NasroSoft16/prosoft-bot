@@ -91,6 +91,10 @@ from src.strategy.order_flow_analyzer import OrderFlowAnalyzer
 from src.risk_management.hedging_protocol import HedgingProtocol
 from src.strategy.liquidity_heatmap import LiquidityHeatmap
 from src.risk_management.global_macro_filter import GlobalMacroFilter
+# ── NEW (v14.0 Improvements) ──────────────────────────────────────────────────
+from src.risk_management.circuit_breaker   import CircuitBreaker
+from src.strategy.multi_timeframe          import MultiTimeframeAnalyzer
+from src.ai.fear_greed_integration         import FearGreedIntegration
 # Micro-Scalper disabled as requested
 
 load_dotenv()
@@ -193,7 +197,15 @@ class TradingBot:
         self.diversifier = DiversificationMatrix() # مصفوفة التنويع
         self.healer = SelfHealingEngine(self)      # محرك التصحيح الذاتي
         self.voice = VoiceAlertSystem(enabled=os.getenv('VOICE_ALERTS', 'on') == 'on')  # التنبيهات الصوتية
-        
+
+        # --- NEW MODULES (v14.0 Improvements) ---
+        self.circuit_breaker = CircuitBreaker(
+            max_daily_loss_pct=float(os.getenv('CB_MAX_DAILY_LOSS_PCT', 5.0)),
+            max_consecutive_loss=int(os.getenv('CB_MAX_CONSECUTIVE_LOSS', 5))
+        )
+        self.mtf = MultiTimeframeAnalyzer(self.api, self.ta)   # تحليل متعدد الأطر الزمنية
+        self.fear_mode = FearGreedIntegration(self.macro_filter) # مؤشر الخوف والطمع
+
         # Performance & AI Evolution Tracking
         self.is_paused = False # Mode to stop all loops if Omega triggered
         
@@ -294,9 +306,20 @@ class TradingBot:
         
         # --- SOVEREIGN RECOVERY: Audit Binance Portfolio ---
         await self.sync_from_binance()
-        
+
+        # ── v14.0: Start weekly AI re-training in background thread ────────────────────
+        try:
+            import threading
+            from train_ai import start_auto_retraining
+            threading.Thread(target=start_auto_retraining, daemon=True, name="AI-Retrainer").start()
+            self.add_log("🧠 [AUTO-TRAIN] Weekly re-training scheduler started in background.")
+        except Exception as _e:
+            self.add_log(f"⚠️ [AUTO-TRAIN] Could not start scheduler: {_e}")
+        # ─────────────────────────────────────────────────────────────────
+
         self.voice.alert_bot_started()
         self.voice.say("System diagnostics complete. Artificial Intelligence Core is online and trading operations have commenced.")
+
         self.add_log("--- SYSTEM STATUS: OPTIMAL | COMMENCING OPERATIONS ---")
         await asyncio.sleep(1)
 
@@ -871,6 +894,19 @@ class TradingBot:
                     if loop_count > 0 and loop_count % 10 == 0:
                         await self.healer.run_health_check()
 
+                    # ── v14.0: CIRCUIT BREAKER GATE ──────────────────────────────────
+                    try:
+                        self.circuit_breaker.set_balance(self.stats.get('balance', 0))
+                        if not self.circuit_breaker.can_trade():
+                            cb_st = self.circuit_breaker.get_status()
+                            self.add_log(f"🔴 [CIRCUIT BREAKER] Trading BLOCKED: {cb_st['trip_reason']} | Loss: {cb_st['daily_loss_pct']:.1f}%")
+                            self.stats['circuit_breaker'] = cb_st
+                            await asyncio.sleep(self.interval_sec)
+                            continue
+                    except Exception as _cb_e:
+                        self.add_log(f"⚠️ [CB] Check error: {_cb_e}")
+                    # ────────────────────────────────────────────────────────
+
                     # 5. Signal Generation & Logic (v12.8 Sovereign Monster)
                     target_signal = self.strategy.check_entry_signal(df)
                     target_symbol = self.symbol
@@ -906,6 +942,23 @@ class TradingBot:
                                 self.voice.alert_manipulation_detected()
                                 target_signal = {'signal': 'WAIT'}
                             
+                        if target_signal['signal'] == 'BUY':
+                            # ── v14.0: MULTI-TIMEFRAME FILTER ──────────────────────────
+                            try:
+                                mtf_result = self.mtf.get_signal(target_symbol)
+                                self.stats['mtf_signal'] = mtf_result
+                                if mtf_result['decision'] == 'SELL':
+                                    self.add_log(f"📊 [MTF] BUY blocked — higher TF shows SELL ({mtf_result['confidence']:.0f}% confidence). Skipping.")
+                                    target_signal = {'signal': 'WAIT'}
+                                elif mtf_result['decision'] == 'HOLD' and mtf_result['buy_score'] < 40:
+                                    self.add_log(f"📊 [MTF] Weak consensus ({mtf_result['buy_score']:.0f}%). Skipping.")
+                                    target_signal = {'signal': 'WAIT'}
+                                else:
+                                    self.add_log(f"📊 [MTF] ✔ {mtf_result['decision']} confirmed | Confidence: {mtf_result['confidence']:.0f}%")
+                            except Exception as _mtf_e:
+                                self.add_log(f"⚠️ [MTF] Error (proceeding anyway): {_mtf_e}")
+                            # ────────────────────────────────────────────────────────
+
                         if target_signal['signal'] == 'BUY':
                             memory_warning = self.memory.analyze_past_mistakes(target_symbol)
                             if memory_warning:
@@ -954,7 +1007,21 @@ class TradingBot:
                                     budget_per_slot = tradable_balance * 0.5
                                 
                                 qty = self.risk.calculate_position_size(budget_per_slot, target_signal['entry_price'], target_signal['stop_loss'], ai_conf=self.stats['ai_conf'])
-                                
+
+                                # ── v14.0: FEAR MODE POSITION SIZING ──────────────────────
+                                try:
+                                    fear_params = self.fear_mode.adjust_trade_params(
+                                        base_size=qty * target_signal['entry_price'],
+                                        base_tp_pct=((target_signal['take_profit'] - target_signal['entry_price']) / target_signal['entry_price'] * 100)
+                                    )
+                                    # Adjust qty from fear-scaled size, cap at budget
+                                    fear_qty = fear_params['size'] / target_signal['entry_price']
+                                    if fear_qty * target_signal['entry_price'] <= budget_per_slot:
+                                        qty = fear_qty
+                                    self.add_log(f"😱 [FearMode] {fear_params['state_ar']} | FGI={fear_params['fgi']} | Size ×{fear_params['size_mult']}")
+                                except Exception as _fe:
+                                    self.add_log(f"⚠️ [FearMode] Error (using base size): {_fe}")
+                                # ────────────────────────────────────────────────────────
                                 if qty <= 0 or (qty * target_signal['entry_price']) < 10:
                                     self.add_log(f"⚠️ Insufficient balance for {target_symbol}. Needed min $10.50 per slot. / رصيد غير كافٍ. المطلوب 10.50 دولار كحد أدنى.")
                                 
@@ -1369,6 +1436,14 @@ class TradingBot:
         # --- FINAL CLEANUP: Remove from memory and save state ---
         if trade in self.active_trades:
             self.active_trades.remove(trade)
+            
+        # ── v14.0: CIRCUIT BREAKER RECORDING ────────────────────────
+        try:
+            current_balance = self.stats.get('balance', 0)
+            self.circuit_breaker.record_result(pnl, current_balance)
+        except Exception as _cb_err:
+            self.add_log(f"⚠️ [CB] Record error: {_cb_err}")
+        # ────────────────────────────────────────────────────────
         
         # Save state to disk for recovery persistence
         self.healer.save_trade_state(self.active_trades)
