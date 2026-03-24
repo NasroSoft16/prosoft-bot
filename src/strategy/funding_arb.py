@@ -53,9 +53,17 @@ class FundingRateArb:
         """Checks for funding fee payouts and logs them to memory."""
         try:
             fees = await self.api.get_funding_fee_history()
+            
+            # Critical Gate: If the wrapper returned a coroutine (async leakage), await it again
+            if not isinstance(fees, list) and hasattr(fees, '__await__'):
+                fees = await fees
+            
+            if not isinstance(fees, list):
+                return
+
             for f in fees:
                 amount = float(f.get('income', 0))
-                if abs(amount) > 0: # Can be negative, but we mostly care about collections
+                if abs(amount) > 0: 
                     memory.log_revenue("FundingArb", f.get('asset', 'N/A'), amount, f"Funding Fee Payout: {f.get('symbol', 'N/A')}")
         except Exception as e:
             app_logger.error(f"Funding revenue log error: {e}")

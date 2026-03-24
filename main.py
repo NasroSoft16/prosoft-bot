@@ -338,10 +338,10 @@ class TradingBot:
             'symbol':       symbol,
             'side':         'BUY',
             'entry_price':  signal['entry_price'],
-            'stop_loss':    signal['stop_loss'],
-            'take_profit':  signal['take_profit'],
+            'sl':           signal['stop_loss'],
+            'tp':           signal['take_profit'],
             'trailing_sl':  signal['stop_loss'],   # starts equal, moves up
-            'quantity':     position_size,
+            'qty':          position_size,
             'ai_conf':      ai_conf,
             'market_health': market_health,
             'entry_time':   datetime.now().isoformat(),
@@ -367,6 +367,7 @@ class TradingBot:
     async def _manage_open_trades(self, df, current_price):
         """
         Manage all open trades: trailing stop, TP/SL exit, forced close.
+        Supports tracking assets other than the loop's focused symbol safely.
         """
         if not self.active_trades:
             return
@@ -374,56 +375,88 @@ class TradingBot:
         atr = float(df.iloc[-1].get('ATR', 0)) if df is not None else 0
 
         for trade in list(self.active_trades):
+            # Safe Multi-Asset Price Resolution 
+            trade_symbol = trade.get('symbol', self.symbol)
+            if trade_symbol == self.symbol:
+                trade_price = current_price
+            else:
+                tp_val = self.api.get_symbol_ticker(trade_symbol)
+                if not tp_val: continue
+                trade_price = float(tp_val)
+
+            trade_sl = trade.get('trailing_sl', trade.get('sl', 0))
+            trade_tp = trade.get('tp', 0)
+            trade_qty = trade.get('qty', 0)
+            entry_p = trade.get('entry_price', 0)
+
             # ── Update trailing stop ──
-            if atr > 0:
-                updated = self.strategy.update_trailing_stop(trade, current_price, atr)
+            if atr > 0 and trade_symbol == self.symbol:
+                updated = self.strategy.update_trailing_stop(trade, trade_price, atr)
                 trade.update(updated)
+                trade_sl = trade.get('trailing_sl', trade_sl)
 
             # ── Check stop loss hit ──
-            if current_price <= trade['trailing_sl']:
+            if trade_price <= trade_sl:
                 self.add_log(
-                    f"🔴 SL HIT: {trade['symbol']} @ {current_price:.6f} "
-                    f"(SL={trade['trailing_sl']:.6f})"
+                    f"🔴 SL HIT: {trade_symbol} @ {trade_price:.6f} "
+                    f"(SL={trade_sl:.6f})"
                 )
-                await self._close_trade(trade, current_price, reason='SL')
+                await self._close_trade(trade, trade_price, reason='SL')
                 continue
 
             # ── Check take profit hit ──
-            if current_price >= trade['take_profit']:
+            if trade_price >= trade_tp:
                 self.add_log(
-                    f"💰 TP HIT: {trade['symbol']} @ {current_price:.6f} "
-                    f"(TP={trade['take_profit']:.6f})"
+                    f"💰 TP HIT: {trade_symbol} @ {trade_price:.6f} "
+                    f"(TP={trade_tp:.6f})"
                 )
-                await self._close_trade(trade, current_price, reason='TP')
+                await self._close_trade(trade, trade_price, reason='TP')
                 continue
 
             # ── Partial TP at 60% of the way ──
-            halfway = trade['entry_price'] + (trade['take_profit'] - trade['entry_price']) * 0.6
-            if current_price >= halfway and not trade.get('partial_done'):
-                half_qty = trade['quantity'] * 0.4
-                self.order_manager.place_market_sell(trade['symbol'], half_qty)
-                trade['partial_done'] = True
-                # Move SL to break-even
-                trade['trailing_sl'] = trade['entry_price'] * 1.001
-                self.add_log(
-                    f"🟡 PARTIAL TP: sold 40% of {trade['symbol']} | SL moved to break-even"
-                )
+            if entry_p > 0 and trade_tp > 0:
+                halfway = entry_p + (trade_tp - entry_p) * 0.6
+                if trade_price >= halfway and not trade.get('partial_done'):
+                    half_qty = trade_qty * 0.4
+                    if half_qty > 0:
+                        self.order_manager.place_market_sell(trade_symbol, half_qty)
+                        trade['partial_done'] = True
+                        # Move SL to break-even safely
+                        trade['trailing_sl'] = entry_p * 1.001
+                        trade['sl'] = entry_p * 1.001
+                        self.add_log(
+                            f"🟡 PARTIAL TP: sold 40% of {trade_symbol} | SL moved to break-even"
+                        )
 
     async def _close_trade(self, trade, exit_price, reason=''):
         """
         Sell remaining quantity, log to memory, update stats.
         """
         try:
-            qty   = trade.get('quantity', 0) * (0.6 if trade.get('partial_done') else 1.0)
-            order = self.order_manager.place_market_sell(trade['symbol'], qty)
+            qty   = trade.get('qty', 0) * (0.6 if trade.get('partial_done') else 1.0)
+            entry_p = trade.get('entry_price', exit_price)
+            order = None
+            
+            # Safe Cap: Prevent 'Insufficient Balance' errors from float drift or fee deductions
+            sym = trade.get('symbol', '')
+            asset_name = sym.replace('USDT', '') if sym.endswith('USDT') else ''
+            if asset_name:
+                real_bal = self.api.get_account_balance(asset_name)
+                # If Binance balance is exactly 0 or too small but we assumed we had qty, we cap it
+                # We add a small margin (e.g., 0.999) because get_account_balance might have un-synced fractions
+                if 0 <= real_bal < qty:
+                    qty = real_bal
+            
+            if qty > 0:
+                order = self.order_manager.place_market_sell(trade['symbol'], qty)
 
-            if order:
-                pnl = (exit_price - trade['entry_price']) / trade['entry_price']
+            if order or qty == 0:
+                pnl = (exit_price - entry_p) / entry_p if entry_p > 0 else 0.0
                 self.risk_manager.update_performance(pnl)
 
                 # Circuit breaker update
                 if hasattr(self, 'circuit_breaker'):
-                    pnl_usdt = (exit_price - trade['entry_price']) * trade['quantity']
+                    pnl_usdt = (exit_price - entry_p) * trade.get('qty', 0)
                     self.circuit_breaker.record_result(pnl_usdt)
 
                 # Log to neural memory
@@ -536,6 +569,11 @@ class TradingBot:
         now_algeria = datetime.now(timezone.utc) + timedelta(hours=1)
         time_str = now_algeria.strftime("%H:%M:%S")
         self.logs.append(f"[{time_str}] {msg}")
+        
+        # Guard: Cap logs to prevent interface lag or memory leaks
+        if len(self.logs) > 1000:
+            self.logs = self.logs[-1000:]
+            
         app_logger.info(msg)
 
     def reconnect_binance(self, api_key, api_secret):
@@ -815,14 +853,18 @@ class TradingBot:
                                     is_tracked = any(t['symbol'] == symbol for t in self.active_trades)
                                     if not is_tracked:
                                         self.add_log(f"🧠 SYNC: Detected untracked asset {symbol} (${val:.2f}). Adding to Dashboard control.")
-                                        price = self.api.get_symbol_ticker(symbol) or 0.0
+                                        price_raw = self.api.get_symbol_ticker(symbol) or 0.0
+                                        price = float(price_raw)
+                                        qty = float(asset.get('free', 0.0))
+                                        
                                         self.active_trades.append({
                                             'symbol': symbol,
                                             'side': 'BUY',
-                                            'qty': asset.get('free', 0.0),
+                                            'qty': qty,
                                             'entry_price': price,
-                                            'sl': price * 0.95, 
+                                            'sl': price * 0.98, 
                                             'tp': price * 1.05, 
+                                            'trailing_sl': price * 0.98,
                                             'pnl_pct': 0.0,
                                             'time': datetime.now().strftime("%H:%M:%S")
                                         })

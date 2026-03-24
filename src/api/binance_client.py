@@ -144,11 +144,12 @@ class BinanceClientWrapper:
         """Phase 12.0: Fetches interest rewards from Flexible Simple Earn."""
         if not self.client: return []
         try:
-            # Check if method exists (compatibility with different python-binance versions)
-            method_name = 'get_simple_earn_flexible_reward_history'
-            if hasattr(self.client, method_name):
-                rewards = getattr(self.client, method_name)(asset=asset, size=limit)
-                return rewards.get('rows', [])
+            # Check for both singular and plural method names (compatibility with different python-binance versions)
+            methods = ['get_simple_earn_flexible_reward_history', 'get_simple_earn_flexible_rewards_history']
+            for method_name in methods:
+                if hasattr(self.client, method_name):
+                    rewards = getattr(self.client, method_name)(asset=asset, size=limit)
+                    return rewards.get('rows', [])
             return []
         except Exception as e:
             app_logger.error(f"Error fetching Simple Earn Rewards: {e}")

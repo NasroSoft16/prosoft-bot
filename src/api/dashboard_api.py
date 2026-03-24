@@ -146,10 +146,22 @@ class DashboardAPI:
             
         @self.app.route('/api/stats', methods=['GET'])
         def get_stats():
+            # Inject current prices for all active trades to ensure accurate PNL in dashboard
+            active_trades = []
+            for t in self.bot.active_trades:
+                try:
+                    t_copy = t.copy()
+                    ticker = self.bot.api.get_symbol_ticker(t['symbol'])
+                    if ticker:
+                        t_copy['current_price'] = ticker
+                    active_trades.append(t_copy)
+                except:
+                    active_trades.append(t)
+
             return jsonify({
                 'bot_stats': self.bot.stats,
                 'current_symbol': self.bot.symbol,
-                'active_trades': self.bot.active_trades,
+                'active_trades': active_trades,
                 'logs': list(self.bot.logs[-50:]),
                 'historical_bars': self.bot.last_df.tail(60).to_dict('records') if hasattr(self.bot, 'last_df') and hasattr(self.bot.last_df, 'tail') else []
             })

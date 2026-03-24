@@ -28,9 +28,9 @@ class GeminiAI:
         
         # Ordered fallback: newest → oldest, all confirmed working with REST v1beta
         self.fallback_models = [
-            'gemini-2.5-flash',         # Primary — confirmed working
-            'gemini-2.0-flash',         # Fallback 1 — exists but may rate-limit
-            'gemini-2.0-flash-lite',    # Fallback 2 — lightweight alternative
+            'gemini-2.0-flash',         # Primary — confirmed working
+            'gemini-1.5-flash',         # Fallback 1 — exists but may rate-limit
+            'gemini-1.5-flash-8b',      # Fallback 2 — lightweight alternative
         ]
         
         self._http_session = None  # Reusable aiohttp session

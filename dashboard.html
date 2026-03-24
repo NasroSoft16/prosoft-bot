@@ -1394,20 +1394,31 @@
                 const data = await res.json();
                 const s = data.bot_stats;
 
-                document.getElementById('symbol-display').innerText = data.current_symbol;
+                // Move Logs to the top so they update even if some stats below fail
+                if (data.logs) {
+                    const logsEl = document.getElementById('logs');
+                    if (logsEl) {
+                        logsEl.innerHTML = data.logs.slice(-50).map(l => `<p class="border-b border-white/5 pb-1 opacity-70 hover:opacity-100">> ${l}</p>`).join('');
+                        logsEl.scrollTop = logsEl.scrollHeight;
+                    }
+                }
+
+                document.getElementById('symbol-display').innerText = data.current_symbol || 'N/A';
+                
                 // Update New Revenue Streams
                 if (s.yield_status) document.getElementById('yield-status').innerText = s.yield_status;
-                if (s.yield_amount) document.getElementById('yield-amt').innerText = `$${s.yield_amount.toFixed(4)}`;
-                if (s.sniper_hits) document.getElementById('sniper-hits').innerText = `${s.sniper_hits} Hits`;
-                if (s.funding_amount) document.getElementById('funding-amt').innerText = `$${s.funding_amount.toFixed(4)}`;
+                if (s.yield_amount != null) document.getElementById('yield-amt').innerText = `$${Number(s.yield_amount).toFixed(4)}`;
+                if (s.sniper_hits != null) document.getElementById('sniper-hits').innerText = `${s.sniper_hits} Hits`;
+                if (s.funding_amount != null) document.getElementById('funding-amt').innerText = `$${Number(s.funding_amount).toFixed(4)}`;
                 
-                document.getElementById('price').innerText = s.price ? `$${s.price.toLocaleString(undefined, {minimumFractionDigits: 2})}` : '$0.00';
-                document.getElementById('ai-conf').innerText = `${(s.ai_conf * 100).toFixed(1)}%`;
-                document.getElementById('balance').innerText = `$${s.total_equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+                const curPrice = Number(s.price || 0);
+                document.getElementById('price').innerText = s.price ? `$${curPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}` : '$0.00';
+                document.getElementById('ai-conf').innerText = `${((s.ai_conf || 0.8) * 100).toFixed(1)}%`;
+                document.getElementById('balance').innerText = `$${Number(s.total_equity || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
                 document.getElementById('health-pct').innerText = `${(s.market_health || 80).toFixed(0)}%`;
                 document.getElementById('health-bar').style.width = `${s.market_health || 80}%`;
                 document.getElementById('sentiment-val').innerText = (s.sentiment || 'NEUTRAL').toUpperCase();
-                document.getElementById('mode-val').innerText = s.execution_mode.toUpperCase();
+                document.getElementById('mode-val').innerText = (s.execution_mode || 'manual').toUpperCase();
                 
                 // Update Order Flow Intelligence
                 if (s.order_flow) {
@@ -1420,97 +1431,21 @@
                 if (s.crash_risk !== undefined) {
                     const risk = s.crash_risk || 0;
                     document.getElementById('crash-risk').innerText = `${risk}%`;
-                    document.getElementById('crash-bar').style.width = `${risk}%`;
-                    
-                    // Change bar color based on risk
-                    const barEl = document.getElementById('crash-bar');
-                    const indicatorEl = document.getElementById('hedge-indicator');
-                    if (risk > 60) {
-                        barEl.className = "h-full bg-red-500 transition-all duration-1000";
-                        indicatorEl.className = "w-2 h-2 bg-red-500 rounded-full animate-ping";
-                    } else if (risk > 30) {
-                        barEl.className = "h-full bg-yellow-500 transition-all duration-1000";
-                        indicatorEl.className = "w-2 h-2 bg-yellow-500 rounded-full animate-pulse";
-                    } else {
-                        barEl.className = "h-full bg-green-500 transition-all duration-1000";
-                        indicatorEl.className = "w-2 h-2 bg-green-500 rounded-full";
-                    }
+                    const crashBar = document.getElementById('crash-bar');
+                    if (crashBar) crashBar.style.width = `${risk}%`;
                 }
                 
                 if (s.hedge_status) {
-                    const h = s.hedge_status;
                     const hStat = document.getElementById('hedge-status');
-                    hStat.innerText = h.active ? 'ACTIVE' : 'STANDBY';
-                    hStat.className = `text-[9px] font-bold px-2 py-0.5 rounded ${h.active ? 'text-red-400 bg-red-500/10' : 'text-green-400 bg-green-500/10'}`;
+                    if (hStat) {
+                        hStat.innerText = s.hedge_status.active ? 'ACTIVE' : 'STANDBY';
+                        hStat.className = `text-[9px] font-bold px-2 py-0.5 rounded ${s.hedge_status.active ? 'text-red-400 bg-red-500/10' : 'text-green-400 bg-green-500/10'}`;
+                    }
                 }
-                
-                // Update AI Cluster Node List
-                if (s.ai_cluster && s.ai_cluster.length > 0) {
+
+                // AI Clusters & Arbitrage (Optional check for existence)
+                if (s.ai_cluster && document.getElementById('ai-nodes-list')) {
                     document.getElementById('cluster-count').innerText = `${s.ai_cluster.length} NODES`;
-                    document.getElementById('ai-nodes-list').innerHTML = s.ai_cluster.map(n => `
-                        <div class="flex justify-between items-center bg-white/5 p-2 rounded border ${n.active ? 'border-blue-500/40 bg-blue-500/5' : 'border-white/5'}">
-                            <div class="flex items-center gap-2">
-                                <div class="w-1.5 h-1.5 rounded-full ${n.status === 'ONLINE' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}"></div>
-                                <span class="text-[10px] font-bold text-white uppercase">Node ${n.id}</span>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-[9px] font-mono ${n.active ? 'text-blue-400' : 'text-slate-500'}">${n.requests} REQS</p>
-                                <p class="text-[8px] font-bold ${n.status === 'ONLINE' ? 'text-green-500/70' : 'text-red-500'} uppercase">${n.status}</p>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-
-                // Update Arbitrage Results (Consolidated)
-                const arbResultsEl = document.getElementById('arb-results');
-                if (arbResultsEl) {
-                    if (s.arb_opportunities && s.arb_opportunities.length > 0) {
-                        const nowStr = new Date().toLocaleTimeString();
-                        arbResultsEl.innerHTML = s.arb_opportunities.slice(0, 3).map(a => `
-                            <div class="group relative bg-emerald-500/5 p-2 rounded border border-emerald-500/10 hover:border-emerald-500/30 transition mb-2">
-                                ${a.is_high_liquidity ? `
-                                    <div class="absolute -top-2 -right-1 bg-emerald-500 text-[7px] font-black text-white px-1.5 py-0.5 rounded shadow-lg animate-pulse z-10">
-                                        LIQUIDITY SECURE
-                                    </div>
-                                ` : ''}
-                                <div class="flex justify-between items-center">
-                                    <div>
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-[10px] font-bold text-white uppercase tracking-tighter">${a.route_name}</span>
-                                            <span class="text-[8px] text-slate-500 bg-slate-800 px-1 rounded">${nowStr}</span>
-                                        </div>
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-[8px] text-emerald-400 font-bold px-1 bg-emerald-500/10 rounded">${a.direction}</span>
-                                            <span class="text-[9px] font-mono font-bold text-white ml-1">+${a.profit_pct}%</span>
-                                            ${a.is_high_liquidity ? '<span class="text-[7px] text-emerald-200/50 italic">HIGH DEPTH</span>' : ''}
-                                        </div>
-                                    </div>
-                                    <button onclick="executeArbitrageManual('${a.route_name}', '${a.direction}')" 
-                                            class="bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-black px-3 py-1.5 rounded transition shadow-md active:scale-95">
-                                        ${currentLang === 'en' ? 'EXECUTE' : 'تنفيذ'}
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('');
-                    } else {
-                        arbResultsEl.innerHTML = '<p class="text-[10px] text-center text-slate-600 italic">Scanning triangular routes...</p>';
-                    }
-                }
-
-                // Cycle 4: Macro Guardian (Consolidated)
-                if (s.macro_state) {
-                    const m = s.macro_state;
-                    const regimeEl = document.getElementById('macro-regime');
-                    const fgiEl = document.getElementById('macro-fgi');
-                    const riskEl = document.getElementById('macro-risk');
-                    
-                    if (regimeEl) regimeEl.innerText = m.market_regime || 'NORMAL';
-                    if (fgiEl) fgiEl.innerText = m.fear_greed_index || '50';
-                    if (riskEl) {
-                        riskEl.innerText = m.risk_level || 'MEDIUM';
-                        const riskColors = {'CRITICAL': 'text-red-500', 'HIGH': 'text-red-400', 'MEDIUM': 'text-amber-400', 'LOW': 'text-green-400'};
-                        riskEl.className = `text-[10px] font-bold ${riskColors[m.risk_level] || 'text-green-400'}`;
-                    }
                 }
 
                 if (s.pending_signal) {
@@ -1522,36 +1457,29 @@
                     actionBtn.innerText = currentLang === 'en' ? 'AUTHORIZE ORDER' : 'تفويض الأمر';
                 } else if (data.active_trades && data.active_trades.length > 0) {
                     const t = data.active_trades[0];
-                    const pnl = ((s.price - t.entry_price) * t.qty);
-                    const pnlPct = ((s.price / t.entry_price - 1) * 100);
+                    const entryP = Number(t.entry_price || 0);
+                    const tQty = Number(t.qty || 0);
+                    const tPrice = Number(t.current_price || curPrice); // Use injected specific price or global fallback
+                    const pnl = ((tPrice - entryP) * tQty);
+                    const pnlPct = entryP > 0 ? ((tPrice / entryP - 1) * 100) : 0;
+                    
                     document.getElementById('signal-pnl').classList.remove('hidden');
                     document.getElementById('prediction-text').innerHTML = `
-                        <span class="text-blue-400">ACTIVE ${t.side}:</span> ${t.symbol} @ $${t.entry_price.toFixed(2)} | 
+                        <span class="text-blue-400">ACTIVE ${t.side}:</span> ${t.symbol} @ $${entryP.toFixed(entryP < 1 ? 6 : 2)} | 
                         <span class="${pnl >= 0 ? 'text-green-400' : 'text-red-400'}">PNL: $${pnl.toFixed(2)} (${pnlPct.toFixed(2)}%)</span>
-                        <br><span class="text-[10px] text-slate-500">SL: $${t.sl.toFixed(2)} | TP: $${t.tp.toFixed(2)}</span>
+                        <br><span class="text-[10px] text-slate-500">SL: $${Number(t.sl || 0).toFixed(entryP < 1 ? 6 : 2)} | TP: $${Number(t.tp || 0).toFixed(entryP < 1 ? 6 : 2)}</span>
                     `;
                     const actionBtn = document.getElementById('main-action-btn');
                     actionBtn.onclick = closeActiveTrade;
                     actionBtn.className = "bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg";
                     actionBtn.innerText = currentLang === 'en' ? 'STOP TRADE & EXIT' : 'توقيف الصفقة والتحويل';
-                } else { document.getElementById('signal-pnl').classList.add('hidden'); }
-
+                } else { 
+                    const sigPanel = document.getElementById('signal-pnl');
+                    if (sigPanel) sigPanel.classList.add('hidden'); 
+                }
 
                 updateAccuracyChart();
-
-                renderList('whale-list', s.whale_alerts, w => {
-                    let impactColor = w.impact === 'CRITICAL' ? 'text-yellow-400 font-extrabold animate-pulse' : (w.impact === 'BULLISH' ? 'text-green-500' : 'text-red-500');
-                    return `
-                    <div class="py-2 border-b border-white/5 last:border-0 hover:bg-white/5 transition px-2 rounded">
-                        <div class="flex justify-between text-[10px] text-slate-500 mb-1 font-bold uppercase"><span>${w.time}</span><span class="${impactColor}">${w.impact}</span></div>
-                        <p class="text-xs text-slate-300 font-medium">${w.msg}</p>
-                    </div>`
-                });
-
-                const logsEl = document.getElementById('logs');
-                logsEl.innerHTML = data.logs.slice(-30).map(l => `<p class="border-b border-white/5 pb-1 opacity-70 hover:opacity-100">> ${l}</p>`).join('');
-                logsEl.scrollTop = logsEl.scrollHeight;
-            } catch (e) { }
+            } catch (e) { console.error("Dashboard Update Error:", e); }
         }
 
         // --- GLOBAL FLOATING EXPLAINER LOGIC (User Suggestion) ---
