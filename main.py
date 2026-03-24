@@ -806,20 +806,23 @@ class TradingBot:
                             # --- [v2.0 UI SYNC PATCH] ---
                             # Auto-sync external/manual trades into the UI tracker
                             for asset in summ.get('assets', []):
-                                asset_name = asset['asset']
-                                if asset_name != 'USDT' and asset['value'] > 10.0: # Only track assets worth > $10
+                                asset_name = asset.get('asset')
+                                if not asset_name: continue
+                                
+                                val = asset.get('value', 0.0)
+                                if asset_name != 'USDT' and val > 10.0: # Only track assets worth > $10
                                     symbol = f"{asset_name}USDT"
                                     is_tracked = any(t['symbol'] == symbol for t in self.active_trades)
                                     if not is_tracked:
-                                        self.add_log(f"🧠 SYNC: Detected untracked asset {symbol} (${asset['value']:.2f}). Adding to Dashboard control.")
+                                        self.add_log(f"🧠 SYNC: Detected untracked asset {symbol} (${val:.2f}). Adding to Dashboard control.")
                                         price = self.api.get_symbol_ticker(symbol) or 0.0
                                         self.active_trades.append({
                                             'symbol': symbol,
                                             'side': 'BUY',
-                                            'qty': asset['free'],
+                                            'qty': asset.get('free', 0.0),
                                             'entry_price': price,
-                                            'sl': price * 0.95, # Default SL for safety
-                                            'tp': price * 1.05, # Default TP for visibility
+                                            'sl': price * 0.95, 
+                                            'tp': price * 1.05, 
                                             'pnl_pct': 0.0,
                                             'time': datetime.now().strftime("%H:%M:%S")
                                         })
@@ -926,7 +929,7 @@ class TradingBot:
                             if review:
                                 env_defaults = 'USDC,FDUSD,TUSD,USDP,EUR,BUSD,USD1,DAI,USDD,PYUSD,AEUR,GBP,EURI'
                                 defaults = [c.strip().upper() for c in env_defaults.split(',')]
-                                forgiven = [c for c in self.market_scanner.blacklist if c not in defaults]
+                                forgiven = [c for c in self.market_scanner.blacklist if c not in set(defaults)]
                                 
                                 self.market_scanner.blacklist = list(defaults)
                                 self.stats['last_weekly_review'] = now_alg.strftime("%Y-%m-%d")
