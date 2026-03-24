@@ -98,8 +98,22 @@ class BinanceClientWrapper:
                 ]
             except:
                 funding_balances = []
+
+            # 3. Fetch Simple Earn (Flexible) Positions
+            try:
+                earn_raw = []
+                if hasattr(self.client, 'get_simple_earn_flexible_position'):
+                    earn_res = self.client.get_simple_earn_flexible_position()
+                    earn_raw = earn_res.get('rows', [])
                 
-            return spot_balances + funding_balances
+                earn_balances = [
+                    {'asset': e['asset'], 'free': e['totalAmount'], 'locked': 0, 'source': 'EARN'}
+                    for e in earn_raw if float(e['totalAmount']) > 0
+                ]
+            except:
+                earn_balances = []
+                
+            return spot_balances + funding_balances + earn_balances
         except Exception as e:
             app_logger.error(f"Error fetching all balances (Spot+Funding): {e}")
             return []
