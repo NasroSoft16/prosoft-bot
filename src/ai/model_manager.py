@@ -127,25 +127,33 @@ class ModelManager:
         bb_w     = float(row.get('BB_WIDTH',  0.02))
         mom      = float(row.get('MOM_10',      0))
 
-        # RSI zone
+        # 1. RSI zone (more granular)
         if 45 <= rsi <= 65:   score += 0.18   # momentum sweet spot
         elif 30 <= rsi < 45:  score += 0.22   # oversold recovery
         elif rsi < 30:        score += 0.25   # deep oversold bounce
         elif rsi > 75:        score -= 0.15   # overbought — risky
+        
+        # Micro-adjustment based on RSI direction (derivative)
+        score += (rsi - 50) / 1000 # Adds a tiny +/- 0.02 jitter based on real RSI value
 
-        # MACD histogram direction
+        # 2. MACD histogram direction
         if macd > 0:    score += 0.12
         elif macd < 0:  score -= 0.08
 
-        # Price vs EMA_50 position
+        # 3. Price vs EMA_50 position
         if dist > 0.01:   score += 0.10   # above EMA: bullish
         elif dist < -0.03: score -= 0.10  # too far below: risky reversal
 
-        # Momentum
+        # 4. Momentum (MOM_10)
         if 1 < mom < 5:   score += 0.08
         elif mom > 8:     score -= 0.05   # parabolic move = risky entry
 
-        # Volatility squeeze = breakout incoming
+        # 5. Volatility / BB Width
         if bb_w < 0.015:  score += 0.05
 
-        return round(min(0.95, max(0.15, score)), 3)
+        # 6. Volume Surge (Relative to SMA)
+        vol_ratio = float(row.get('volume', 0)) / float(row.get('VOLUME_SMA', 1))
+        if vol_ratio > 1.5: score += 0.05
+        elif vol_ratio < 0.3: score -= 0.05
+
+        return round(min(0.98, max(0.12, score)), 3)

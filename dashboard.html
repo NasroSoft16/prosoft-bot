@@ -1403,25 +1403,13 @@
         });
 
         // Update Routine
-        async function updateStats() {
-            try {
-                const res = await fetch(`${API_BASE}/stats`);
-                const data = await res.json();
-                const s = data.bot_stats;
-
-                // Move Logs to the top so they update even if some stats below fail
-                if (data.logs) {
-                    const logsEl = document.getElementById('logs');
-                    if (logsEl) {
-                        logsEl.innerHTML = data.logs.slice(-50).map(l => `<p class="border-b border-white/5 pb-1 opacity-70 hover:opacity-100">> ${l}</p>`).join('');
-                        logsEl.scrollTop = logsEl.scrollHeight;
-                    }
-                }
-
-                document.getElementById('symbol-display').innerText = data.current_symbol || 'N/A';
-                
+        // Function to remove a trade from manual tracking without selling
         async function pruneTrack(symbol) {
-            if (!confirm(`Are you sure you want to stop tracking ${symbol}? This will NOT sell your asset, only remove it from the dashboard.`)) return;
+            const confirmMsg = currentLang === 'en' 
+                ? `Are you sure you want to stop tracking ${symbol}? This will NOT sell your asset, only remove it from the dashboard.`
+                : `هل أنت متأكد أنك تريد التوقف عن تجميد ${symbol}؟ لن يتم بيع العملة، سيتم فقط حذفها من الواجهة.`;
+            
+            if (!confirm(confirmMsg)) return;
             try {
                 const res = await fetch(`${API_BASE}/maintenance/delete_trade`, {
                     method: 'POST',
@@ -1438,30 +1426,63 @@
                 console.error("Prune Error:", err);
             }
         }
-                
-                // Update New Revenue Streams
-                if (s.yield_status) document.getElementById('yield-status').innerText = s.yield_status;
-                if (s.yield_amount != null) document.getElementById('yield-amt').innerText = `$${Number(s.yield_amount).toFixed(4)}`;
-                if (s.sniper_hits != null) document.getElementById('sniper-hits').innerText = `${s.sniper_hits} Hits`;
-                if (s.funding_amount != null) document.getElementById('funding-amt').innerText = `$${Number(s.funding_amount).toFixed(4)}`;
-                
+
+        // Update Routine
+        async function updateStats() {
+            try {
+                const res = await fetch(`${API_BASE}/stats`);
+                const data = await res.json();
+                const s = data.bot_stats;
+
+                // 1. Update Logs
+                if (data.logs) {
+                    const logsEl = document.getElementById('logs');
+                    if (logsEl) {
+                        logsEl.innerHTML = data.logs.slice(-50).map(l => `<p class="border-b border-white/5 pb-1 opacity-70 hover:opacity-100">> ${l}</p>`).join('');
+                        logsEl.scrollTop = logsEl.scrollHeight;
+                    }
+                }
+
+                // 2. Global Headers
+                document.getElementById('symbol-display').innerText = data.current_symbol || 'N/A';
                 const curPrice = Number(s.price || 0);
                 document.getElementById('price').innerText = s.price ? `$${curPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}` : '$0.00';
-                document.getElementById('ai-conf').innerText = `${((s.ai_conf || 0.8) * 100).toFixed(1)}%`;
+                document.getElementById('ai-conf').innerText = `${((s.ai_conf !== undefined && s.ai_conf !== null ? s.ai_conf : 0.7) * 100).toFixed(1)}%`;
                 document.getElementById('balance').innerText = `$${Number(s.total_equity || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
                 document.getElementById('health-pct').innerText = `${(s.market_health || 80).toFixed(0)}%`;
                 document.getElementById('health-bar').style.width = `${s.market_health || 80}%`;
                 document.getElementById('sentiment-val').innerText = (s.sentiment || 'NEUTRAL').toUpperCase();
                 document.getElementById('mode-val').innerText = (s.execution_mode || 'manual').toUpperCase();
+
+                // 3. New Revenue Streams
+                if (s.yield_status) document.getElementById('yield-status').innerText = s.yield_status;
+                if (s.yield_amount != null) document.getElementById('yield-amt').innerText = `$${Number(s.yield_amount).toFixed(4)}`;
+                if (s.sniper_hits != null) document.getElementById('sniper-hits').innerText = `${s.sniper_hits} Hits`;
+                if (s.funding_amount != null) document.getElementById('funding-amt').innerText = `$${Number(s.funding_amount).toFixed(4)}`;
                 
-                // Update Order Flow Intelligence
+                // 4. Order Flow Intelligence
                 if (s.order_flow) {
                     document.getElementById('flow-pressure').innerText = `${s.order_flow.pressure_score || 0}%`;
                     document.getElementById('flow-bias').innerText = (s.order_flow.bias || 'NEUTRAL').replace('_', ' ');
                     document.getElementById('flow-spread').innerText = `${(s.order_flow.spread_pct || 0).toFixed(4)}%`;
                 }
 
-                // Update Crash Shield & Hedge Protection
+                // 5. Macro Guardian (Fear/Greed, etc)
+                if (s.macro_state) {
+                    const regimeEl = document.getElementById('macro-regime');
+                    const fgiEl = document.getElementById('macro-fgi');
+                    const riskEl = document.getElementById('macro-risk');
+                    
+                    if (regimeEl) regimeEl.innerText = (s.macro_state.regime || 'NORMAL').toUpperCase();
+                    if (fgiEl) fgiEl.innerText = s.macro_state.fear_greed_index || 50;
+                    if (riskEl) {
+                        riskEl.innerText = (s.macro_state.risk_level || 'MEDIUM').toUpperCase();
+                        const color = s.macro_state.risk_level === 'high' ? 'text-red-400' : (s.macro_state.risk_level === 'low' ? 'text-green-400' : 'text-amber-400');
+                        riskEl.className = `text-[10px] font-bold ${color}`;
+                    }
+                }
+
+                // 6. Crash Shield & Hedge Protection
                 if (s.crash_risk !== undefined) {
                     const risk = s.crash_risk || 0;
                     document.getElementById('crash-risk').innerText = `${risk}%`;
@@ -1472,17 +1493,33 @@
                 if (s.hedge_status) {
                     const hStat = document.getElementById('hedge-status');
                     if (hStat) {
-                        hStat.innerText = s.hedge_status.active ? 'ACTIVE' : 'STANDBY';
+                        hStat.innerText = s.hedge_status.active ? (currentLang === 'en' ? 'ACTIVE' : 'نشط') : (currentLang === 'en' ? 'STANDBY' : 'انتظار');
                         hStat.className = `text-[9px] font-bold px-2 py-0.5 rounded ${s.hedge_status.active ? 'text-red-400 bg-red-500/10' : 'text-green-400 bg-green-500/10'}`;
                     }
                 }
 
-                // AI Clusters & Arbitrage (Optional check for existence)
-                if (s.ai_cluster && document.getElementById('ai-nodes-list')) {
+                // 7. AI Cluster Visualizer
+                const aiNodesList = document.getElementById('ai-nodes-list');
+                if (s.ai_cluster && aiNodesList) {
                     document.getElementById('cluster-count').innerText = `${s.ai_cluster.length} NODES`;
+                    
+                    if (s.ai_cluster.length === 0) {
+                        aiNodesList.innerHTML = `<p class="text-[10px] text-slate-500 text-center italic">Initializing AI Nodes...</p>`;
+                    } else {
+                        aiNodesList.innerHTML = s.ai_cluster.map((n, i) => {
+                            let statusColor = n.limit_hit ? 'text-red-400' : (n.session_reqs > 0 ? 'text-green-400' : 'text-blue-400/50');
+                            let statusText = n.limit_hit ? 'LIMIT HIT' : (n.session_reqs > 0 ? 'ACTIVE' : 'READY');
+                            return `
+                                <div class="flex justify-between items-center text-[9px] border-b border-white/5 pb-1">
+                                    <span class="text-slate-400 font-mono">Node ${i+1}: <span class="text-slate-500 ml-1">${n.model || 'gemini'}</span></span>
+                                    <span class="font-bold ${statusColor}">${statusText}</span>
+                                </div>
+                            `;
+                        }).join('');
+                    }
                 }
 
-                // Update Active Positions List
+                // 8. Update Active Positions List (Sidebar)
                 const activeTradesList = document.getElementById('active-trades-list');
                 const activeCountBadge = document.getElementById('active-count-badge');
                 if (data.active_trades && activeTradesList) {
@@ -1520,6 +1557,7 @@
                     }
                 }
 
+                // 9. Primary Action Center Signal / Trade
                 if (s.pending_signal) {
                     document.getElementById('signal-pnl').classList.remove('hidden');
                     document.getElementById('prediction-text').innerText = `${s.pending_signal.side.toUpperCase()} CONFIRMED ON ${s.pending_signal.symbol} @ $${s.pending_signal.price}`;
@@ -1531,7 +1569,7 @@
                     const t = data.active_trades[0];
                     const entryP = Number(t.entry_price || 0);
                     const tQty = Number(t.qty || 0);
-                    const tPrice = Number(t.current_price || entryP); // Use entry price as fallback to show 0% if ticker fails
+                    const tPrice = Number(t.current_price || entryP); 
                     const pnl = ((tPrice - entryP) * tQty);
                     const pnlPct = entryP > 0 ? ((tPrice / entryP - 1) * 100) : 0;
                     
