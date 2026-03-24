@@ -42,6 +42,26 @@ class NeuralMemory:
                     strategy_used  TEXT
                 )
             """)
+
+            # --- AUTO MIGRATION LOGIC ---
+            # Check for missing columns and add them to prevent DB insert failures
+            cursor.execute("PRAGMA table_info(trade_memory)")
+            columns = [info[1] for info in cursor.fetchall()]
+            
+            missing_cols = {
+                'entry_time': 'TEXT',
+                'exit_time': 'TEXT',
+                'strategy_used': 'TEXT'
+            }
+            
+            for col, col_type in missing_cols.items():
+                if col not in columns:
+                    app_logger.info(f"💾 DATABASE MIGRATION: Adding missing column {col} to trade_memory")
+                    try:
+                        cursor.execute(f"ALTER TABLE trade_memory ADD COLUMN {col} {col_type}")
+                    except Exception as alt_err:
+                        app_logger.warning(f"Migration for {col} failed: {alt_err}")
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS revenue_memory (
                     id        INTEGER PRIMARY KEY AUTOINCREMENT,
