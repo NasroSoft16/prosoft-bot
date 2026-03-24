@@ -358,6 +358,8 @@ class DashboardAPI:
             
             data = request.json or {}
             symbol = data.get('symbol')
+            if isinstance(symbol, dict): # Shield against JS event objects
+                symbol = None
             
             def do_close():
                 try:

@@ -389,8 +389,30 @@ class TradingBot:
             trade_tp = trade.get('tp', 0)
             trade_qty = trade.get('qty', 0)
             entry_p = trade.get('entry_price', 0)
+            
+            pnl_pct = (trade_price / entry_p - 1) if entry_p > 0 else 0
 
-            # ── Update trailing stop ──
+            # ── [PROSOFT SHIELD: Trailing Profit Guard] ──
+            # Stage 1: Break-even Lock (0.5% profit)
+            if pnl_pct >= 0.005: 
+                new_sl = entry_p * 1.001 # Move to entry + 0.1%
+                if new_sl > trade_sl:
+                    trade['trailing_sl'] = new_sl
+                    trade['sl'] = new_sl
+                    trade_sl = new_sl
+                    self.add_log(f"🛡️ [PROSOFT SHIELD] {trade_symbol}: Profit Locked at Break-Even (+0.1%)")
+
+            # Stage 2: Aggressive Profit Trail (1.5% profit)
+            if pnl_pct >= 0.015:
+                # Follow at 1% distance from current price
+                new_sl = trade_price * 0.99 
+                if new_sl > trade_sl:
+                    trade['trailing_sl'] = new_sl
+                    trade['sl'] = new_sl
+                    trade_sl = new_sl
+                    self.add_log(f"📈 [DYNAMIC TRAIL] {trade_symbol}: Following price at 1% offset")
+
+            # ── Update trailing stop (ATR-based for focus symbol) ──
             if atr > 0 and trade_symbol == self.symbol:
                 updated = self.strategy.update_trailing_stop(trade, trade_price, atr)
                 trade.update(updated)
@@ -423,8 +445,8 @@ class TradingBot:
                         self.order_manager.place_market_sell(trade_symbol, half_qty)
                         trade['partial_done'] = True
                         # Move SL to break-even safely
-                        trade['trailing_sl'] = entry_p * 1.001
-                        trade['sl'] = entry_p * 1.001
+                        trade['trailing_sl'] = entry_p * 1.002
+                        trade['sl'] = entry_p * 1.002
                         self.add_log(
                             f"🟡 PARTIAL TP: sold 40% of {trade_symbol} | SL moved to break-even"
                         )

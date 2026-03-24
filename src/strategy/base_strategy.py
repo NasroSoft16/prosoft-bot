@@ -45,10 +45,11 @@ class BaseStrategy:
             return active_trade
 
         new_sl = self.calculate_trailing_stop(current_price, atr, side='LONG')
-        old_sl = active_trade.get('stop_loss', 0)
+        old_sl = active_trade.get('trailing_sl', active_trade.get('sl', 0))
 
         if new_sl > old_sl:
-            active_trade['stop_loss'] = new_sl
+            active_trade['trailing_sl'] = new_sl
+            active_trade['sl'] = new_sl
             app_logger.info(
                 f"📈 [TRAIL] SL raised: {old_sl:.6f} → {new_sl:.6f} "
                 f"(price={current_price:.6f})"

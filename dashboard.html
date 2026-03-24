@@ -116,8 +116,13 @@
         }
 
         @keyframes glow-red {
-            from { box-shadow: 0 0 10px rgba(185, 28, 28, 0.3); }
-            to { box-shadow: 0 0 20px rgba(239, 68, 68, 0.6); }
+            from {
+                box-shadow: 0 0 10px rgba(185, 28, 28, 0.3);
+            }
+
+            to {
+                box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+            }
         }
 
         .chart-container-mini {
@@ -409,430 +414,464 @@
     </div>
 
     <!-- OFFICIAL HEADER -->
-        <header class="flex justify-between items-center prime-panel py-4">
-            <div class="flex items-center gap-5">
-                <div
-                    class="w-12 h-12 bg-blue-600 rounded flex items-center justify-center text-white font-black text-2xl shadow-lg">
-                    Q</div>
-                <div>
-                    <h1 class="text-xl font-bold text-white tracking-wide uppercase flex items-center gap-2"
-                        data-en="PROSOFT QUANTUM PRIME" data-ar="برو سوفت كوانتوم برايم"
-                        data-hint-en="PROSOFT QUANTUM PRIME: The master AI engine coordinating all trading nodes, sentiment analysis, and risk management subsystems in real-time."
-                        data-hint-ar="برو سوفت كوانتوم برايم: المحرك الرئيسي للذكاء الاصطناعي الذي ينسق جميع عقد التداول وتحليل المشاعر وأنظمة إدارة المخاطر في الوقت الفعلي.">
-                        <span class="text-blue-500 font-black">PROSOFT</span> QUANTUM PRIME
-                    </h1>
-                    <p
-                        class="text-[10px] font-semibold text-blue-400 uppercase tracking-widest mt-1 flex items-center gap-1.5">
-                        Institutional Trading Core
-                        <span class="text-slate-600 mx-1">|</span>
-                        <span
-                            class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></span>
-                        <span class="text-green-500/80 mr-2" data-en="SYSTEM PULSE" data-ar="نبض النظام">SYSTEM
-                            PULSE</span>
-                        <span class="text-slate-600 mx-1">|</span>
-                        <span class="text-slate-400">Powered by</span>
-                        <span class="text-white font-black">NASRO</span>
+    <header class="flex justify-between items-center prime-panel py-4">
+        <div class="flex items-center gap-5">
+            <div
+                class="w-12 h-12 bg-blue-600 rounded flex items-center justify-center text-white font-black text-2xl shadow-lg">
+                Q</div>
+            <div>
+                <h1 class="text-xl font-bold text-white tracking-wide uppercase flex items-center gap-2"
+                    data-en="PROSOFT QUANTUM PRIME" data-ar="برو سوفت كوانتوم برايم"
+                    data-hint-en="PROSOFT QUANTUM PRIME: The master AI engine coordinating all trading nodes, sentiment analysis, and risk management subsystems in real-time."
+                    data-hint-ar="برو سوفت كوانتوم برايم: المحرك الرئيسي للذكاء الاصطناعي الذي ينسق جميع عقد التداول وتحليل المشاعر وأنظمة إدارة المخاطر في الوقت الفعلي.">
+                    <span class="text-blue-500 font-black">PROSOFT</span> QUANTUM PRIME
+                </h1>
+                <p
+                    class="text-[10px] font-semibold text-blue-400 uppercase tracking-widest mt-1 flex items-center gap-1.5">
+                    Institutional Trading Core
+                    <span class="text-slate-600 mx-1">|</span>
+                    <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]"></span>
+                    <span class="text-green-500/80 mr-2" data-en="SYSTEM PULSE" data-ar="نبض النظام">SYSTEM
+                        PULSE</span>
+                    <span class="text-slate-600 mx-1">|</span>
+                    <span class="text-slate-400">Powered by</span>
+                    <span class="text-white font-black">NASRO</span>
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-8">
+            <div class="flex items-center gap-6">
+                <div id="trial-badge"
+                    class="hidden trial-warning px-4 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-2 cursor-pointer hover:bg-yellow-500/20 transition-all active:scale-95"
+                    title="Click to Activate Permanent License">
+                    <span class="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse"></span>
+                    <span id="trial-days-text">3 DAYS REMAINING</span>
+                </div>
+                <div id="license-badge"
+                    class="license-badge px-4 py-1.5 rounded-full text-white text-[10px] font-bold tracking-widest uppercase hidden">
+                    Active</div>
+            </div>
+            <div class="flex gap-8">
+                <div class="text-center">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-1" data-en="Total Equity"
+                        data-ar="إجمالي الأصول">Total Equity</p>
+                    <p id="balance" class="text-xl font-black text-white">$0.00</p>
+                </div>
+                <div class="text-center border-l border-white/10 pl-8">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-1" data-en="Execution Mode"
+                        data-ar="نظام التنفيذ">Execution Mode</p>
+                    <p id="mode-val" class="text-sm font-bold text-blue-400 uppercase tracking-widest mt-1">MANUAL
                     </p>
                 </div>
             </div>
+            <div class="flex items-center gap-3 border-l border-white/10 pl-8">
+                <button id="lang-toggle"
+                    class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold hover:bg-[#374151] transition border border-transparent hover:border-white/10">EN/AR</button>
+                <button id="memory-btn"
+                    class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-purple-400 hover:bg-purple-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-purple-500"
+                    data-en="SUBCONSCIOUS" data-ar="العقل الباطن">
+                    🧠 SUBCONSCIOUS
+                </button>
+                <button id="settings-btn"
+                    class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold hover:bg-blue-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-blue-500"
+                    data-en="PROTOCOLS" data-ar="البروتوكولات">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    PROTOCOLS
+                </button>
+                <button onclick="triggerOmega()"
+                    class="btn-omega px-4 py-2 rounded text-[10px] flex items-center gap-2 transition-all">
+                    <span>🚨</span> OMEGA
+                </button>
+                <button id="export-pdf" onclick="exportPDF()"
+                    class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-green-400 hover:bg-green-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-green-500"
+                    title="Export Intelligence PDF" data-en="EXPORT" data-ar="تصدير">
+                    📄
+                </button>
+                <button id="sync-btn"
+                    class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-blue-400 hover:bg-blue-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-blue-500"
+                    title="Deep Sync (Refresh Memory)" data-en="SYNC" data-ar="مزامنة">
+                    🔄 SYNC
+                </button>
+                <button id="clean-dust-btn" onclick="cleanDust()"
+                    class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-amber-400 hover:bg-amber-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-amber-500"
+                    title="Convert Dust to BNB" data-en="CLEAN DUST" data-ar="تصفية المحفظة">
+                    ✨ CLEAN DUST
+                </button>
+                <button onclick="logout()"
+                    class="bg-red-500/10 text-red-500 px-4 py-2.5 rounded text-xs font-semibold hover:bg-red-600 hover:text-white transition border border-red-500/20"
+                    data-en="EXIT TERMINAL" data-ar="خروج">EXIT TERMINAL</button>
+            </div>
+        </div>
+    </header>
 
-            <div class="flex items-center gap-8">
-                <div class="flex items-center gap-6">
-                    <div id="trial-badge"
-                        class="hidden trial-warning px-4 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-2 cursor-pointer hover:bg-yellow-500/20 transition-all active:scale-95"
-                        title="Click to Activate Permanent License">
-                        <span class="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse"></span>
-                        <span id="trial-days-text">3 DAYS REMAINING</span>
-                    </div>
-                    <div id="license-badge"
-                        class="license-badge px-4 py-1.5 rounded-full text-white text-[10px] font-bold tracking-widest uppercase hidden">
-                        Active</div>
+    <!-- MAIN TERMINAL GRID -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- LEFT: MARKET INTELLIGENCE -->
+        <div class="lg:col-span-3 space-y-6">
+            <!-- ACTIVE POSITIONS (Crucial for Multi-Trade Visibility) -->
+            <div class="prime-panel h-[300px] flex flex-col border-blue-500/30">
+                <div class="panel-header"
+                    data-hint-en="Real-time monitoring of all active trades across international markets."
+                    data-hint-ar="مراقبة فورية لجميع الصفقات النشطة عبر الأسواق الدولية.">
+                    <span data-en="Active Positions" data-ar="المراكز المفتوحة">Active Positions</span>
+                    <div id="active-count-badge"
+                        class="px-1.5 py-0.5 bg-blue-500 text-white text-[9px] font-bold rounded">0</div>
                 </div>
-                <div class="flex gap-8">
-                    <div class="text-center">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-1" data-en="Total Equity"
-                            data-ar="إجمالي الأصول">Total Equity</p>
-                        <p id="balance" class="text-xl font-black text-white">$0.00</p>
-                    </div>
-                    <div class="text-center border-l border-white/10 pl-8">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase mb-1" data-en="Execution Mode"
-                            data-ar="نظام التنفيذ">Execution Mode</p>
-                        <p id="mode-val" class="text-sm font-bold text-blue-400 uppercase tracking-widest mt-1">MANUAL
-                        </p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3 border-l border-white/10 pl-8">
-                    <button id="lang-toggle"
-                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold hover:bg-[#374151] transition border border-transparent hover:border-white/10">EN/AR</button>
-                    <button id="memory-btn"
-                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-purple-400 hover:bg-purple-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-purple-500"
-                        data-en="SUBCONSCIOUS" data-ar="العقل الباطن">
-                        🧠 SUBCONSCIOUS
-                    </button>
-                    <button id="settings-btn"
-                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold hover:bg-blue-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-blue-500"
-                        data-en="PROTOCOLS" data-ar="البروتوكولات">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        PROTOCOLS
-                    </button>
-                    <button onclick="triggerOmega()" class="btn-omega px-4 py-2 rounded text-[10px] flex items-center gap-2 transition-all">
-                        <span>🚨</span> OMEGA
-                    </button>
-                    <button id="export-pdf" onclick="exportPDF()"
-                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-green-400 hover:bg-green-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-green-500"
-                        title="Export Intelligence PDF" data-en="EXPORT" data-ar="تصدير">
-                        📄
-                    </button>
-                    <button id="sync-btn"
-                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-blue-400 hover:bg-blue-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-blue-500"
-                        title="Deep Sync (Refresh Memory)" data-en="SYNC" data-ar="مزامنة">
-                        🔄 SYNC
-                    </button>
-                    <button id="clean-dust-btn" onclick="cleanDust()"
-                        class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-amber-400 hover:bg-amber-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-amber-500"
-                        title="Convert Dust to BNB" data-en="CLEAN DUST" data-ar="تصفية المحفظة">
-                        ✨ CLEAN DUST
-                    </button>
-                    <button onclick="logout()"
-                        class="bg-red-500/10 text-red-500 px-4 py-2.5 rounded text-xs font-semibold hover:bg-red-600 hover:text-white transition border border-red-500/20"
-                        data-en="EXIT TERMINAL" data-ar="خروج">EXIT TERMINAL</button>
+                <div id="active-trades-list" class="space-y-2 flex-1 overflow-y-auto pr-1">
+                    <p class="text-[10px] text-slate-500 text-center mt-4 italic">No active positions.</p>
                 </div>
             </div>
-        </header>
 
-        <!-- MAIN TERMINAL GRID -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- AI SUGGESTIONS -->
+            <div class="prime-panel h-[340px] flex flex-col">
+                <div class="panel-header"
+                    data-hint-en="Scans the entire exchange for high-probability setups and relative arbitrage gaps."
+                    data-hint-ar="يفحص المنصة بالكامل بحثاً عن إعدادات عالية الاختمال وفجوات مراجحة نسبية.">
+                    <span data-en="Quantum Opportunities" data-ar="فرص كوانتوم المتاحة">Quantum Opportunities</span>
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                </div>
+                <div id="scanner-list" class="space-y-2 flex-1 overflow-y-auto pr-1">
+                    <p class="text-xs text-slate-500 text-center mt-4 italic">Scanning blockchain...</p>
+                </div>
+            </div>
 
-            <!-- LEFT: MARKET INTELLIGENCE -->
-            <div class="lg:col-span-3 space-y-6">
-                <!-- ACTIVE POSITIONS (Crucial for Multi-Trade Visibility) -->
-                <div class="prime-panel h-[300px] flex flex-col border-blue-500/30">
-                    <div class="panel-header" data-hint-en="Real-time monitoring of all active trades across international markets."
-                        data-hint-ar="مراقبة فورية لجميع الصفقات النشطة عبر الأسواق الدولية.">
-                        <span data-en="Active Positions" data-ar="المراكز المفتوحة">Active Positions</span>
-                        <div id="active-count-badge" class="px-1.5 py-0.5 bg-blue-500 text-white text-[9px] font-bold rounded">0</div>
+            <!-- NEW: CYCLE 2 ANALYTICS -->
+            <div class="prime-panel">
+                <div class="panel-header" data-en="Performance Matrix" data-ar="مصفوفة الأداء العميق"
+                    data-hint-en="PERFORMANCE MATRIX: A real-time statistical breakdown of the AI's trading efficacy, including cumulative win rates and PnL growth cycles."
+                    data-hint-ar="مصفوفة الأداء: تحليل إحصائي في الوقت الفعلي لفعالية تداول الذكاء الاصطناعي، بما في ذلك معدلات النجاح التراكمية ودورات نمو الأرباح والخسائر.">
+                    Performance Matrix</div>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Win Rate"
+                            data-ar="نسبة النجاح">Win Rate</span>
+                        <span id="stat-winrate" class="text-lg font-black text-green-400">0%</span>
                     </div>
-                    <div id="active-trades-list" class="space-y-2 flex-1 overflow-y-auto pr-1">
-                        <p class="text-[10px] text-slate-500 text-center mt-4 italic">No active positions.</p>
+                    <div class="h-[80px] w-full mt-2">
+                        <canvas id="accuracyChart"></canvas>
+                    </div>
+                    <div class="flex justify-between items-center pt-2">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Avg Profit"
+                            data-ar="متوسط الربح">Avg Profit</span>
+                        <span id="stat-avgpnl" class="text-sm font-mono text-white">$0.00</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Cycle Rank"
+                            data-ar="رتبة الدورة">Cycle Rank</span>
+                        <span
+                            class="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-bold rounded border border-blue-500/20">ELITE
+                            APEX</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SENTIMENT METRICS -->
+            <div class="prime-panel">
+                <div class="panel-header" data-en="Network Health" data-ar="صحة الشبكة العصبية"
+                    data-hint-en="NETWORK HEALTH: Monitors the neural synchronization between market sentiment nodes and the execute core, ensuring alignment before high-stakes entries."
+                    data-hint-ar="صحة الشبكة: يراقب التزامن العصبي بين عقد مشاعر السوق ونواة التنفيذ، مما يضمن التوافق قبل الدخول في صفقات عالية المخاطر.">
+                    Network Health</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="Global Sentiment"
+                            data-ar="الاتجاه العام">Global Sentiment</p>
+                        <p id="sentiment-val" class="text-sm font-bold text-white">NEUTRAL</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="AI Certainty"
+                            data-ar="يقين الذكاء">AI Certainty</p>
+                        <p id="health-pct" class="text-sm font-bold text-blue-400">0%</p>
+                    </div>
+                </div>
+                <div class="mt-4 w-full bg-[#1f2937] h-1.5 rounded-full overflow-hidden">
+                    <div id="health-bar" class="h-full bg-blue-500 transition-all duration-1000" style="width: 0%">
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI CLUSTER STATUS (NEW) -->
+            <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0f172a] border-blue-500/20">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-blue-400 text-sm">🧠</span>
+                        <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest"
+                            data-en="AI CLUSTER INFRA" data-ar="بنية مجمع الذكاء"
+                            data-hint-en="AI CLUSTER INFRA: A distributed cluster of Gemini 1.5 Flash nodes providing 24/7 intelligence with built-in redundancy and auto-rotation logic."
+                            data-hint-ar="بنية مجمع الذكاء: مجموعة موزعة من عقد Gemini 1.5 Flash التي توفر ذكاءً على مدار الساعة طوال أيام الأسبوع مع تكرار مدمج ومنطق تدوير تلقائي.">
+                            AI CLUSTER INFRA</p>
+                    </div>
+                    <div id="cluster-count"
+                        class="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[8px] font-bold rounded border border-blue-500/20">
+                        0 NODES</div>
+                </div>
+                <div id="ai-nodes-list" class="space-y-2">
+                    <p class="text-[9px] text-slate-500 italic text-center py-2">Initializing AI Nodes...</p>
+                </div>
+            </div>
+
+            <!-- NEW: CYCLE 4 - MACRO REGIME -->
+            <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0d1117] border-amber-500/20">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-amber-400 text-sm">🌍</span>
+                    <p class="text-[10px] font-black text-amber-400 uppercase tracking-widest" data-en="MACRO GUARDIAN"
+                        data-ar="حارس الاقتصاد الكلي"
+                        data-hint-en="MACRO GUARDIAN: Monitors global economic indicators, Fear & Greed index, and liquidation heatmaps to shield the bot from black-swan events."
+                        data-hint-ar="حارس الاقتصاد الكلي: يراقب المؤشرات الاقتصادية العالمية، ومؤشر الخوف والجشع، وخرائط التصفية الحرارية لحماية البوت من أحداث البجعة السوداء.">
+                        MACRO GUARDIAN</p>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase">Regime</span>
+                        <span id="macro-regime"
+                            class="text-[9px] font-bold text-amber-400 px-2 py-0.5 bg-amber-500/10 rounded border border-amber-500/20">NORMAL</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase">Fear/Greed</span>
+                        <span id="macro-fgi" class="text-sm font-mono font-bold text-white">50</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase">Risk</span>
+                        <span id="macro-risk" class="text-[10px] font-bold text-green-400">MEDIUM</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER: EXECUTION CORE -->
+        <div class="lg:col-span-6 space-y-6">
+            <div class="prime-panel min-h-[440px] flex flex-col relative">
+                <div class="flex justify-between items-start mb-4 z-10">
+                    <div>
+                        <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1"
+                            data-hint-en="PRIMARY ASSET: The current focus of the AI engine. All liquidity scanners and sentiment nodes are prioritized for this specific trading pair."
+                            data-hint-ar="الأصل كوانتوم الرئيسي: التركيز الحالي لمحرك الذكاء الاصطناعي. يتم إعطاء الأولوية لجميع أجهزة فحص السيولة وعقد المشاعر لزوج التداول المحدد هذا.">
+                            <span data-en="Primary Asset" data-ar="الأصل الاستراتيجي">Primary Asset</span> /
+                            <span id="symbol-display"
+                                class="text-blue-400 cursor-pointer hover:text-blue-300 transition-colors"
+                                title="Click to Change">BTCUSDT</span>
+                        </p>
+                        <h2 id="price" class="text-4xl font-mono font-medium text-white tracking-tight">$0.00</h2>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1"
+                            data-en="Model Confidence" data-ar="ثقة النموذج">Model Confidence</p>
+                        <h3 id="ai-conf" class="text-2xl font-mono font-medium text-blue-400">0.0%</h3>
                     </div>
                 </div>
 
-                <!-- AI SUGGESTIONS -->
-                <div class="prime-panel h-[340px] flex flex-col">
-                    <div class="panel-header" data-hint-en="Scans the entire exchange for high-probability setups and relative arbitrage gaps."
-                        data-hint-ar="يفحص المنصة بالكامل بحثاً عن إعدادات عالية الاختمال وفجوات مراجحة نسبية.">
-                        <span data-en="Quantum Opportunities" data-ar="فرص كوانتوم المتاحة">Quantum Opportunities</span>
-                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    </div>
-                    <div id="scanner-list" class="space-y-2 flex-1 overflow-y-auto pr-1">
-                        <p class="text-xs text-slate-500 text-center mt-4 italic">Scanning blockchain...</p>
-                    </div>
-                </div>
+                <div class="flex-1 w-full"><canvas id="mainChart"></canvas></div>
 
-                <!-- NEW: CYCLE 2 ANALYTICS -->
-                <div class="prime-panel">
-                    <div class="panel-header" data-en="Performance Matrix" data-ar="مصفوفة الأداء العميق"
-                        data-hint-en="PERFORMANCE MATRIX: A real-time statistical breakdown of the AI's trading efficacy, including cumulative win rates and PnL growth cycles."
-                        data-hint-ar="مصفوفة الأداء: تحليل إحصائي في الوقت الفعلي لفعالية تداول الذكاء الاصطناعي، بما في ذلك معدلات النجاح التراكمية ودورات نمو الأرباح والخسائر.">Performance Matrix</div>
-                    <div class="space-y-4">
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Win Rate" data-ar="نسبة النجاح">Win Rate</span>
-                            <span id="stat-winrate" class="text-lg font-black text-green-400">0%</span>
-                        </div>
-                        <div class="h-[80px] w-full mt-2">
-                            <canvas id="accuracyChart"></canvas>
-                        </div>
-                        <div class="flex justify-between items-center pt-2">
-                            <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Avg Profit" data-ar="متوسط الربح">Avg Profit</span>
-                            <span id="stat-avgpnl" class="text-sm font-mono text-white">$0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Cycle Rank" data-ar="رتبة الدورة">Cycle Rank</span>
-                            <span class="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-bold rounded border border-blue-500/20">ELITE APEX</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SENTIMENT METRICS -->
-                <div class="prime-panel">
-                    <div class="panel-header" data-en="Network Health" data-ar="صحة الشبكة العصبية"
-                        data-hint-en="NETWORK HEALTH: Monitors the neural synchronization between market sentiment nodes and the execute core, ensuring alignment before high-stakes entries."
-                        data-hint-ar="صحة الشبكة: يراقب التزامن العصبي بين عقد مشاعر السوق ونواة التنفيذ، مما يضمن التوافق قبل الدخول في صفقات عالية المخاطر.">Network Health</div>
-                    <div class="grid grid-cols-2 gap-4">
+                <!-- Authorization Panel -->
+                <div id="signal-pnl"
+                    class="absolute bottom-6 left-6 right-6 p-5 bg-[#172033] border border-blue-500/30 rounded-lg hidden shadow-2xl backdrop-blur-md">
+                    <div class="flex justify-between items-center">
                         <div>
-                            <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="Global Sentiment"
-                                data-ar="الاتجاه العام">Global Sentiment</p>
-                            <p id="sentiment-val" class="text-sm font-bold text-white">NEUTRAL</p>
+                            <p
+                                class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-ping"></span>
+                                <span data-en="Action Required" data-ar="إجراء مطلوب">Action Required</span>
+                            </p>
+                            <p id="prediction-text" class="text-sm font-semibold text-white">Pending AI
+                                Confirmation...</p>
                         </div>
-                        <div>
-                            <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="AI Certainty"
-                                data-ar="يقين الذكاء">AI Certainty</p>
-                            <p id="health-pct" class="text-sm font-bold text-blue-400">0%</p>
+                        <div class="flex items-center gap-4">
+                            <button id="dismiss-btn"
+                                class="hidden text-[9px] text-slate-500 hover:text-white uppercase font-bold tracking-widest px-3 py-2 bg-white/5 rounded border border-transparent hover:border-white/10 transition-all">Prune
+                                Track</button>
+                            <button id="main-action-btn" onclick="executeManual()"
+                                class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg"
+                                data-en="AUTHORIZE ORDER" data-ar="تفويض الأمر">AUTHORIZE ORDER</button>
                         </div>
-                    </div>
-                    <div class="mt-4 w-full bg-[#1f2937] h-1.5 rounded-full overflow-hidden">
-                        <div id="health-bar" class="h-full bg-blue-500 transition-all duration-1000" style="width: 0%">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- AI CLUSTER STATUS (NEW) -->
-                <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0f172a] border-blue-500/20">
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center gap-2">
-                            <span class="text-blue-400 text-sm">🧠</span>
-                            <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest" data-en="AI CLUSTER INFRA" data-ar="بنية مجمع الذكاء"
-                                data-hint-en="AI CLUSTER INFRA: A distributed cluster of Gemini 1.5 Flash nodes providing 24/7 intelligence with built-in redundancy and auto-rotation logic."
-                                data-hint-ar="بنية مجمع الذكاء: مجموعة موزعة من عقد Gemini 1.5 Flash التي توفر ذكاءً على مدار الساعة طوال أيام الأسبوع مع تكرار مدمج ومنطق تدوير تلقائي.">AI CLUSTER INFRA</p>
-                        </div>
-                        <div id="cluster-count" class="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[8px] font-bold rounded border border-blue-500/20">0 NODES</div>
-                    </div>
-                    <div id="ai-nodes-list" class="space-y-2">
-                        <p class="text-[9px] text-slate-500 italic text-center py-2">Initializing AI Nodes...</p>
                     </div>
                 </div>
+            </div>
 
-                <!-- NEW: CYCLE 4 - MACRO REGIME -->
-                <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0d1117] border-amber-500/20">
+            <!-- SYSTEM LOGS -->
+            <div class="prime-panel bg-[#06080c] border-[#1f2937]">
+                <div class="panel-header text-[10px] border-none mb-2" data-en="Terminal Output Log"
+                    data-ar="سجل عمليات المحطة"
+                    data-hint-en="Real-time terminal feed showing raw system operations, API calls, and neural events."
+                    data-hint-ar="تغذية فورية تعرض العمليات التقنية، استدعاءات الـ API، وأحداث المحرك العصبي.">Terminal
+                    Output Log</div>
+                <div id="logs" class="mono text-[11px] text-slate-400 h-[100px] overflow-y-auto space-y-1"></div>
+            </div>
+
+            <!-- ARBITRAGE & REVENUE STREAMS -->
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Arbitrage Scanner -->
+                <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0f1a12] border-emerald-500/20">
                     <div class="flex items-center gap-2 mb-3">
-                        <span class="text-amber-400 text-sm">🌍</span>
-                        <p class="text-[10px] font-black text-amber-400 uppercase tracking-widest" data-en="MACRO GUARDIAN" data-ar="حارس الاقتصاد الكلي"
-                            data-hint-en="MACRO GUARDIAN: Monitors global economic indicators, Fear & Greed index, and liquidation heatmaps to shield the bot from black-swan events."
-                            data-hint-ar="حارس الاقتصاد الكلي: يراقب المؤشرات الاقتصادية العالمية، ومؤشر الخوف والجشع، وخرائط التصفية الحرارية لحماية البوت من أحداث البجعة السوداء.">MACRO GUARDIAN</p>
+                        <span class="text-emerald-400 text-sm">🔺</span>
+                        <p class="text-[10px] font-black text-emerald-400 uppercase tracking-widest"
+                            data-en="ARBITRAGE SCANNER" data-ar="ماسح المراجحة"
+                            data-hint-en="Scans for price discrepancies across multiple pairs (Triangular Arbitrage) to secure risk-free profits."
+                            data-hint-ar="يبحث عن فروقات الأسعار بين أزواج العملات المختلفة (المراجحة المثلثية) لتحقيق أرباح خالية من المخاطر.">
+                            ARBITRAGE SCANNER</p>
+                    </div>
+                    <div id="arb-results" class="space-y-2">
+                        <p class="text-[10px] text-center text-slate-600 italic">Scanning triangular routes...</p>
+                    </div>
+                </div>
+
+                <!-- REVENUE STREAMS -->
+                <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#1a1b10] border-emerald-500/20">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-emerald-400 text-sm">💰</span>
+                        <p class="text-[10px] font-black text-emerald-400 uppercase tracking-widest"
+                            data-en="REVENUE STREAMS" data-ar="مصادر الدخل"
+                            data-hint-en="Monitors secondary income sources including Yield Farming, Listing Sniping, and Funding Rate Arbitrage."
+                            data-hint-ar="يراقب مصادر الدخل الثانوية مثل زراعة العوائد، قنص الإدراجات الجديدة، ومراجحة رسوم التمويل.">
+                            REVENUE STREAMS</p>
                     </div>
                     <div class="space-y-3">
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] text-slate-400 font-bold uppercase">Regime</span>
-                            <span id="macro-regime" class="text-[9px] font-bold text-amber-400 px-2 py-0.5 bg-amber-500/10 rounded border border-amber-500/20">NORMAL</span>
+                        <div class="flex justify-between items-center bg-white/5 p-2 rounded">
+                            <div>
+                                <p class="text-[8px] text-slate-500 font-bold uppercase">Yield Farming</p>
+                                <p id="yield-status" class="text-[10px] text-emerald-400 font-bold">IDLE</p>
+                            </div>
+                            <span id="yield-amt" class="text-[10px] font-mono text-white">$0.00</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] text-slate-400 font-bold uppercase">Fear/Greed</span>
-                            <span id="macro-fgi" class="text-sm font-mono font-bold text-white">50</span>
+                        <div class="flex justify-between items-center bg-white/5 p-2 rounded">
+                            <div>
+                                <p class="text-[8px] text-slate-500 font-bold uppercase">Listing Sniper</p>
+                                <p id="sniper-status" class="text-[10px] text-blue-400 font-bold">WATCHING</p>
+                            </div>
+                            <span id="sniper-hits" class="text-[10px] font-mono text-white">0 Hits</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] text-slate-400 font-bold uppercase">Risk</span>
-                            <span id="macro-risk" class="text-[10px] font-bold text-green-400">MEDIUM</span>
+                        <div class="flex justify-between items-center bg-white/5 p-2 rounded">
+                            <div>
+                                <p class="text-[8px] text-slate-500 font-bold uppercase">Funding Arb</p>
+                                <p id="funding-status" class="text-[10px] text-amber-400 font-bold">SCANNING</p>
+                            </div>
+                            <span id="funding-amt" class="text-[10px] font-mono text-white">$0.00</span>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- CENTER: EXECUTION CORE -->
-            <div class="lg:col-span-6 space-y-6">
-                <div class="prime-panel min-h-[440px] flex flex-col relative">
-                    <div class="flex justify-between items-start mb-4 z-10">
-                        <div>
-                            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1"
-                                data-hint-en="PRIMARY ASSET: The current focus of the AI engine. All liquidity scanners and sentiment nodes are prioritized for this specific trading pair."
-                                data-hint-ar="الأصل كوانتوم الرئيسي: التركيز الحالي لمحرك الذكاء الاصطناعي. يتم إعطاء الأولوية لجميع أجهزة فحص السيولة وعقد المشاعر لزوج التداول المحدد هذا.">
-                                <span data-en="Primary Asset" data-ar="الأصل الاستراتيجي">Primary Asset</span> /
-                                <span id="symbol-display"
-                                    class="text-blue-400 cursor-pointer hover:text-blue-300 transition-colors"
-                                    title="Click to Change">BTCUSDT</span>
+        <!-- RIGHT: PORTFOLIO & TRACKING -->
+        <div class="lg:col-span-3 space-y-6">
+            <!-- WALLET ALLOCATION -->
+            <div class="prime-panel">
+                <div class="panel-header" data-en="Asset Allocation" data-ar="توزيع الأصول"
+                    data-hint-en="Visual breakdown of currently held assets and their relative weight in your portfolio."
+                    data-hint-ar="تحليل مرئي للأصول المحتفظ بها حالياً ووزنها النسبي في محفظتك الاستثمارية.">Asset
+                    Allocation</div>
+                <div id="portfolio-list" class="space-y-4"></div>
+            </div>
+
+            <!-- WHALE TRACKER HIGH-PRECISION -->
+            <div class="prime-panel h-[300px] flex flex-col">
+                <div class="panel-header" data-en="Institutional Flow" data-ar="تدفق السيولة المؤسسية"
+                    data-hint-en="Tracks large-scale movements by institutional wallets and crypto whales to detect smart money trends."
+                    data-hint-ar="يتتبع التحركات الكبيرة للمحافظ المؤسسية وحيتان الكريبتو للكشف عن توجهات الأموال الذكية.">
+                    Institutional
+                    Flow</div>
+                <div id="whale-list" class="space-y-3 flex-1 overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- NEW: CONSOLIDATED SHADOW INTELLIGENCE -->
+            <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#111827] border-purple-500/30">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping"></div>
+                        <p class="text-[10px] font-black text-purple-400 uppercase tracking-widest"
+                            data-en="SHADOW PROTOCOL ACTIVE" data-ar="بروتوكول الظل نشط"
+                            data-hint-en="Advanced tracking of elite institutional wallets to mirror their high-conviction entries."
+                            data-hint-ar="تتبع متقدم لمحفظة النخبة المؤسسية لمحاكاة دخولهم القوي في الصفقات ذات الثقة العالية.">
+                            SHADOW PROTOCOL ACTIVE</p>
+                    </div>
+                    <span
+                        class="px-2 py-0.5 bg-purple-500/10 text-purple-400 text-[8px] font-black rounded border border-purple-500/20 uppercase">Core
+                        Intel</span>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Shadow Leads Section -->
+                    <div>
+                        <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"
+                            data-hint-en="Direct tracking of 'Smart Money' addresses to identify institutional positioning before it hits public exchanges."
+                            data-hint-ar="تتبع مباشر لعناوين 'الأموال الذكية' لتحديد المراكز المؤسسية قبل وصولها إلى المنصات العامة.">
+                            <span class="w-1 h-[1px] bg-slate-800 flex-1"></span>
+                            Institutional Shadow Leads
+                            <span class="w-1 h-[1px] bg-slate-800 flex-1"></span>
+                        </p>
+                        <div id="alpha-leads" class="space-y-2">
+                            <p class="text-[10px] text-center text-slate-600 italic">No institutional leads detected...
                             </p>
-                            <h2 id="price" class="text-4xl font-mono font-medium text-white tracking-tight">$0.00</h2>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1"
-                                data-en="Model Confidence" data-ar="ثقة النموذج">Model Confidence</p>
-                            <h3 id="ai-conf" class="text-2xl font-mono font-medium text-blue-400">0.0%</h3>
                         </div>
                     </div>
 
-                    <div class="flex-1 w-full"><canvas id="mainChart"></canvas></div>
-
-                    <!-- Authorization Panel -->
-                    <div id="signal-pnl"
-                        class="absolute bottom-6 left-6 right-6 p-5 bg-[#172033] border border-blue-500/30 rounded-lg hidden shadow-2xl backdrop-blur-md">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <p
-                                    class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1 flex items-center gap-2">
-                                    <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-ping"></span>
-                                    <span data-en="Action Required" data-ar="إجراء مطلوب">Action Required</span>
-                                </p>
-                                <p id="prediction-text" class="text-sm font-semibold text-white">Pending AI
-                                    Confirmation...</p>
+                    <!-- Order Flow Analytics Section -->
+                    <div class="bg-indigo-900/5 p-4 rounded-xl border border-indigo-500/10">
+                        <p class="text-[9px] font-bold text-cyan-400 uppercase tracking-widest mb-3 flex items-center gap-2"
+                            data-hint-en="Direct analysis of the exchange order book to detect buying/selling pressure and liquidity voids."
+                            data-hint-ar="تحليل مباشر لدفتر طلبات المنصة للكشف عن ضغط الشراء/البيع وفجوات السيولة السعرية.">
+                            📊 Order Flow Intel
+                        </p>
+                        <div id="flow-data" class="space-y-2.5">
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">Pressure</span>
+                                <span id="flow-pressure" class="text-sm font-mono text-cyan-400">0%</span>
                             </div>
-                            <div class="flex items-center gap-4">
-                                <button id="dismiss-btn" class="hidden text-[9px] text-slate-500 hover:text-white uppercase font-bold tracking-widest px-3 py-2 bg-white/5 rounded border border-transparent hover:border-white/10 transition-all">Prune Track</button>
-                                <button id="main-action-btn" onclick="executeManual()"
-                                    class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg"
-                                    data-en="AUTHORIZE ORDER" data-ar="تفويض الأمر">AUTHORIZE ORDER</button>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">Bias</span>
+                                <span id="flow-bias"
+                                    class="text-[10px] font-bold text-white px-2 py-0.5 bg-slate-700 rounded">NEUTRAL</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">Spread</span>
+                                <span id="flow-spread" class="text-[10px] font-mono text-slate-300">0%</span>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- SYSTEM LOGS -->
-                <div class="prime-panel bg-[#06080c] border-[#1f2937]">
-                    <div class="panel-header text-[10px] border-none mb-2" data-en="Terminal Output Log"
-                        data-ar="سجل عمليات المحطة"
-                        data-hint-en="Real-time terminal feed showing raw system operations, API calls, and neural events."
-                        data-hint-ar="تغذية فورية تعرض العمليات التقنية، استدعاءات الـ API، وأحداث المحرك العصبي.">Terminal Output Log</div>
-                    <div id="logs" class="mono text-[11px] text-slate-400 h-[100px] overflow-y-auto space-y-1"></div>
-                </div>
-
-                <!-- ARBITRAGE & REVENUE STREAMS -->
-                <div class="grid grid-cols-2 gap-4">
-                    <!-- Arbitrage Scanner -->
-                    <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0f1a12] border-emerald-500/20">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="text-emerald-400 text-sm">🔺</span>
-                            <p class="text-[10px] font-black text-emerald-400 uppercase tracking-widest" data-en="ARBITRAGE SCANNER" data-ar="ماسح المراجحة"
-                                data-hint-en="Scans for price discrepancies across multiple pairs (Triangular Arbitrage) to secure risk-free profits."
-                                data-hint-ar="يبحث عن فروقات الأسعار بين أزواج العملات المختلفة (المراجحة المثلثية) لتحقيق أرباح خالية من المخاطر.">ARBITRAGE SCANNER</p>
-                        </div>
-                        <div id="arb-results" class="space-y-2">
-                            <p class="text-[10px] text-center text-slate-600 italic">Scanning triangular routes...</p>
-                        </div>
-                    </div>
-
-                    <!-- REVENUE STREAMS -->
-                    <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#1a1b10] border-emerald-500/20">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="text-emerald-400 text-sm">💰</span>
-                            <p class="text-[10px] font-black text-emerald-400 uppercase tracking-widest" data-en="REVENUE STREAMS" data-ar="مصادر الدخل"
-                                data-hint-en="Monitors secondary income sources including Yield Farming, Listing Sniping, and Funding Rate Arbitrage."
-                                data-hint-ar="يراقب مصادر الدخل الثانوية مثل زراعة العوائد، قنص الإدراجات الجديدة، ومراجحة رسوم التمويل.">REVENUE STREAMS</p>
+                    <!-- Crash & Hedge Protection Section -->
+                    <div class="bg-red-900/5 p-4 rounded-xl border border-red-500/10">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-[9px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-2"
+                                data-hint-en="Emergency shield that evaluates market stability and activates automatic hedging at signs of a crash."
+                                data-hint-ar="درع الطوارئ الذي يقيم استقرار السوق ويفعل التحقق الآلي للتحوط عند ظهور بوادر الانهيار.">
+                                🛡️ Crash Shield
+                            </p>
+                            <div id="hedge-indicator" class="w-2 h-2 bg-green-500 rounded-full"></div>
                         </div>
                         <div class="space-y-3">
-                            <div class="flex justify-between items-center bg-white/5 p-2 rounded">
-                                <div>
-                                    <p class="text-[8px] text-slate-500 font-bold uppercase">Yield Farming</p>
-                                    <p id="yield-status" class="text-[10px] text-emerald-400 font-bold">IDLE</p>
-                                </div>
-                                <span id="yield-amt" class="text-[10px] font-mono text-white">$0.00</span>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">Crash Risk</span>
+                                <span id="crash-risk" class="text-sm font-mono font-bold text-green-400">0%</span>
                             </div>
-                            <div class="flex justify-between items-center bg-white/5 p-2 rounded">
-                                <div>
-                                    <p class="text-[8px] text-slate-500 font-bold uppercase">Listing Sniper</p>
-                                    <p id="sniper-status" class="text-[10px] text-blue-400 font-bold">WATCHING</p>
-                                </div>
-                                <span id="sniper-hits" class="text-[10px] font-mono text-white">0 Hits</span>
+                            <div class="w-full bg-[#1f2937] h-1 rounded-full overflow-hidden">
+                                <div id="crash-bar" class="h-full bg-green-500 transition-all duration-1000"
+                                    style="width: 0%"></div>
                             </div>
-                            <div class="flex justify-between items-center bg-white/5 p-2 rounded">
-                                <div>
-                                    <p class="text-[8px] text-slate-500 font-bold uppercase">Funding Arb</p>
-                                    <p id="funding-status" class="text-[10px] text-amber-400 font-bold">SCANNING</p>
-                                </div>
-                                <span id="funding-amt" class="text-[10px] font-mono text-white">$0.00</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- RIGHT: PORTFOLIO & TRACKING -->
-            <div class="lg:col-span-3 space-y-6">
-                <!-- WALLET ALLOCATION -->
-                <div class="prime-panel">
-                    <div class="panel-header" data-en="Asset Allocation" data-ar="توزيع الأصول"
-                        data-hint-en="Visual breakdown of currently held assets and their relative weight in your portfolio."
-                        data-hint-ar="تحليل مرئي للأصول المحتفظ بها حالياً ووزنها النسبي في محفظتك الاستثمارية.">Asset Allocation</div>
-                    <div id="portfolio-list" class="space-y-4"></div>
-                </div>
-
-                <!-- WHALE TRACKER HIGH-PRECISION -->
-                <div class="prime-panel h-[300px] flex flex-col">
-                    <div class="panel-header" data-en="Institutional Flow" data-ar="تدفق السيولة المؤسسية"
-                        data-hint-en="Tracks large-scale movements by institutional wallets and crypto whales to detect smart money trends."
-                        data-hint-ar="يتتبع التحركات الكبيرة للمحافظ المؤسسية وحيتان الكريبتو للكشف عن توجهات الأموال الذكية.">Institutional
-                        Flow</div>
-                    <div id="whale-list" class="space-y-3 flex-1 overflow-y-auto pr-1"></div>
-                </div>
-
-                <!-- NEW: CONSOLIDATED SHADOW INTELLIGENCE -->
-                <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#111827] border-purple-500/30">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center gap-2">
-                            <div class="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping"></div>
-                            <p class="text-[10px] font-black text-purple-400 uppercase tracking-widest" data-en="SHADOW PROTOCOL ACTIVE" data-ar="بروتوكول الظل نشط"
-                                data-hint-en="Advanced tracking of elite institutional wallets to mirror their high-conviction entries."
-                                data-hint-ar="تتبع متقدم لمحفظة النخبة المؤسسية لمحاكاة دخولهم القوي في الصفقات ذات الثقة العالية.">SHADOW PROTOCOL ACTIVE</p>
-                        </div>
-                        <span class="px-2 py-0.5 bg-purple-500/10 text-purple-400 text-[8px] font-black rounded border border-purple-500/20 uppercase">Core Intel</span>
-                    </div>
-
-                    <div class="space-y-6">
-                        <!-- Shadow Leads Section -->
-                        <div>
-                            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"
-                                data-hint-en="Direct tracking of 'Smart Money' addresses to identify institutional positioning before it hits public exchanges."
-                                data-hint-ar="تتبع مباشر لعناوين 'الأموال الذكية' لتحديد المراكز المؤسسية قبل وصولها إلى المنصات العامة.">
-                                <span class="w-1 h-[1px] bg-slate-800 flex-1"></span>
-                                Institutional Shadow Leads
-                                <span class="w-1 h-[1px] bg-slate-800 flex-1"></span>
-                            </p>
-                            <div id="alpha-leads" class="space-y-2">
-                                <p class="text-[10px] text-center text-slate-600 italic">No institutional leads detected...</p>
-                            </div>
-                        </div>
-
-                        <!-- Order Flow Analytics Section -->
-                        <div class="bg-indigo-900/5 p-4 rounded-xl border border-indigo-500/10">
-                            <p class="text-[9px] font-bold text-cyan-400 uppercase tracking-widest mb-3 flex items-center gap-2"
-                                data-hint-en="Direct analysis of the exchange order book to detect buying/selling pressure and liquidity voids."
-                                data-hint-ar="تحليل مباشر لدفتر طلبات المنصة للكشف عن ضغط الشراء/البيع وفجوات السيولة السعرية.">
-                                📊 Order Flow Intel
-                            </p>
-                            <div id="flow-data" class="space-y-2.5">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Pressure</span>
-                                    <span id="flow-pressure" class="text-sm font-mono text-cyan-400">0%</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Bias</span>
-                                    <span id="flow-bias" class="text-[10px] font-bold text-white px-2 py-0.5 bg-slate-700 rounded">NEUTRAL</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Spread</span>
-                                    <span id="flow-spread" class="text-[10px] font-mono text-slate-300">0%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Crash & Hedge Protection Section -->
-                        <div class="bg-red-900/5 p-4 rounded-xl border border-red-500/10">
-                            <div class="flex items-center justify-between mb-3">
-                                <p class="text-[9px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-2"
-                                    data-hint-en="Emergency shield that evaluates market stability and activates automatic hedging at signs of a crash."
-                                    data-hint-ar="درع الطوارئ الذي يقيم استقرار السوق ويفعل التحقق الآلي للتحوط عند ظهور بوادر الانهيار.">
-                                    🛡️ Crash Shield
-                                </p>
-                                <div id="hedge-indicator" class="w-2 h-2 bg-green-500 rounded-full"></div>
-                            </div>
-                            <div class="space-y-3">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Crash Risk</span>
-                                    <span id="crash-risk" class="text-sm font-mono font-bold text-green-400">0%</span>
-                                </div>
-                                <div class="w-full bg-[#1f2937] h-1 rounded-full overflow-hidden">
-                                    <div id="crash-bar" class="h-full bg-green-500 transition-all duration-1000" style="width: 0%"></div>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[10px] text-slate-400 font-bold uppercase">Hedge Mode</span>
-                                    <span id="hedge-status" class="text-[9px] font-bold text-green-400 px-2 py-0.5 bg-green-500/10 rounded">STANDBY</span>
-                                </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">Hedge Mode</span>
+                                <span id="hedge-status"
+                                    class="text-[9px] font-bold text-green-400 px-2 py-0.5 bg-green-500/10 rounded">STANDBY</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- FOOTER BRANDING -->
-        <div class="text-center mt-12 mb-6 border-t border-white/5 pt-6">
-            <p class="text-[9px] font-mono text-slate-500 uppercase tracking-[0.2em]"
-                data-en="ENGINE DEVELOPED BY NASRO &times; SYSTEM ARCHITECTURE BY PROSOFT AI"
-                data-ar="تم تطوير المحرك الذكي بواسطة NASRO &times; المعمارية من PROSOFT">
-                ENGINE DEVELOPED BY <span class="text-white font-bold">NASRO</span> &nbsp;&times;&nbsp; SYSTEM
-                ARCHITECTURE BY <span class="text-blue-500 font-bold">PROSOFT AI</span>
-            </p>
-        </div>
+    <!-- FOOTER BRANDING -->
+    <div class="text-center mt-12 mb-6 border-t border-white/5 pt-6">
+        <p class="text-[9px] font-mono text-slate-500 uppercase tracking-[0.2em]"
+            data-en="ENGINE DEVELOPED BY NASRO &times; SYSTEM ARCHITECTURE BY PROSOFT AI"
+            data-ar="تم تطوير المحرك الذكي بواسطة NASRO &times; المعمارية من PROSOFT">
+            ENGINE DEVELOPED BY <span class="text-white font-bold">NASRO</span> &nbsp;&times;&nbsp; SYSTEM
+            ARCHITECTURE BY <span class="text-blue-500 font-bold">PROSOFT AI</span>
+        </p>
+    </div>
     </div>
 
     <!-- OFFICIAL PROTOCOLS MODAL -->
@@ -845,7 +884,8 @@
                     <h2 class="text-lg font-bold text-white uppercase tracking-widest"
                         data-en="Security & Gateway Protocols" data-ar="بروتوكولات الأمان والمنافذ"
                         data-hint-en="Central authorization hub for managing API keys, safety limits, and execution modes."
-                        data-hint-ar="مركز التفويض المركزي لإدارة مفاتيح الـ API، حدود الأمان، وأوضاع التنفيذ.">Security & Gateway
+                        data-hint-ar="مركز التفويض المركزي لإدارة مفاتيح الـ API، حدود الأمان، وأوضاع التنفيذ.">Security
+                        & Gateway
                         Protocols</h2>
                     <p class="text-xs text-slate-500 mt-1" data-en="Configure API endpoints and AI behavior logic."
                         data-ar="تهيئة نقاط التوصيل ومنطق الذكاء الاصطناعي.">Configure API endpoints and AI behavior
@@ -926,7 +966,8 @@
 
             <!-- GEMINI AI KEY -->
             <div class="p-8 pt-4 pb-4">
-                <label class="official-label" data-en="Gemini AI Engine Cluster (Google)" data-ar="مجمع محركات Gemini AI (جوجل)">Gemini
+                <label class="official-label" data-en="Gemini AI Engine Cluster (Google)"
+                    data-ar="مجمع محركات Gemini AI (جوجل)">Gemini
                     AI Engine Cluster</label>
                 <div class="flex items-center gap-4 mt-2">
                     <input type="password" id="input-gemini-key" placeholder="API Key 1, API Key 2, ..."
@@ -941,7 +982,8 @@
                 </div>
                 <p class="text-[8px] text-slate-600 mt-1"
                     data-en="Add multiple keys separated by COMMA (,) for 24/7 continuous intelligence failover."
-                    data-ar="أضف عدة مفاتيح مفصلة بفاصلة (,) لضمان استمرارية الذكاء الاصطناعي على مدار 24 ساعة.">Add multiple keys separated by COMMA (,) for 24/7 continuous intelligence failover.</p>
+                    data-ar="أضف عدة مفاتيح مفصلة بفاصلة (,) لضمان استمرارية الذكاء الاصطناعي على مدار 24 ساعة.">Add
+                    multiple keys separated by COMMA (,) for 24/7 continuous intelligence failover.</p>
             </div>
 
             <hr class="border-[#1f2937]">
@@ -986,7 +1028,8 @@
                         for AI error correction and pattern matching.</p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <button onclick="triggerWipeDatabase()" class="bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold px-3 py-1.5 rounded border border-red-500/20 transition-all flex items-center gap-1">
+                    <button onclick="triggerWipeDatabase()"
+                        class="bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold px-3 py-1.5 rounded border border-red-500/20 transition-all flex items-center gap-1">
                         🗑️ <span data-en="FULL RESET" data-ar="تصفير السجل المحفوظ">FULL RESET</span>
                     </button>
                     <button id="close-memory"
@@ -997,8 +1040,12 @@
 
             <!-- Modal Tabs -->
             <div class="px-6 border-b border-purple-900/30 flex gap-6">
-                <button id="tab-memory" class="py-3 text-[10px] uppercase font-bold tracking-widest text-purple-400 border-b-2 border-purple-500 transition-all" onclick="switchMemoryTab('memory')">🧠 Experience Memory</button>
-                <button id="tab-revenue" class="py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all" onclick="switchMemoryTab('revenue')">💰 Revenue Intelligence</button>
+                <button id="tab-memory"
+                    class="py-3 text-[10px] uppercase font-bold tracking-widest text-purple-400 border-b-2 border-purple-500 transition-all"
+                    onclick="switchMemoryTab('memory')">🧠 Experience Memory</button>
+                <button id="tab-revenue"
+                    class="py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all"
+                    onclick="switchMemoryTab('revenue')">💰 Revenue Intelligence</button>
             </div>
 
             <!-- Modal Body (Trade Memory) -->
@@ -1302,9 +1349,9 @@
 
         // Memory Modal
         const memoryModal = document.getElementById('memory-modal');
-        document.getElementById('memory-btn').addEventListener('click', () => { 
-            memoryModal.classList.remove('hidden'); 
-            updateMemory(); 
+        document.getElementById('memory-btn').addEventListener('click', () => {
+            memoryModal.classList.remove('hidden');
+            updateMemory();
             updateRevenue();
         });
         document.getElementById('close-memory').addEventListener('click', () => memoryModal.classList.add('hidden'));
@@ -1405,10 +1452,10 @@
         // Update Routine
         // Function to remove a trade from manual tracking without selling
         async function pruneTrack(symbol) {
-            const confirmMsg = currentLang === 'en' 
+            const confirmMsg = currentLang === 'en'
                 ? `Are you sure you want to stop tracking ${symbol}? This will NOT sell your asset, only remove it from the dashboard.`
                 : `هل أنت متأكد أنك تريد التوقف عن تجميد ${symbol}؟ لن يتم بيع العملة، سيتم فقط حذفها من الواجهة.`;
-            
+
             if (!confirm(confirmMsg)) return;
             try {
                 const res = await fetch(`${API_BASE}/maintenance/delete_trade`, {
@@ -1446,11 +1493,19 @@
                 // 2. Global Headers
                 document.getElementById('symbol-display').innerText = data.current_symbol || 'N/A';
                 const curPrice = Number(s.price || 0);
-                document.getElementById('price').innerText = s.price ? `$${curPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}` : '$0.00';
-                document.getElementById('ai-conf').innerText = `${((s.ai_conf !== undefined && s.ai_conf !== null ? s.ai_conf : 0.7) * 100).toFixed(1)}%`;
+                document.getElementById('price').innerText = s.price ? `$${curPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00';
+                
+                // AI Confidence (0-1)
+                const aiC = (s.ai_conf !== undefined && s.ai_conf !== null ? s.ai_conf : 0.0);
+                document.getElementById('ai-conf').innerText = `${(aiC * 100).toFixed(1)}%`;
+                
                 document.getElementById('balance').innerText = `$${Number(s.total_equity || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-                document.getElementById('health-pct').innerText = `${(s.market_health || 80).toFixed(0)}%`;
-                document.getElementById('health-bar').style.width = `${s.market_health || 80}%`;
+                
+                // Market Health (0-100)
+                const mktH = (s.market_health !== undefined && s.market_health !== null ? s.market_health : 0);
+                document.getElementById('health-pct').innerText = `${mktH.toFixed(0)}%`;
+                document.getElementById('health-bar').style.width = `${mktH}%`;
+                
                 document.getElementById('sentiment-val').innerText = (s.sentiment || 'NEUTRAL').toUpperCase();
                 document.getElementById('mode-val').innerText = (s.execution_mode || 'manual').toUpperCase();
 
@@ -1459,7 +1514,7 @@
                 if (s.yield_amount != null) document.getElementById('yield-amt').innerText = `$${Number(s.yield_amount).toFixed(4)}`;
                 if (s.sniper_hits != null) document.getElementById('sniper-hits').innerText = `${s.sniper_hits} Hits`;
                 if (s.funding_amount != null) document.getElementById('funding-amt').innerText = `$${Number(s.funding_amount).toFixed(4)}`;
-                
+
                 // 4. Order Flow Intelligence
                 if (s.order_flow) {
                     document.getElementById('flow-pressure').innerText = `${s.order_flow.pressure_score || 0}%`;
@@ -1472,7 +1527,7 @@
                     const regimeEl = document.getElementById('macro-regime');
                     const fgiEl = document.getElementById('macro-fgi');
                     const riskEl = document.getElementById('macro-risk');
-                    
+
                     if (regimeEl) regimeEl.innerText = (s.macro_state.regime || 'NORMAL').toUpperCase();
                     if (fgiEl) fgiEl.innerText = s.macro_state.fear_greed_index || 50;
                     if (riskEl) {
@@ -1489,7 +1544,7 @@
                     const crashBar = document.getElementById('crash-bar');
                     if (crashBar) crashBar.style.width = `${risk}%`;
                 }
-                
+
                 if (s.hedge_status) {
                     const hStat = document.getElementById('hedge-status');
                     if (hStat) {
@@ -1502,7 +1557,7 @@
                 const aiNodesList = document.getElementById('ai-nodes-list');
                 if (s.ai_cluster && aiNodesList) {
                     document.getElementById('cluster-count').innerText = `${s.ai_cluster.length} NODES`;
-                    
+
                     if (s.ai_cluster.length === 0) {
                         aiNodesList.innerHTML = `<p class="text-[10px] text-slate-500 text-center italic">Initializing AI Nodes...</p>`;
                     } else {
@@ -1511,7 +1566,7 @@
                             let statusText = n.limit_hit ? 'LIMIT HIT' : (n.session_reqs > 0 ? 'ACTIVE' : 'READY');
                             return `
                                 <div class="flex justify-between items-center text-[9px] border-b border-white/5 pb-1">
-                                    <span class="text-slate-400 font-mono">Node ${i+1}: <span class="text-slate-500 ml-1">${n.model || 'gemini'}</span></span>
+                                    <span class="text-slate-400 font-mono">Node ${i + 1}: <span class="text-slate-500 ml-1">${n.model || 'gemini'}</span></span>
                                     <span class="font-bold ${statusColor}">${statusText}</span>
                                 </div>
                             `;
@@ -1532,7 +1587,7 @@
                             const currP = Number(t.current_price || entryP);
                             const pnlPct = entryP > 0 ? ((currP / entryP - 1) * 100) : 0;
                             const pnlColor = pnlPct >= 0 ? 'text-green-400' : 'text-red-400';
-                            
+
                             return `
                             <div class="bg-[#1f2937]/30 p-2 rounded border border-white/5 hover:border-blue-500/20 transition group">
                                 <div class="flex justify-between items-start mb-1">
@@ -1569,10 +1624,10 @@
                     const t = data.active_trades[0];
                     const entryP = Number(t.entry_price || 0);
                     const tQty = Number(t.qty || 0);
-                    const tPrice = Number(t.current_price || entryP); 
+                    const tPrice = Number(t.current_price || entryP);
                     const pnl = ((tPrice - entryP) * tQty);
                     const pnlPct = entryP > 0 ? ((tPrice / entryP - 1) * 100) : 0;
-                    
+
                     document.getElementById('signal-pnl').classList.remove('hidden');
                     document.getElementById('prediction-text').innerHTML = `
                         <span class="text-blue-400">ACTIVE ${t.side}:</span> ${t.symbol} @ $${entryP.toFixed(entryP < 1 ? 6 : 2)} | 
@@ -1580,16 +1635,16 @@
                         <br><span class="text-[10px] text-slate-500">SL: $${Number(t.sl || 0).toFixed(entryP < 1 ? 6 : 2)} | TP: $${Number(t.tp || 0).toFixed(entryP < 1 ? 6 : 2)}</span>
                     `;
                     const actionBtn = document.getElementById('main-action-btn');
-                    actionBtn.onclick = closeActiveTrade;
+                    actionBtn.onclick = () => closeActiveTrade();
                     actionBtn.className = "bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg";
                     actionBtn.innerText = currentLang === 'en' ? 'STOP TRADE & EXIT' : 'توقيف الصفقة والتحويل';
 
                     const dismissBtn = document.getElementById('dismiss-btn');
                     dismissBtn.classList.remove('hidden');
                     dismissBtn.onclick = () => pruneTrack(t.symbol);
-                } else { 
+                } else {
                     const sigPanel = document.getElementById('signal-pnl');
-                    if (sigPanel) sigPanel.classList.add('hidden'); 
+                    if (sigPanel) sigPanel.classList.add('hidden');
                     document.getElementById('dismiss-btn').classList.add('hidden');
                 }
 
@@ -1616,7 +1671,7 @@
                     const rect = el.getBoundingClientRect();
                     tooltip.style.left = `${rect.left}px`;
                     tooltip.style.top = `${rect.bottom + 10}px`;
-                    
+
                     // Adjust if off-screen
                     if (rect.left + 250 > window.innerWidth) {
                         tooltip.style.left = `${window.innerWidth - 270}px`;
@@ -1678,10 +1733,10 @@
         }
 
         async function triggerOmega() {
-            const confirmMsg = currentLang === 'en' 
+            const confirmMsg = currentLang === 'en'
                 ? "🚨 CRITICAL: Activate PROTOCOL OMEGA? This will close all positions and pause the system. Proceed?"
                 : "🚨 حرج: تفعيل بروتوكول أوميغا؟ سيؤدي هذا إلى إغلاق جميع الصفقات وإيقاف النظام. هل تود المتابعة؟";
-            
+
             if (confirm(confirmMsg)) {
                 try {
                     const res = await fetch(`${API_BASE}/omega`, { method: 'POST' });
@@ -1696,10 +1751,10 @@
         }
 
         async function triggerWipeDatabase() {
-            const confirmMsg = currentLang === 'en' 
-                ? "⚠️ SYSTEM WARNING: This will PERMANENTLY delete all trade and revenue history. This cannot be undone. Proceed?" 
+            const confirmMsg = currentLang === 'en'
+                ? "⚠️ SYSTEM WARNING: This will PERMANENTLY delete all trade and revenue history. This cannot be undone. Proceed?"
                 : "⚠️ تحذير النظام: سيؤدي هذا إلى مسح سجل التداول والأرباح بشكل نهائي. لا يمكن التراجع عن هذه الخطوة. هل تريد المتابعة؟";
-            
+
             if (!confirm(confirmMsg)) return;
 
             try {
@@ -1717,7 +1772,7 @@
         async function deleteRecord(table, id) {
             const confirmMsg = currentLang === 'en' ? "Delete this specific record?" : "هل تريد حذف هذا السجل المحدد؟";
             if (!confirm(confirmMsg)) return;
-            
+
             try {
                 const res = await fetch(`${API_BASE}/maintenance/delete_record`, {
                     method: 'POST',
@@ -1904,13 +1959,13 @@
         }
 
         async function closeActiveTrade(symbol = null) {
-            const confirmMsg = currentLang === 'en' 
+            const confirmMsg = currentLang === 'en'
                 ? `Warning: This will close the ${symbol ? symbol : 'current'} trade and convert assets back to USDT. Continue?`
                 : `تنبيه: سيتم إغلاق صفقة ${symbol ? symbol : 'الحالية'} وتحويل الأصول إلى USDT. هل تريد الاستمرار؟`;
-            
+
             if (!confirm(confirmMsg)) return;
             try {
-                const res = await fetch(`${API_BASE}/close_trade`, { 
+                const res = await fetch(`${API_BASE}/close_trade`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ symbol: symbol })
@@ -2034,9 +2089,9 @@
                 const wrEl = document.getElementById('stat-winrate');
                 wrEl.innerText = `${wr}%`;
                 wrEl.className = `text-lg font-black ${wr < 45 ? 'text-red-400' : wr < 65 ? 'text-yellow-400' : 'text-green-400'}`;
-                
+
                 document.getElementById('stat-avgpnl').innerText = `$${parseFloat(data.avg_pn_l || 0).toFixed(2)}`;
-                
+
                 if (data.history && data.history.length > 0) {
                     const alphaLeads = data.history.filter(h => h.lesson_learned && h.lesson_learned.includes("POSITIVE")).slice(0, 3);
                     if (alphaLeads.length > 0) {
@@ -2058,7 +2113,7 @@
                                 </div>
                                 `;
                             }).join('');
-                            
+
                             // Remove animate-pulse after 2 seconds to make the "change animation" stop
                             setTimeout(() => {
                                 document.querySelectorAll('#alpha-leads > div').forEach(el => el.classList.remove('animate-pulse'));
@@ -2074,17 +2129,17 @@
 
         checkLicensing();
         setInterval(updateStats, 2000);
-        setInterval(updateScanner, 10000); 
+        setInterval(updateScanner, 10000);
         setInterval(updatePortfolio, 30000);
         setInterval(updateAnalytics, 5000);
         updateStats(); updateScanner(); updatePortfolio(); updateAnalytics();
 
 
         window.executeArbitrageManual = async (route, direction) => {
-            const confirmMsg = currentLang === 'en' 
-                ? `System Protocol: Initiating triple-market sequence for ${route} (${direction}) using MAX available USDT. Proceed?` 
+            const confirmMsg = currentLang === 'en'
+                ? `System Protocol: Initiating triple-market sequence for ${route} (${direction}) using MAX available USDT. Proceed?`
                 : `بروتوكول النظام: بدء تسلسل السوق الثلاثي لـ ${route} (${direction}) باستخدام أقصى رصيد USDT متاح. هل تريد المتابعة؟`;
-            
+
             if (!confirm(confirmMsg)) return;
 
             try {
