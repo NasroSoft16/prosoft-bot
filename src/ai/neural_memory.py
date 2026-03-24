@@ -245,6 +245,15 @@ class NeuralMemory:
         except Exception:
             return []
 
+    def get_revenue_history(self, limit=20):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            df = pd.read_sql_query(f"SELECT * FROM revenue_memory ORDER BY id DESC LIMIT {limit}", conn)
+            conn.close()
+            return df.to_dict('records')
+        except Exception:
+            return []
+
     def backup(self, backup_path='data/brain_backup.db'):
         try:
             os.makedirs(os.path.dirname(backup_path), exist_ok=True)

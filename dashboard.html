@@ -1974,6 +1974,8 @@
                 if (data.status === 'success') {
                     alert(currentLang === 'en' ? "EXIT PROTOCOL ENGAGED." : "تم تفعيل بروتوكول الخروج.");
                     updateStats();
+                    updateMemory();
+                    updateAnalytics();
                 } else {
                     alert(data.message);
                 }

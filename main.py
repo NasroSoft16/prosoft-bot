@@ -473,7 +473,9 @@ class TradingBot:
             if qty > 0:
                 order = self.order_manager.place_market_sell(trade['symbol'], qty)
 
-            if order or qty == 0:
+            # ALWAYS proceed to log and remove if qty is 0, if order succeeded, 
+            # or if it's a manual exit (we want it gone from dashboard)
+            if order or qty == 0 or reason == 'Manual Exit' or reason == 'Cleanup':
                 pnl = (exit_price - entry_p) / entry_p if entry_p > 0 else 0.0
                 self.risk_manager.update_performance(pnl)
 
@@ -875,7 +877,7 @@ class TradingBot:
                                 if not asset_name: continue
                                 
                                 val = asset.get('value', 0.0)
-                                if asset_name != 'USDT' and val > 25.0: # Only track significant manual assets > $25
+                                if asset_name != 'USDT' and val > 1.0: # Track everything > $1 for small accounts
                                     symbol = f"{asset_name}USDT"
                                     is_tracked = any(t['symbol'] == symbol for t in self.active_trades)
                                     if not is_tracked:
