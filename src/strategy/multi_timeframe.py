@@ -21,8 +21,10 @@ TIMEFRAMES = {
     '1h':  2,   # ساعة  — وزن 2 (فلتر الاتجاه القريب)
 }
 
-# Minimum weighted agreement needed to issue BUY/SELL (55% for Scalping)
-CONSENSUS_THRESHOLD = 0.55
+import os
+
+# Minimum weighted agreement needed to issue BUY/SELL (configurable via .env, default 55%)
+CONSENSUS_THRESHOLD = float(os.getenv('MTF_CONSENSUS_THRESHOLD', '0.55'))
 # ─────────────────────────────────────────────────────────────────────────────
 
 

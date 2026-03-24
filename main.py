@@ -944,19 +944,27 @@ class TradingBot:
                             
                         if target_signal['signal'] == 'BUY':
                             # ── v14.0: MULTI-TIMEFRAME FILTER ──────────────────────────
-                            try:
-                                mtf_result = self.mtf.get_signal(target_symbol)
-                                self.stats['mtf_signal'] = mtf_result
-                                if mtf_result['decision'] == 'SELL':
-                                    self.add_log(f"📊 [MTF] BUY blocked — higher TF shows SELL ({mtf_result['confidence']:.0f}% confidence). Skipping.")
-                                    target_signal = {'signal': 'WAIT'}
-                                elif mtf_result['decision'] == 'HOLD' and mtf_result['buy_score'] < 40:
-                                    self.add_log(f"📊 [MTF] Weak consensus ({mtf_result['buy_score']:.0f}%). Skipping.")
-                                    target_signal = {'signal': 'WAIT'}
-                                else:
-                                    self.add_log(f"📊 [MTF] ✔ {mtf_result['decision']} confirmed | Confidence: {mtf_result['confidence']:.0f}%")
-                            except Exception as _mtf_e:
-                                self.add_log(f"⚠️ [MTF] Error (proceeding anyway): {_mtf_e}")
+                            import os
+                            mtf_enabled = str(os.getenv('MTF_ENABLED', 'true')).strip().lower() == 'true'
+                            if mtf_enabled:
+                                try:
+                                    mtf_result = self.mtf.get_signal(target_symbol)
+                                    self.stats['mtf_signal'] = mtf_result
+                                    
+                                    threshold_pct = float(os.getenv('MTF_CONSENSUS_THRESHOLD', '0.55')) * 100
+                                    
+                                    if mtf_result['decision'] == 'SELL':
+                                        self.add_log(f"📊 [MTF] BUY blocked — higher TF shows SELL ({mtf_result['confidence']:.0f}% confidence). Skipping.")
+                                        target_signal = {'signal': 'WAIT'}
+                                    elif mtf_result['decision'] == 'HOLD' and mtf_result['buy_score'] < threshold_pct:
+                                        self.add_log(f"📊 [MTF] Weak consensus ({mtf_result['buy_score']:.0f}% < {threshold_pct:.0f}%). Skipping.")
+                                        target_signal = {'signal': 'WAIT'}
+                                    else:
+                                        self.add_log(f"📊 [MTF] ✔ {mtf_result['decision']} confirmed | Confidence: {mtf_result['confidence']:.0f}%")
+                                except Exception as _mtf_e:
+                                    self.add_log(f"⚠️ [MTF] Error (proceeding anyway): {_mtf_e}")
+                            else:
+                                self.add_log(f"📊 [MTF] Bypassed (Disabled in .env/settings). Proceeding to buy validation.")
                             # ────────────────────────────────────────────────────────
 
                         if target_signal['signal'] == 'BUY':
@@ -1135,9 +1143,10 @@ class TradingBot:
                             exit_reason = ""
                             
                             if is_fear_mode:
-                                if pnl_pct > 0.3 and (rsi_decay > 7 or curr_rsi < 50 or time_active_mins > 30):
+                                # ULTRA-AGGRESSIVE SECURE: Snatch tiny profits due to unstable market context
+                                if pnl_pct >= 0.15 and (rsi_decay > 4 or curr_rsi < 55 or time_active_mins > 15):
                                     should_exit = True
-                                    exit_reason = "TIME DECAY SCALP (FEAR MODE)" if time_active_mins > 30 else "PROACTIVE SCALP (FEAR MODE)"
+                                    exit_reason = "TIME DECAY SCALP (FEAR MODE)" if time_active_mins > 15 else "ULTRA-FAST SCALP (FEAR MODE)"
                             else:
                                 # In Normal Mode, be more patient. Allow up to 3 hours (180 mins) or large momentum drop
                                 if pnl_pct > 0.35 and (rsi_decay > 12 or curr_rsi < 45 or time_active_mins > 180):
@@ -1150,10 +1159,10 @@ class TradingBot:
                                 continue
 
                             # 6. INFINITE CHASER (Dual Trailing SL + TP)
-                            # Activate when in 0.5% profit, distance is 0.35% from current
-                            trail_activation = trade['entry_price'] * 1.005
+                            # Activate at 0.25% profit in Fear Mode, 0.5% normally.
+                            trail_activation = trade['entry_price'] * (1.0025 if is_fear_mode else 1.005)
                             if curr_price >= trail_activation:
-                                new_sl = curr_price * 0.9965
+                                new_sl = curr_price * (0.998 if is_fear_mode else 0.9965)
                                 if new_sl > trade['sl']:
                                     sl_bump = new_sl - trade['sl']
                                     trade['sl'] = new_sl
