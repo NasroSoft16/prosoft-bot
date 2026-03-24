@@ -2,46 +2,72 @@ import pandas as pd
 import ta
 from src.utils.logger import app_logger
 
+
 class TechnicalAnalysis:
     @staticmethod
     def calculate_indicators(df):
-        """Calculates indicators for the given dataframe."""
+        """Calculates ALL indicators needed by every strategy module."""
         try:
-            # EMA calculations (20, 50 and 200)
+            # ── Fast EMAs (needed by BaseStrategy, MTF, MicroScalper) ──
+            df['EMA_9']  = ta.trend.ema_indicator(df['close'], window=9)
             df['EMA_20'] = ta.trend.ema_indicator(df['close'], window=20)
             df['EMA_50'] = ta.trend.ema_indicator(df['close'], window=50)
             df['EMA_200'] = ta.trend.ema_indicator(df['close'], window=200)
 
-            # RSI calculation
+            # ── RSI ──
             df['RSI'] = ta.momentum.rsi(df['close'], window=14)
 
-            # MACD calculation
-            df['MACD'] = ta.trend.macd(df['close'])
+            # ── MACD ──
+            df['MACD']        = ta.trend.macd(df['close'])
             df['MACD_SIGNAL'] = ta.trend.macd_signal(df['close'])
-            df['MACD_HIST'] = ta.trend.macd_diff(df['close'])
+            df['MACD_HIST']   = ta.trend.macd_diff(df['close'])
 
-            # ATR calculation for dynamic SL and TP
-            df['ATR'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'], window=14)
+            # ── ATR (dynamic SL / TP) ──
+            df['ATR'] = ta.volatility.average_true_range(
+                df['high'], df['low'], df['close'], window=14
+            )
 
-            # Volume SMA for volume spikes detection
+            # ── Volume ──
             df['VOLUME_SMA'] = df['volume'].rolling(window=20).mean()
 
-            # Distance to EMA for AI feature
+            # ── EMA distance feature (AI model input) ──
             df['DIST_EMA_50'] = (df['close'] - df['EMA_50']) / df['EMA_50']
-            
-            # Smart Fill: Don't drop all rows if history is short.
-            # Fill NaNs with current values or 0s to keep the dataframe size stable
+
+            # ── Bollinger Bands (for volatility squeeze detection) ──
+            bb = ta.volatility.BollingerBands(df['close'], window=20, window_dev=2)
+            df['BB_UPPER'] = bb.bollinger_hband()
+            df['BB_LOWER'] = bb.bollinger_lband()
+            df['BB_WIDTH'] = (df['BB_UPPER'] - df['BB_LOWER']) / df['close']
+
+            # ── Momentum (rate of change) ──
+            df['MOM_10'] = df['close'].pct_change(10) * 100
+
+            # ── Smart fill ──
             df.ffill(inplace=True)
-            df.bfill(inplace=True) # Backfill the remaining 
-            
+            df.bfill(inplace=True)
+
             return df
+
         except Exception as e:
             app_logger.error(f"Error calculating indicators: {e}")
-            return df # Return partially filled instead of None
+            return df
 
     @staticmethod
     def is_volume_spike(df, row_index=-1, multiplier=1.5):
-        """Detects if the volume is a spike compared to the SMA."""
-        current_volume = df['volume'].iloc[row_index]
-        volume_sma = df['VOLUME_SMA'].iloc[row_index]
-        return current_volume > (volume_sma * multiplier)
+        """Detects volume spike vs rolling SMA."""
+        try:
+            current_volume = df['volume'].iloc[row_index]
+            volume_sma     = df['VOLUME_SMA'].iloc[row_index]
+            if volume_sma and volume_sma > 0:
+                return current_volume > (volume_sma * multiplier)
+        except Exception:
+            pass
+        return False
+
+    @staticmethod
+    def is_squeeze(df):
+        """Bollinger Band squeeze = low volatility before explosive move."""
+        try:
+            return df['BB_WIDTH'].iloc[-1] < df['BB_WIDTH'].rolling(20).mean().iloc[-1] * 0.7
+        except Exception:
+            return False

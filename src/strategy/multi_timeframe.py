@@ -1,76 +1,64 @@
 """
-multi_timeframe.py — PROSOFT Multi-Timeframe Analysis Engine
-============================================================
-تحليل 4 أطر زمنية في وقت واحد لتقليل الإشارات الكاذبة.
-الإطار الزمني الأطول يأخذ وزناً أعلى في القرار النهائي.
-
-Usage (from main.py or any module):
-    from src.strategy.multi_timeframe import MultiTimeframeAnalyzer
-    mtf = MultiTimeframeAnalyzer(binance_client_wrapper, technical_analysis)
-    result = mtf.get_signal('BTCUSDT')
-    # result = {'decision': 'BUY'|'SELL'|'HOLD', 'confidence': 70.0, ...}
+multi_timeframe.py — PROSOFT MTF Gate (MANDATORY entry filter)
+==============================================================
+يحلل 4 أطر زمنية بالتوازي ويتطلب توافق ≥55% قبل أي دخول.
+يُستخدم كـ GATE إجبارية في main.py قبل كل إشارة شراء.
 """
 
+import os
 from src.utils.logger import app_logger
 
-# ─── Timeframe weights (longer = more reliable) ───────────────────────────────
+# ── Weights (shorter = noisier, less weight) ──────────────────────────────────
 TIMEFRAMES = {
-    '1m':  1,   # دقيقة  — وزن 1 (زخم لحظي)
-    '5m':  3,   # 5 دقائق — وزن 3 (الأصل الجديد)
-    '15m': 2,   # ربع ساعة — وزن 2 (تأكيد متوسط)
-    '1h':  2,   # ساعة  — وزن 2 (فلتر الاتجاه القريب)
+    '1m':  1,
+    '5m':  3,
+    '15m': 2,
+    '1h':  2,
 }
 
-import os
-
-# Minimum weighted agreement needed to issue BUY/SELL (configurable via .env, default 55%)
 CONSENSUS_THRESHOLD = float(os.getenv('MTF_CONSENSUS_THRESHOLD', '0.55'))
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 class MultiTimeframeAnalyzer:
     """
-    Analyses multiple timeframes and returns a weighted consensus signal.
-    Plugs into the existing PROSOFT architecture via BinanceClientWrapper
-    and TechnicalAnalysis.
+    Mandatory entry gate. Call `get_signal()` before every trade entry.
+    Returns decision=BUY only when weighted consensus ≥ CONSENSUS_THRESHOLD.
     """
 
     def __init__(self, api, ta):
-        """
-        Parameters
-        ----------
-        api : BinanceClientWrapper   — existing Binance API wrapper
-        ta  : TechnicalAnalysis      — existing indicator calculator
-        """
         self.api = api
         self.ta  = ta
 
-    # ── Private helpers ───────────────────────────────────────────────────────
+    # ── Private ───────────────────────────────────────────────────────────────
 
     def _analyze_one(self, symbol: str, timeframe: str) -> dict:
-        """
-        Fetch candles for one timeframe, compute indicators,
-        and classify the signal as BUY / SELL / NEUTRAL.
-        """
         try:
             df = self.api.get_historical_klines(symbol, timeframe, limit=200)
             if df is None or df.empty or len(df) < 30:
-                return {'timeframe': timeframe, 'signal': 'NEUTRAL', 'rsi': 50.0, 'error': True}
+                return {'timeframe': timeframe, 'signal': 'NEUTRAL',
+                        'rsi': 50.0, 'error': True}
 
-            df = self.ta.calculate_indicators(df)
+            df   = self.ta.calculate_indicators(df)
             curr = df.iloc[-1]
 
             rsi       = float(curr.get('RSI',       50.0))
-            ema_fast  = float(curr.get('EMA_9',     curr.get('EMA_50',  0)))
+            ema_fast  = float(curr.get('EMA_20',    curr.get('EMA_50',  0)))
             ema_slow  = float(curr.get('EMA_50',    curr.get('EMA_200', 0)))
             macd_hist = float(curr.get('MACD_HIST', 0.0))
+            close     = float(curr['close'])
 
-            # ── Signal logic ─────────────────────────────────────────────────
+            # ── Signal classification ────────────────────────────────────
             signal = 'NEUTRAL'
-            if rsi < 38 and ema_fast > ema_slow and macd_hist > 0:
-                signal = 'BUY'   # oversold + bullish trend momentum
+
+            if rsi < 38 and ema_fast >= ema_slow and macd_hist > 0:
+                signal = 'BUY'      # oversold + bullish trend
             elif rsi > 62 and ema_fast < ema_slow and macd_hist < 0:
-                signal = 'SELL'  # overbought + bearish trend momentum
+                signal = 'SELL'     # overbought + bearish trend
+            elif 45 <= rsi <= 62 and close > ema_fast > ema_slow and macd_hist > 0:
+                signal = 'BUY'      # trend-ride zone
+            elif 38 <= rsi < 45 and macd_hist > 0 and close > ema_fast:
+                signal = 'BUY'      # recovering from dip
 
             return {
                 'timeframe': timeframe,
@@ -78,71 +66,101 @@ class MultiTimeframeAnalyzer:
                 'rsi':       round(rsi, 1),
                 'ema_fast':  round(ema_fast, 6),
                 'ema_slow':  round(ema_slow, 6),
-                'macd_hist': round(macd_hist, 6),
-                'error':     False
+                'macd_hist': round(macd_hist, 8),
+                'close':     round(close, 6),
+                'error':     False,
             }
 
         except Exception as e:
             app_logger.warning(f"[MTF] Error on {timeframe}: {e}")
-            return {'timeframe': timeframe, 'signal': 'NEUTRAL', 'rsi': 50.0, 'error': True}
+            return {'timeframe': timeframe, 'signal': 'NEUTRAL',
+                    'rsi': 50.0, 'error': True}
 
     # ── Public API ────────────────────────────────────────────────────────────
 
     def get_signal(self, symbol: str) -> dict:
         """
-        Analyse all configured timeframes and return a weighted consensus.
+        Analyse all timeframes and return weighted consensus.
 
         Returns
         -------
-        dict with keys:
+        {
             decision   : 'BUY' | 'SELL' | 'HOLD'
-            confidence : float 0–100 (weighted agreement percentage)
+            confidence : float 0–100
             buy_score  : float 0–100
             sell_score : float 0–100
-            details    : dict  {timeframe → analysis dict}
+            details    : {timeframe: analysis_dict}
+            veto       : bool  (True = do NOT enter trade)
+        }
         """
-        app_logger.info(f"[MTF] Analysing {symbol} across {len(TIMEFRAMES)} timeframes...")
+        app_logger.info(f"[MTF] Scanning {symbol} across {len(TIMEFRAMES)} timeframes...")
 
         details     = {}
         buy_weight  = 0
         sell_weight = 0
-        total_weight = sum(TIMEFRAMES.values())
+        total_w     = 0
 
         for tf, weight in TIMEFRAMES.items():
             result = self._analyze_one(symbol, tf)
             details[tf] = result
-
+            total_w    += weight
             if result['signal'] == 'BUY':
-                buy_weight += weight
+                buy_weight  += weight
             elif result['signal'] == 'SELL':
                 sell_weight += weight
 
-            app_logger.info(
-                f"[MTF]  [{tf}] {result['signal']} | RSI={result['rsi']}"
-            )
+        buy_score  = (buy_weight  / total_w) * 100 if total_w else 0
+        sell_score = (sell_weight / total_w) * 100 if total_w else 0
 
-        buy_pct  = buy_weight  / total_weight
-        sell_pct = sell_weight / total_weight
+        buy_ratio  = buy_weight  / total_w if total_w else 0
+        sell_ratio = sell_weight / total_w if total_w else 0
 
-        if buy_pct >= CONSENSUS_THRESHOLD:
+        if buy_ratio >= CONSENSUS_THRESHOLD:
             decision   = 'BUY'
-            confidence = round(buy_pct  * 100, 1)
-        elif sell_pct >= CONSENSUS_THRESHOLD:
+            confidence = buy_score
+            veto       = False
+        elif sell_ratio >= CONSENSUS_THRESHOLD:
             decision   = 'SELL'
-            confidence = round(sell_pct * 100, 1)
+            confidence = sell_score
+            veto       = True   # no long entry when trend is down
         else:
             decision   = 'HOLD'
-            confidence = round((1.0 - max(buy_pct, sell_pct)) * 100, 1)
+            confidence = max(buy_score, sell_score)
+            veto       = True   # mixed signals = no trade
 
+        log_parts = [f"{tf}:{d['signal']}({d['rsi']:.0f})" for tf, d in details.items()]
         app_logger.info(
-            f"[MTF] ▶ Decision: {decision} | Confidence: {confidence}% "
-            f"(BUY {buy_pct*100:.0f}% vs SELL {sell_pct*100:.0f}%)"
+            f"[MTF] {symbol} → {decision} ({confidence:.0f}%) | "
+            + " | ".join(log_parts)
         )
 
         return {
             'decision':   decision,
-            'confidence': confidence,
-            'buy_score':  round(buy_pct  * 100, 1),
-            'sell_score': round(sell_pct * 100, 1),
-            'details':    details
+            'confidence': round(confidence, 1),
+            'buy_score':  round(buy_score, 1),
+            'sell_score': round(sell_score, 1),
+            'details':    details,
+            'veto':       veto,
         }
+
+    def is_entry_allowed(self, symbol: str) -> tuple:
+        """
+        Convenience gate for main.py:
+            allowed, reason = mtf.is_entry_allowed('BTCUSDT')
+            if not allowed: return
+
+        Returns (True, '') or (False, reason_string).
+        """
+        if os.getenv('MTF_ENABLED', 'true').lower() == 'false':
+            return True, "MTF DISABLED by .env bypass"
+
+        result = self.get_signal(symbol)
+
+        if result['veto']:
+            reason = (
+                f"MTF VETO: {result['decision']} "
+                f"(buy={result['buy_score']:.0f}% sell={result['sell_score']:.0f}%)"
+            )
+            return False, reason
+
+        return True, f"MTF OK: {result['confidence']:.0f}% consensus BUY"
