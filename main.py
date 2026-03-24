@@ -302,7 +302,8 @@ class TradingBot:
         Execute a BUY with full risk management wiring.
         """
         balance = self.api.get_account_balance('USDT')
-        if balance < 10.5:
+        # Optimized for small accounts: Binance min is usually $5
+        if balance < 5.5:
             self.add_log(f"⚠️ Balance too low: ${balance:.2f}")
             return None
 
@@ -503,6 +504,10 @@ class TradingBot:
         Gate: short timeframe + healthy market + scalper not on cooldown.
         """
         if not hasattr(self, 'micro_scalper'):
+            return
+
+        # NEW: Global switch for scalper
+        if os.getenv('SCALPER_ENABLED', 'true').lower() != 'true':
             return
 
         if not self.micro_scalper.should_be_active(market_health, self.timeframe):
@@ -1463,9 +1468,10 @@ class TradingBot:
         except Exception as e:
             self.add_log(f"Briefing Error: {e}")
 
-    async def close_trade(self, side, price, reason):
+    async def close_trade(self, side, price, reason, symbol=None):
         if self.active_trades:
-            await self.close_trade_by_symbol(self.symbol, side, price, reason)
+            target_symbol = symbol if symbol else self.active_trades[0]['symbol']
+            await self.close_trade_by_symbol(target_symbol, side, price, reason)
 
     async def sync_from_binance(self):
         try:

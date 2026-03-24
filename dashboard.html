@@ -508,6 +508,18 @@
 
             <!-- LEFT: MARKET INTELLIGENCE -->
             <div class="lg:col-span-3 space-y-6">
+                <!-- ACTIVE POSITIONS (Crucial for Multi-Trade Visibility) -->
+                <div class="prime-panel h-[300px] flex flex-col border-blue-500/30">
+                    <div class="panel-header" data-hint-en="Real-time monitoring of all active trades across international markets."
+                        data-hint-ar="مراقبة فورية لجميع الصفقات النشطة عبر الأسواق الدولية.">
+                        <span data-en="Active Positions" data-ar="المراكز المفتوحة">Active Positions</span>
+                        <div id="active-count-badge" class="px-1.5 py-0.5 bg-blue-500 text-white text-[9px] font-bold rounded">0</div>
+                    </div>
+                    <div id="active-trades-list" class="space-y-2 flex-1 overflow-y-auto pr-1">
+                        <p class="text-[10px] text-slate-500 text-center mt-4 italic">No active positions.</p>
+                    </div>
+                </div>
+
                 <!-- AI SUGGESTIONS -->
                 <div class="prime-panel h-[340px] flex flex-col">
                     <div class="panel-header" data-hint-en="Scans the entire exchange for high-probability setups and relative arbitrage gaps."
@@ -1470,6 +1482,44 @@
                     document.getElementById('cluster-count').innerText = `${s.ai_cluster.length} NODES`;
                 }
 
+                // Update Active Positions List
+                const activeTradesList = document.getElementById('active-trades-list');
+                const activeCountBadge = document.getElementById('active-count-badge');
+                if (data.active_trades && activeTradesList) {
+                    activeCountBadge.innerText = data.active_trades.length;
+                    if (data.active_trades.length === 0) {
+                        activeTradesList.innerHTML = `<p class="text-[10px] text-slate-500 text-center mt-4 italic">No active positions.</p>`;
+                    } else {
+                        renderList('active-trades-list', data.active_trades, t => {
+                            const entryP = Number(t.entry_price || 0);
+                            const currP = Number(t.current_price || entryP);
+                            const pnlPct = entryP > 0 ? ((currP / entryP - 1) * 100) : 0;
+                            const pnlColor = pnlPct >= 0 ? 'text-green-400' : 'text-red-400';
+                            
+                            return `
+                            <div class="bg-[#1f2937]/30 p-2 rounded border border-white/5 hover:border-blue-500/20 transition group">
+                                <div class="flex justify-between items-start mb-1">
+                                    <div>
+                                        <span class="text-[11px] font-black text-white">${t.symbol}</span>
+                                        <span class="text-[9px] px-1 bg-blue-500/10 text-blue-400 rounded ml-1">${t.side}</span>
+                                    </div>
+                                    <span class="text-[10px] font-mono ${pnlColor} font-bold">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <div class="text-[9px] text-slate-500 font-mono">
+                                        Ent: $${entryP.toFixed(entryP < 1 ? 5 : 2)} | Cur: $${currP.toFixed(currP < 1 ? 5 : 2)}
+                                    </div>
+                                    <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                                        <button onclick="pruneTrack('${t.symbol}')" class="text-[8px] bg-white/5 px-1.5 py-0.5 rounded hover:bg-white/10 text-slate-400" title="Remove from Tracker">PRUNE</button>
+                                        <button onclick="closeActiveTrade('${t.symbol}')" class="text-[8px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded hover:bg-red-500/40 font-bold">CLOSE</button>
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                        });
+                    }
+                }
+
                 if (s.pending_signal) {
                     document.getElementById('signal-pnl').classList.remove('hidden');
                     document.getElementById('prediction-text').innerText = `${s.pending_signal.side.toUpperCase()} CONFIRMED ON ${s.pending_signal.symbol} @ $${s.pending_signal.price}`;
@@ -1815,13 +1865,22 @@
             } catch (e) { }
         }
 
-        async function closeActiveTrade() {
-            if (!confirm(currentLang === 'en' ? "Warning: This will close the current trade and convert assets back to USDT. Continue?" : "تنبيه: سيتم إغلاق الصفقة الحالية وتحويل الأصول إلى USDT. هل تريد الاستمرار؟")) return;
+        async function closeActiveTrade(symbol = null) {
+            const confirmMsg = currentLang === 'en' 
+                ? `Warning: This will close the ${symbol ? symbol : 'current'} trade and convert assets back to USDT. Continue?`
+                : `تنبيه: سيتم إغلاق صفقة ${symbol ? symbol : 'الحالية'} وتحويل الأصول إلى USDT. هل تريد الاستمرار؟`;
+            
+            if (!confirm(confirmMsg)) return;
             try {
-                const res = await fetch(`${API_BASE}/close_trade`, { method: 'POST' });
+                const res = await fetch(`${API_BASE}/close_trade`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: symbol })
+                });
                 const data = await res.json();
                 if (data.status === 'success') {
                     alert(currentLang === 'en' ? "EXIT PROTOCOL ENGAGED." : "تم تفعيل بروتوكول الخروج.");
+                    updateStats();
                 } else {
                     alert(data.message);
                 }

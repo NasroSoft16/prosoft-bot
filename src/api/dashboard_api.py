@@ -356,21 +356,21 @@ class DashboardAPI:
             if not self.bot.active_trades:
                 return jsonify({'status': 'error', 'message': 'No active trade to close.'}), 400
             
-            # Since the dashboard often focuses on one main symbol, we try to close that first
+            data = request.json or {}
+            symbol = data.get('symbol')
+            
             def do_close():
                 try:
-                    # We ensure we're using a fresh loop or the main loop safely
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    # We use the generic wrapper that closes the current focal symbol
-                    # or find the trade for the current symbol.
-                    loop.run_until_complete(self.bot.close_trade('SELL', self.bot.stats.get('price', 0), "MANUAL DASHBOARD"))
+                    # Pass the symbol if provided
+                    loop.run_until_complete(self.bot.close_trade('SELL', self.bot.stats.get('price', 0), "MANUAL DASHBOARD", symbol=symbol))
                     loop.close()
                 except Exception as e:
                     self.bot.add_log(f"Manual Close Error: {str(e)}")
             
             threading.Thread(target=do_close).start()
-            return jsonify({'status': 'success', 'message': 'Manual exit signal sent.'})
+            return jsonify({'status': 'success', 'message': f"Manual exit signal sent {'for ' + symbol if symbol else ''}."})
 
         @self.app.route('/api/execute_arbitrage', methods=['POST'])
         def execute_arbitrage():

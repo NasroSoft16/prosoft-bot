@@ -144,9 +144,23 @@ class GeminiAI:
         tries = 0
         max_tries = len(self.api_keys)
         
+        # MONITOR: Are ALL keys hit?
+        all_hit = all(self.usage_stats[i]['limit_hit'] for i in range(max_tries))
+        if all_hit:
+            # Check if any have been reset recently (simple check: 60s cooldown)
+            recent_hit_times = [self.usage_stats[i].get('last_hit_time', 0) for i in range(max_tries)]
+            if recent_hit_times and (time.time() - max(recent_hit_times) < 60):
+                # We are still in global cooldown
+                return None
+
         while tries < max_tries:
             async with self.lock:
                 idx = self.current_key_idx
+                # CHECK: IF current node is flagged as limit_hit, move to next
+                if self.usage_stats[idx]['limit_hit']:
+                    self.rotate_key(force=True)
+                    idx = self.current_key_idx
+                    
                 # CHECK: IF current node saturated, move pulse to next BEFORE starting
                 if self.usage_stats[idx]['session_reqs'] >= self.node_saturation_threshold:
                     app_logger.info(f"📢 [AI CLUSTER] Node {idx+1} saturated ({self.node_saturation_threshold} reqs). Shifting...")
@@ -194,6 +208,7 @@ class GeminiAI:
                 async with self.lock:
                     app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} Quota Limit. Shifting...")
                     self.usage_stats[self.current_key_idx]['limit_hit'] = True
+                    self.usage_stats[self.current_key_idx]['last_hit_time'] = time.time()
                     self.rotate_key(force=True)
                 tries += 1
                 
@@ -203,6 +218,7 @@ class GeminiAI:
                     if "429" in err_str or "quota" in err_str.lower():
                         app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} Limit. Shifting...")
                         self.usage_stats[self.current_key_idx]['limit_hit'] = True
+                        self.usage_stats[self.current_key_idx]['last_hit_time'] = time.time()
                     else:
                         app_logger.error(f"❌ [AI CLUSTER] Node {self.current_key_idx + 1} Error: {e}")
                         self.usage_stats[self.current_key_idx]['errors'] += 1
@@ -210,6 +226,8 @@ class GeminiAI:
                     self.rotate_key(force=True)
                 tries += 1
         
+        # If we exit the loop, all nodes failed.
+        app_logger.warning("🚨 [AI CLUSTER] Total Infrastructure Exhaustion. All nodes hit quota. Waiting for window reset...")
         return None
 
     def analyze_image(self, image_bytes, question="Analyze this chart."):
