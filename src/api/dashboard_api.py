@@ -608,7 +608,7 @@ class DashboardAPI:
         def get_memory():
             """Fetch the system's neural memory for the Subconscious Dashboard."""
             if hasattr(self.bot, 'memory'):
-                memories = self.bot.memory.get_recent_memories(limit=20)
+                memories = self.bot.memory.get_recent_memories(limit=1000)
                 return jsonify(memories)
             return jsonify([])
 
@@ -670,7 +670,7 @@ class DashboardAPI:
                 import sqlite3
                 import pandas as pd
                 conn = sqlite3.connect(self.bot.memory.db_path)
-                df = pd.read_sql_query("SELECT exit_time, profit_loss FROM trade_memory ORDER BY id DESC LIMIT 20", conn)
+                df = pd.read_sql_query("SELECT exit_time, profit_loss FROM trade_memory ORDER BY id DESC LIMIT 100", conn)
                 conn.close()
                 
                 if df.empty:

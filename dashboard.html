@@ -1844,8 +1844,18 @@
                     // FIX: Use correct DB column names (entry_time/exit_time instead of timestamp)
                     const entryTimeStr = m.entry_time || m.timestamp || '';
                     const exitTimeStr = m.exit_time || '';
-                    const [entryDate, entryTime] = entryTimeStr.includes(' ') ? entryTimeStr.split(' ') : [entryTimeStr, ''];
-                    const [exitDate, exitTime] = exitTimeStr.includes(' ') ? exitTimeStr.split(' ') : [exitTimeStr, ''];
+                    
+                    // Improved parsing to handle both space and ISO 'T'
+                    const parseDateTime = (str) => {
+                        if (!str) return ['', ''];
+                        const delimiter = str.includes('T') ? 'T' : ' ';
+                        const parts = str.split(delimiter);
+                        if (parts.length < 2) return [str, ''];
+                        return [parts[0], parts[1].split('.')[0]]; // Remove milliseconds if any
+                    };
+
+                    const [entryDate, entryTime] = parseDateTime(entryTimeStr);
+                    const [exitDate, exitTime] = parseDateTime(exitTimeStr);
                     return `
                     <tr class="hover:bg-white/5 transition">
                         <td class="px-3 py-3 font-mono text-purple-500 font-bold">${m.id}</td>
@@ -2134,7 +2144,8 @@
         setInterval(updateScanner, 10000);
         setInterval(updatePortfolio, 30000);
         setInterval(updateAnalytics, 5000);
-        updateStats(); updateScanner(); updatePortfolio(); updateAnalytics();
+        setInterval(updateMemory, 10000);
+        updateStats(); updateScanner(); updatePortfolio(); updateAnalytics(); updateMemory();
 
 
         window.executeArbitrageManual = async (route, direction) => {
