@@ -848,11 +848,11 @@ class TradingBot:
                                 if not asset_name: continue
                                 
                                 val = asset.get('value', 0.0)
-                                if asset_name != 'USDT' and val > 10.0: # Only track assets worth > $10
+                                if asset_name != 'USDT' and val > 25.0: # Only track significant manual assets > $25
                                     symbol = f"{asset_name}USDT"
                                     is_tracked = any(t['symbol'] == symbol for t in self.active_trades)
                                     if not is_tracked:
-                                        self.add_log(f"🧠 SYNC: Detected untracked asset {symbol} (${val:.2f}). Adding to Dashboard control.")
+                                        self.add_log(f"🧠 SYNC: Detected significant untracked manual asset {symbol} (${val:.2f}). Adding to tracker.")
                                         price_raw = self.api.get_symbol_ticker(symbol) or 0.0
                                         price = float(price_raw)
                                         qty = float(asset.get('free', 0.0))

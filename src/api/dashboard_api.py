@@ -626,6 +626,37 @@ class DashboardAPI:
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)}), 500
 
+        @self.app.route('/api/maintenance/clear_trades', methods=['POST'])
+        def clear_active_trades():
+            """Wipe all active trade trackers (doesn't sell them, just clears the UI/memory)."""
+            try:
+                self.bot.active_trades = []
+                self.bot.healer.clear_trade_state()
+                self.bot.add_log("🛠️ SYSTEM: All active trade trackers have been manually cleared.")
+                return jsonify({'status': 'success'})
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
+
+        @self.app.route('/api/maintenance/delete_trade', methods=['POST'])
+        def delete_active_trade():
+            """Delete a specific trade from trackers by symbol."""
+            try:
+                data = request.get_json()
+                symbol = data.get('symbol')
+                if not symbol:
+                    return jsonify({'status': 'error', 'message': 'Symbol required.'}), 400
+                
+                initial_count = len(self.bot.active_trades)
+                self.bot.active_trades = [t for t in self.bot.active_trades if t.get('symbol') != symbol]
+                
+                if len(self.bot.active_trades) < initial_count:
+                    self.bot.healer.save_trade_state(self.bot.active_trades)
+                    self.bot.add_log(f"🛠️ SYSTEM: Trade tracker for {symbol} has been manually removed.")
+                    return jsonify({'status': 'success'})
+                return jsonify({'status': 'error', 'message': 'Trade not found.'}), 404
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
+
         @self.app.route('/api/accuracy_chart', methods=['GET'])
         def get_accuracy_chart():
             """Returns cumulative performance progress for the dashboard chart."""
@@ -837,7 +868,7 @@ class DashboardAPI:
         try:
             # FORCE Port 5000 to strictly match the user's Railway Networking settings
             if port is None:
-                port = 5000
+                port = int(os.environ.get('PORT', 5000))
             
             app_logger.info(f"🚀 INITIALIZING DASHBOARD ON PORT: {port}")
             

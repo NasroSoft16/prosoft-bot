@@ -191,6 +191,60 @@ class NeuralMemory:
         except Exception:
             return 0.0
 
+    def get_revenue_totals(self):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            df = pd.read_sql_query("SELECT source, amount FROM revenue_memory", conn)
+            conn.close()
+            
+            mapping = {
+                "YieldFarmer": "yield_total",
+                "ListingSniper": "sniper_hits",
+                "FundingArb": "funding_total"
+            }
+            
+            res = {"yield_total": 0.0, "sniper_hits": 0, "funding_total": 0.0}
+            if not df.empty:
+                for src, key in mapping.items():
+                    sub = df[df['source'] == src]
+                    if key == "sniper_hits":
+                        res[key] = len(sub)
+                    else:
+                        res[key] = float(sub['amount'].sum())
+            return res
+        except Exception:
+            return {"yield_total": 0.0, "sniper_hits": 0, "funding_total": 0.0}
+
+    def get_daily_report_data(self):
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+            conn = sqlite3.connect(self.db_path)
+            # Use SQLite date function to filter by today (assuming ISO format timestamp)
+            rev_df = pd.read_sql_query(
+                "SELECT source, SUM(amount) as total FROM revenue_memory WHERE timestamp LIKE ? GROUP BY source",
+                conn, params=(f"{today}%",)
+            )
+            conn.close()
+            
+            return {
+                'revenue': rev_df.to_dict('records') if not rev_df.empty else []
+            }
+        except Exception:
+            return None
+
+    def get_today_detailed_trades(self):
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+            conn = sqlite3.connect(self.db_path)
+            df = pd.read_sql_query(
+                "SELECT * FROM trade_memory WHERE exit_time LIKE ? ORDER BY id DESC",
+                conn, params=(f"{today}%",)
+            )
+            conn.close()
+            return df.to_dict('records') if not df.empty else []
+        except Exception:
+            return []
+
     def backup(self, backup_path='data/brain_backup.db'):
         try:
             os.makedirs(os.path.dirname(backup_path), exist_ok=True)

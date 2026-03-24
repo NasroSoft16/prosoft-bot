@@ -14,8 +14,8 @@ class ManipulationShield:
     """
 
     def __init__(self):
-        self._prev_bid_walls = []   # previous top bids for spoofing check
-        self._prev_ask_walls = []
+        self._prev_bid_walls = set()   # previous top bids for spoofing check
+        self._prev_ask_walls = set()
 
     # ── Main analysis ─────────────────────────────────────────────────────
 

@@ -645,9 +645,12 @@
                                 <p id="prediction-text" class="text-sm font-semibold text-white">Pending AI
                                     Confirmation...</p>
                             </div>
-                            <button id="main-action-btn" onclick="executeManual()"
-                                class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg"
-                                data-en="AUTHORIZE ORDER" data-ar="تفويض الأمر">AUTHORIZE ORDER</button>
+                            <div class="flex items-center gap-4">
+                                <button id="dismiss-btn" class="hidden text-[9px] text-slate-500 hover:text-white uppercase font-bold tracking-widest px-3 py-2 bg-white/5 rounded border border-transparent hover:border-white/10 transition-all">Prune Track</button>
+                                <button id="main-action-btn" onclick="executeManual()"
+                                    class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg"
+                                    data-en="AUTHORIZE ORDER" data-ar="تفويض الأمر">AUTHORIZE ORDER</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1405,6 +1408,25 @@
 
                 document.getElementById('symbol-display').innerText = data.current_symbol || 'N/A';
                 
+        async function pruneTrack(symbol) {
+            if (!confirm(`Are you sure you want to stop tracking ${symbol}? This will NOT sell your asset, only remove it from the dashboard.`)) return;
+            try {
+                const res = await fetch(`${API_BASE}/maintenance/delete_trade`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: symbol })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    updateStats();
+                } else {
+                    alert(data.message);
+                }
+            } catch (err) {
+                console.error("Prune Error:", err);
+            }
+        }
+                
                 // Update New Revenue Streams
                 if (s.yield_status) document.getElementById('yield-status').innerText = s.yield_status;
                 if (s.yield_amount != null) document.getElementById('yield-amt').innerText = `$${Number(s.yield_amount).toFixed(4)}`;
@@ -1459,7 +1481,7 @@
                     const t = data.active_trades[0];
                     const entryP = Number(t.entry_price || 0);
                     const tQty = Number(t.qty || 0);
-                    const tPrice = Number(t.current_price || curPrice); // Use injected specific price or global fallback
+                    const tPrice = Number(t.current_price || entryP); // Use entry price as fallback to show 0% if ticker fails
                     const pnl = ((tPrice - entryP) * tQty);
                     const pnlPct = entryP > 0 ? ((tPrice / entryP - 1) * 100) : 0;
                     
@@ -1473,9 +1495,14 @@
                     actionBtn.onclick = closeActiveTrade;
                     actionBtn.className = "bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-8 py-3 rounded transition-all shadow-lg";
                     actionBtn.innerText = currentLang === 'en' ? 'STOP TRADE & EXIT' : 'توقيف الصفقة والتحويل';
+
+                    const dismissBtn = document.getElementById('dismiss-btn');
+                    dismissBtn.classList.remove('hidden');
+                    dismissBtn.onclick = () => pruneTrack(t.symbol);
                 } else { 
                     const sigPanel = document.getElementById('signal-pnl');
                     if (sigPanel) sigPanel.classList.add('hidden'); 
+                    document.getElementById('dismiss-btn').classList.add('hidden');
                 }
 
                 updateAccuracyChart();
