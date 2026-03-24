@@ -803,6 +803,28 @@ class TradingBot:
                                     self.active_trades.remove(trade)
                                     self.stats['active_count'] = len(self.active_trades)
 
+                            # --- [v2.0 UI SYNC PATCH] ---
+                            # Auto-sync external/manual trades into the UI tracker
+                            for asset in summ.get('assets', []):
+                                asset_name = asset['asset']
+                                if asset_name != 'USDT' and asset['value'] > 10.0: # Only track assets worth > $10
+                                    symbol = f"{asset_name}USDT"
+                                    is_tracked = any(t['symbol'] == symbol for t in self.active_trades)
+                                    if not is_tracked:
+                                        self.add_log(f"🧠 SYNC: Detected untracked asset {symbol} (${asset['value']:.2f}). Adding to Dashboard control.")
+                                        price = self.api.get_symbol_ticker(symbol) or 0.0
+                                        self.active_trades.append({
+                                            'symbol': symbol,
+                                            'side': 'BUY',
+                                            'qty': asset['free'],
+                                            'entry_price': price,
+                                            'sl': price * 0.95, # Default SL for safety
+                                            'tp': price * 1.05, # Default TP for visibility
+                                            'pnl_pct': 0.0,
+                                            'time': datetime.now().strftime("%H:%M:%S")
+                                        })
+                                        self.stats['active_count'] = len(self.active_trades)
+
                             if self.stats['total_equity'] > 0:
                                 if not self.active_trades and self.execution_mode == 'auto':
                                     await self.farmer.check_and_farm(threshold_usdt=25.0)
