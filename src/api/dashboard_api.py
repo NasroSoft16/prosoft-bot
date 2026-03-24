@@ -868,7 +868,7 @@ class DashboardAPI:
         try:
             # FORCE Port 5000 to strictly match the user's Railway Networking settings
             if port is None:
-                port = int(os.environ.get('PORT', 5000))
+                port = 5000
             
             app_logger.info(f"🚀 INITIALIZING DASHBOARD ON PORT: {port}")
             
