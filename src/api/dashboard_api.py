@@ -257,12 +257,23 @@ class DashboardAPI:
                                 break
                             elif resp.status_code == 404:
                                 continue  # Try next model
-                        except: continue
+                            elif resp.status_code == 429:
+                                used_model = "LIMIT HIT"
+                                break
+                            else:
+                                used_model = f"ERR {resp.status_code}"
+                                break
+                        except Exception as e: 
+                            used_model = "TIMEOUT"
+                            break
                     
                     if success:
                         results.append(f"Node {i+1}: {used_model}")
                     else:
-                        results.append(f"Node {i+1}: FAIL")
+                        if used_model in ["NONE", "TIMEOUT"]:
+                            results.append(f"Node {i+1}: FAIL")
+                        else:
+                            results.append(f"Node {i+1}: {used_model}")
                 
                 summary = " | ".join(results)
                 if any(not (r.endswith("FAIL") or r.endswith("ERR")) for r in results):

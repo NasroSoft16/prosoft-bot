@@ -21,15 +21,15 @@ class GeminiAI:
         self.models = {}
         # TRACKING: Using index-based stats to ensure isolation
         self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
-        self.model_name = 'gemini-2.0-flash'
+        self.model_name = 'gemini-2.5-flash'
         self.model = True  # Dashboard flag (True = AI available)
         self.lock = asyncio.Lock()  # Protect against parallel scatter
         self.node_saturation_threshold = 25  # Move to next node after X requests
         
         # Ordered fallback: newest → oldest, all confirmed working with REST v1beta
         self.fallback_models = [
-            'gemini-2.0-flash',         # Primary — confirmed working
-            'gemini-1.5-flash',         # Fallback 1 — exists but may rate-limit
+            'gemini-2.5-flash',         # Primary — confirmed working
+            'gemini-2.0-flash',         # Fallback 1 — exists but may rate-limit
             'gemini-1.5-flash-8b',      # Fallback 2 — lightweight alternative
         ]
         
