@@ -128,6 +128,16 @@ class BinanceClientWrapper:
             app_logger.error(f"Error fetching ticker for {symbol}: {e}")
             return None
 
+    def get_all_tickers(self):
+        """Phase 14.1: Bulk price fetch for institutional-grade monitoring speed."""
+        if not self.client: return {}
+        try:
+            tickers = self.client.get_all_tickers()
+            return {t['symbol']: float(t['price']) for t in tickers}
+        except Exception as e:
+            app_logger.error(f"Error fetching all tickers: {e}")
+            return {}
+
     def convert_dust_to_bnb(self, assets):
         """Phase 3: Dust-to-Gold - Converts small balances to BNB with recursion/fallback."""
         if not self.client: return False

@@ -145,6 +145,7 @@ class TradingBot:
             'trades_count': 0,
             'closed_trades': 0,  # Separate count for optimization trigger
             'active_count': int(0),
+            'tickers': {}, # Bulk ticker cache for multi-asset monitoring
             'ai_accuracy_history': [],
             'ai_accuracy': 0.0,
             'yield_status': "IDLE",
@@ -379,17 +380,27 @@ class TradingBot:
         atr = float(df.iloc[-1].get('ATR', 0)) if df is not None else 0
 
         for trade in list(self.active_trades):
-            # Safe Multi-Asset Price Resolution 
             trade_symbol = trade.get('symbol', self.symbol)
-            if trade_symbol == self.symbol:
-                trade_price = current_price
-            else:
-                tp_val = self.api.get_symbol_ticker(trade_symbol)
-                if not tp_val: continue
-                trade_price = float(tp_val)
+            
+            # FAST PATH: Resolve price from bulk cache to avoid API bottlenecks
+            trade_price = self.stats.get('tickers', {}).get(trade_symbol, 0)
+            
+            # Fallback only if cache is empty
+            if trade_price <= 0:
+                trade_price = self.api.get_symbol_ticker(trade_symbol) or current_price
+            
+            # Sanity Check: Ensure trade_price is float
+            trade_price = float(trade_price)
 
-            trade_sl = trade.get('trailing_sl', trade.get('sl', 0))
-            trade_tp = trade.get('tp', 0)
+            # --- [PROSOFT GHOST-SL GUARD] ---
+            # If SL became NaN or 0 due to an external error, restore a 5% emergency buffer
+            raw_sl = trade.get('trailing_sl', trade.get('sl', self.stats['price'] * 0.95))
+            import math
+            if math.isnan(raw_sl) or raw_sl <= 0:
+                raw_sl = trade.get('entry_price', trade_price) * 0.95
+            
+            trade_sl = float(raw_sl)
+            trade_tp = float(trade.get('tp', 0))
             trade_qty = trade.get('qty', 0)
             entry_p = trade.get('entry_price', 0)
             
@@ -718,6 +729,14 @@ class TradingBot:
             while True:
                 loop_count += 1
                 try:
+                    # ── Phase 14.1: Bulk Intelligence Sync ──
+                    # Load ALL prices in one call to avoid latency in multi-trade monitoring
+                    all_tickers = self.api.get_all_tickers()
+                    if all_tickers:
+                        self.stats['tickers'] = all_tickers
+                        if self.symbol in all_tickers:
+                            self.stats['price'] = all_tickers[self.symbol]
+                    
                     self._force_ui_update()
                     await self._check_daily_report()
                     
@@ -810,11 +829,16 @@ class TradingBot:
                                     await self.telegram.send_message(f"🚨 *NEW LISTING DETECTED: {new_asset}*\n⚠️ Insufficient balance for auto-buy. Buy manually now!")
                                 except: pass
 
-                    ticker = self.api.get_symbol_ticker(self.symbol)
+                    # Use cached price if possible
+                    ticker = self.stats.get('tickers', {}).get(self.symbol)
+                    if ticker is None:
+                        ticker = self.api.get_symbol_ticker(self.symbol)
+                    
                     if ticker is None:
                         self.add_log("Network Interruption: Attempting to re-stabilize link...")
                         await asyncio.sleep(5)
                         continue
+                    
                     self.stats['price'] = ticker
                     
                     df = self.api.get_historical_klines(self.symbol, self.timeframe, limit=350)
@@ -912,7 +936,11 @@ class TradingBot:
                                     is_tracked = any(t['symbol'] == symbol for t in self.active_trades)
                                     if not is_tracked:
                                         self.add_log(f"🧠 SYNC: Detected significant untracked manual asset {symbol} (${val:.2f}). Adding to tracker.")
-                                        price_raw = self.api.get_symbol_ticker(symbol) or 0.0
+                                        # Use cached price if available
+                                        price_raw = self.stats.get('tickers', {}).get(symbol)
+                                        if price_raw is None:
+                                            price_raw = self.api.get_symbol_ticker(symbol) or 0.0
+                                        
                                         price = float(price_raw)
                                         qty = float(asset.get('free', 0.0))
                                         
@@ -1288,7 +1316,12 @@ class TradingBot:
                     self.add_log(f"Loop Error: {str(e)}")
                 
                 try:
-                    await asyncio.wait_for(self.wakeup_event.wait(), timeout=self.interval_sec)
+                    # Adaptive Cycle Intensity: 
+                    # If trades are active, we monitor every 3 seconds for SL/TP precision.
+                    # If idle, we scan every 10 seconds to save API quota.
+                    current_interval = 3 if self.active_trades else self.interval_sec
+                    
+                    await asyncio.wait_for(self.wakeup_event.wait(), timeout=current_interval)
                     self.wakeup_event.clear()
                 except asyncio.TimeoutError:
                     pass
