@@ -17,6 +17,9 @@ class NeuralMemory:
         db_dir = os.path.dirname(self.db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
+        
+        # Diagnostic Log
+        app_logger.info(f"🧠 NEURAL MEMORY: Persistent storage active at {os.path.abspath(self.db_path)}")
         self._initialize_db()
 
     # ── Schema ────────────────────────────────────────────────────────────

@@ -140,10 +140,13 @@ class TradingBot:
             'voice_alerts': self.voice_alerts,
             'daily_pnl': 0.0,
             'daily_pnl_pct': 0.0,
+            'session_pnl': 0.0,
             'consecutive_losses': 0,
-            'trades_count': int(0),
+            'trades_count': 0,
+            'closed_trades': 0,  # Separate count for optimization trigger
             'active_count': int(0),
             'ai_accuracy_history': [],
+            'ai_accuracy': 0.0,
             'yield_status': "IDLE",
             'sniper_hits': 0,
             'funding_amount': 0.0,
@@ -259,8 +262,8 @@ class TradingBot:
         All gates must pass before entering a trade.
         """
         # ── Gate 1: Circuit Breaker ──
-        if hasattr(self, 'circuit_breaker') and not self.circuit_breaker.can_trade():
-            return False, "Circuit Breaker TRIPPED"
+        if hasattr(self, 'circuit_breaker') and self.circuit_breaker.is_tripped:
+            return False, f"Circuit Breaker TRIPPED: {self.circuit_breaker.trip_reason}"
 
         # ── Gate 2: Risk Manager daily limits ──
         if not self.risk_manager.can_trade():
@@ -476,45 +479,61 @@ class TradingBot:
             # ALWAYS proceed to log and remove if qty is 0, if order succeeded, 
             # or if it's a manual exit (we want it gone from dashboard)
             if order or qty == 0 or reason == 'Manual Exit' or reason == 'Cleanup':
-                pnl = (exit_price - entry_p) / entry_p if entry_p > 0 else 0.0
-                self.risk_manager.update_performance(pnl)
+                # ── Unified PnL Calculation ──
+                pnl_decimal = (exit_price - entry_p) / entry_p if entry_p > 0 else 0.0
+                pnl_pct = pnl_decimal * 100
+                p_qty = trade.get('qty', 0)
+                pnl_absolute = (exit_price - entry_p) * p_qty
 
-                # Circuit breaker update
+                # Update Risk Manager
+                self.risk_manager.update_performance(pnl_decimal)
+
+                # ── Circuit Breaker Record (Using Equity) ──
                 if hasattr(self, 'circuit_breaker'):
-                    pnl_usdt = (exit_price - entry_p) * trade.get('qty', 0)
-                    self.circuit_breaker.record_result(pnl_usdt)
+                    equity = self.stats.get('total_equity', self.stats.get('balance', 0))
+                    self.circuit_breaker.record_result(pnl_absolute, equity)
 
-                # Log to neural memory
-                self.memory.log_trade(
-                    symbol        = trade['symbol'],
-                    side          = 'BUY',
-                    entry         = trade['entry_price'],
-                    exit_p        = exit_price,
-                    entry_t       = trade.get('entry_time', ''),
-                    exit_t        = datetime.now().isoformat(),
-                    pnl           = pnl * 100,
-                    conf          = trade.get('ai_conf', 0),
-                    health        = trade.get('market_health', 0),
-                    sentiment     = self.stats.get('sentiment', ''),
-                    strategy_used = trade.get('strategy', ''),
-                )
+                # ── Neural Memory Logging (Safe Keyworded Push) ──
+                try:
+                    self.memory.log_trade(
+                        symbol        = trade['symbol'],
+                        side          = trade.get('side', 'BUY'),
+                        entry         = entry_p,
+                        exit_p        = exit_price,
+                        entry_t       = trade.get('entry_time', trade.get('timestamp', '')),
+                        exit_t        = datetime.now().isoformat(),
+                        pnl           = pnl_pct,  # Record % in DB for consistency
+                        conf          = trade.get('ai_conf', trade.get('conf', 0.85)),
+                        health        = trade.get('market_health', self.stats.get('market_health', 50)),
+                        sentiment     = self.stats.get('sentiment', 'Neural'),
+                        strategy_used = trade.get('strategy', reason),
+                    )
+                    self.add_log(f"🧠 Brain-Link: Trade execution saved to Neural Memory. (Reason: {reason})")
+                except Exception as log_err:
+                    app_logger.error(f"Brain-Link Fail: {log_err}")
 
-                # Update daily stats
-                self.stats['daily_pnl'] = self.stats.get('daily_pnl', 0) + pnl * 100
+                # ── Update Statistics (Explicit Casting) ──
+                self.stats['daily_pnl'] = float(self.stats.get('daily_pnl', 0.0)) + float(pnl_absolute)
+                self.stats['daily_pnl_pct'] = float(self.stats.get('daily_pnl_pct', 0.0)) + float(pnl_pct)
+                self.stats['session_pnl'] = float(self.stats.get('session_pnl', 0.0)) + float(pnl_absolute)
+                self.stats['closed_trades'] = int(self.stats.get('closed_trades', 0)) + 1
+                self.stats['trades_count'] = int(self.stats.get('trades_count', 0)) + 1
 
-                # Run optimizer every 10 closed trades
-                self.stats['closed_trades'] = self.stats.get('closed_trades', 0) + 1
                 if self.stats['closed_trades'] % 10 == 0:
+                    self.add_log("⚙️ System: Triggering strategy optimization cycle...")
                     self.strategy_optimizer.run_optimization_cycle(bot_instance=self)
 
-                self.active_trades.remove(trade)
-                self.healer.save_trade_state(self.active_trades) # Safe persistence
+                # Remove from trackers
+                if trade in self.active_trades:
+                    self.active_trades.remove(trade)
+                self.healer.save_trade_state(self.active_trades)
+
                 self.add_log(
-                    f"{'💰' if pnl > 0 else '🔴'} CLOSED [{reason}] "
-                    f"{trade['symbol']} | PnL: {pnl*100:+.2f}%"
+                    f"🟢 TRADE CLOSED: {trade['symbol']} | "
+                    f"PnL: {pnl_pct:+.2f}% (${pnl_absolute:+.2f}) | {reason}"
                 )
 
-                if pnl > 0:
+                if pnl_absolute > 0:
                     self.voice_alerts.alert_take_profit()
                 else:
                     self.voice_alerts.alert_stop_loss()
@@ -1204,10 +1223,9 @@ class TradingBot:
                         if equity > 0:
                             self.circuit_breaker.set_balance(equity)
                             
-                        if not self.circuit_breaker.can_trade():
-                            cb_st = self.circuit_breaker.get_status()
-                            self.add_log(f"🔴 [CIRCUIT BREAKER] Trading BLOCKED: {cb_st['trip_reason']} | Loss: {cb_st['daily_loss_pct']:.1f}%")
-                            self.stats['circuit_breaker'] = cb_st
+                        if self.circuit_breaker.is_tripped:
+                            self.add_log(f"🔴 [CIRCUIT BREAKER] Trading BLOCKED: {self.circuit_breaker.trip_reason} | Today's Loss: {self.stats.get('daily_pnl_pct', 0.0):.2f}%")
+                            self.stats['circuit_breaker'] = self.circuit_breaker.get_status()
                             await asyncio.sleep(self.interval_sec)
                             continue
                     except Exception as _cb_e:
@@ -1343,10 +1361,14 @@ class TradingBot:
             except Exception as e:
                 self.add_log(f"OCO Cancellation Error: {str(e)}") 
 
-        pnl = (price - trade['entry_price']) * trade['qty']
-        pnl_pct = (price / trade['entry_price'] - 1) * 100
+        # ── Unified PnL Calculation ──
+        entry_p = trade.get('entry_price', price)
+        pnl_decimal = (price - entry_p) / entry_p if entry_p > 0 else 0.0
+        pnl_pct = pnl_decimal * 100
+        p_qty = trade.get('qty', 0)
+        pnl_absolute = (price - entry_p) * p_qty
         
-        self.add_log(f"TRADE CLOSED ({reason}): {trade['symbol']} @ {price} | PNL: ${pnl:.2f} ({pnl_pct:.2f}%)")
+        self.add_log(f"TRADE CLOSED ({reason}): {trade['symbol']} @ {price} | PNL: ${pnl_absolute:.2f} ({pnl_pct:.2f}%)")
     
         if self.execution_mode == 'auto' or "MANUAL" in reason or reason in ["SL", "TP", "TRAILING STOP"]:
             try:
@@ -1411,18 +1433,37 @@ class TradingBot:
             except Exception as e:
                 self.add_log(f"Exit Protocol Error: {str(e)}")
 
-        entry_t = trade.get('timestamp', trade.get('time', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-        exit_t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        trade_conf = trade.get('conf', 85.0)
-        self.memory.log_trade(trade['symbol'], trade.get('side', 'BUY'), trade['entry_price'], price, entry_t, exit_t, pnl, trade_conf, self.stats['market_health'], self.stats['sentiment'])
+        # ── Update Statistics (Explicit Casting) ──
+        self.stats['daily_pnl'] = float(self.stats.get('daily_pnl', 0.0)) + float(pnl_absolute)
+        self.stats['daily_pnl_pct'] = float(self.stats.get('daily_pnl_pct', 0.0)) + float(pnl_pct)
+        self.stats['session_pnl'] = float(self.stats.get('session_pnl', 0.0)) + float(pnl_absolute)
+        self.stats['closed_trades'] = int(self.stats.get('closed_trades', 0)) + 1
+        self.stats['trades_count'] = int(self.stats.get('trades_count', 0)) + 1
         
-        self.risk.update_performance(pnl_pct / 100)
-        self.stats['daily_pnl'] += pnl
-        self.stats['daily_pnl_pct'] += pnl_pct
-        self.stats['trades_count'] += 1
+        # ── Neural Memory Logging (Safe Keyworded Push) ──
+        try:
+            entry_t = trade.get('entry_time', trade.get('timestamp', trade.get('time', '')))
+            conf = trade.get('ai_conf', trade.get('conf', 0.85))
+            
+            self.memory.log_trade(
+                symbol        = trade['symbol'],
+                side          = trade.get('side', 'BUY'),
+                entry         = entry_p,
+                exit_p        = price,
+                exit_t        = datetime.now().isoformat(),
+                entry_t       = entry_t,
+                pnl           = pnl_pct,  # Record % in DB for consistency
+                conf          = conf,
+                health        = float(self.stats.get('market_health', 50)),
+                sentiment     = str(self.stats.get('sentiment', 'Neural')),
+                strategy_used = str(trade.get('strategy', reason))
+            )
+            self.add_log(f"🧠 Brain-Link: Trade archived to Neural Memory (Dashboard Exit).")
+        except Exception as log_err:
+            self.add_log(f"⚠️ Brain-Link Failed: {log_err}")
         
-        if pnl < 0:
-            self.stats['consecutive_losses'] += 1
+        if pnl_absolute < 0:
+            self.stats['consecutive_losses'] = int(self.stats.get('consecutive_losses', 0)) + 1
         else:
             self.stats['consecutive_losses'] = 0
             
@@ -1431,7 +1472,7 @@ class TradingBot:
             if self.gemini and self.gemini.api_keys:
                 self.add_log("AI Cluster: Initiating Neural Post-Trade Review & Cluster Rotation...")
                 review_prompt = (
-                    f"Institutional Review: Trade on {trade['symbol']} ({trade['side']}) closed for ${pnl:.2f} ({pnl_pct:.2f}%). "
+                    f"Institutional Review: Trade on {trade['symbol']} ({trade['side']}) closed for ${pnl_absolute:.2f} ({pnl_pct:.2f}%). "
                     f"Market Health: {self.stats['market_health']}%. Reason: {reason}. "
                     "As a Senior Strategist, provide a deep bilingual (AR/EN) neural lesson about this outcome. "
                     "Explain the 'why' behind this result. Keep it professional."
