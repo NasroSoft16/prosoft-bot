@@ -1832,9 +1832,11 @@
             try {
                 const res = await fetch(`${API_BASE}/memory`);
                 const data = await res.json();
+                console.log('%c🧠 [DASHBOARD] Neural Memory Data:', 'color: #a855f7; font-weight: bold;', data);
+
                 const tbody = document.getElementById('memory-table-body');
-                if (data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 italic">${currentLang === 'en' ? 'No neural experiences recorded yet.' : 'لا يوجد سجلات مسجلة بعد.'}</td></tr>`;
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-500 italic">${currentLang === 'en' ? 'No neural experiences recorded yet.' : 'لا يوجد سجلات مسجلة بعد.'}</td></tr>`;
                     return;
                 }
 
@@ -1882,9 +1884,11 @@
             try {
                 const res = await fetch(`${API_BASE}/revenue`);
                 const data = await res.json();
+                console.log('%c💰 [DASHBOARD] Revenue Intelligence Data:', 'color: #10b981; font-weight: bold;', data);
+                
                 const tbody = document.getElementById('revenue-table-body');
-                if (data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500 italic">${currentLang === 'en' ? 'No revenue intelligence recorded yet.' : 'لا يوجد سجلات مداخيل مسجلة بعد.'}</td></tr>`;
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-500 italic">${currentLang === 'en' ? 'No revenue intelligence recorded yet.' : 'لا يوجد سجلات مداخيل مسجلة بعد.'}</td></tr>`;
                     return;
                 }
 

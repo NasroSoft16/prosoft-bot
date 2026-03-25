@@ -609,7 +609,9 @@ class DashboardAPI:
             """Fetch the system's neural memory for the Subconscious Dashboard."""
             if hasattr(self.bot, 'memory'):
                 memories = self.bot.memory.get_recent_memories(limit=1000)
+                app_logger.info(f"🧠 [DASHBOARD API] Memory Fetch: Found {len(memories)} records in {self.bot.memory.db_path}")
                 return jsonify(memories)
+            app_logger.warning("🧠 [DASHBOARD API] Memory Fetch Failed: Bot has no memory attribute.")
             return jsonify([])
 
         @self.app.route('/api/maintenance/wipe', methods=['POST'])
