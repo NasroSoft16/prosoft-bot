@@ -1829,55 +1829,67 @@
         }
 
         async function updateMemory() {
+            console.log('%c🧠 [DASHBOARD] Memory Update Initialized...', 'color: #9333ea; font-style: italic;');
             try {
                 const res = await fetch(`${API_BASE}/memory`);
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
                 const data = await res.json();
-                console.log('%c🧠 [DASHBOARD] Neural Memory Data:', 'color: #a855f7; font-weight: bold;', data);
+                
+                console.log('%c🧠 [DASHBOARD] Memory Data Received:', 'color: #a855f7; font-weight: bold;', data);
 
                 const tbody = document.getElementById('memory-table-body');
-                if (!data || data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-500 italic">${currentLang === 'en' ? 'No neural experiences recorded yet.' : 'لا يوجد سجلات مسجلة بعد.'}</td></tr>`;
+                if (!data || !Array.isArray(data) || data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-10 text-slate-500 italic font-mono uppercase tracking-widest">${currentLang === 'en' ? 'NO NEURAL EXPERIENCES IN RECORD' : 'لا يوجد سجلات في الذاكرة العصبية'}</td></tr>`;
                     return;
                 }
 
                 tbody.innerHTML = data.map(m => {
-                    const pnlColor = parseFloat(m.profit_loss) >= 0 ? 'text-green-400' : 'text-red-400';
-                    const sideColor = m.side === 'BUY' ? 'text-blue-400' : 'text-pink-400';
-                    // FIX: Use correct DB column names (entry_time/exit_time instead of timestamp)
-                    const entryTimeStr = m.entry_time || m.timestamp || '';
-                    const exitTimeStr = m.exit_time || '';
-                    
-                    // Improved parsing to handle both space and ISO 'T'
-                    const parseDateTime = (str) => {
-                        if (!str) return ['', ''];
-                        const delimiter = str.includes('T') ? 'T' : ' ';
-                        const parts = str.split(delimiter);
-                        if (parts.length < 2) return [str, ''];
-                        return [parts[0], parts[1].split('.')[0]]; // Remove milliseconds if any
-                    };
+                    try {
+                        const pnl = parseFloat(m.profit_loss || 0);
+                        const pnlColor = pnl >= 0 ? 'text-green-400' : 'text-red-400';
+                        const sideColor = m.side === 'BUY' || m.side === 'LONG' ? 'text-blue-400' : 'text-pink-400';
+                        
+                        // Unified Timestamp Handler
+                        const parseDateTime = (str) => {
+                            if (!str) return ['--', '--'];
+                            const parts = str.split(/[ T]/);
+                            if (parts.length < 2) return [str, '--'];
+                            return [parts[0], parts[1].split('.')[0]]; // Remove ms
+                        };
 
-                    const [entryDate, entryTime] = parseDateTime(entryTimeStr);
-                    const [exitDate, exitTime] = parseDateTime(exitTimeStr);
-                    return `
-                    <tr class="hover:bg-white/5 transition">
-                        <td class="px-3 py-3 font-mono text-purple-500 font-bold">${m.id}</td>
-                        <td class="px-3 py-3 font-mono text-slate-500">${entryTime || 'N/A'}</td>
-                        <td class="px-3 py-3 font-mono text-slate-500">${entryDate || 'N/A'}</td>
-                        <td class="px-3 py-3 font-bold text-white">${m.symbol}</td>
-                        <td class="px-3 py-3 font-bold ${sideColor}">${m.side}</td>
-                        <td class="px-3 py-3 text-right font-mono text-blue-300">${parseFloat(m.entry_price || 0).toFixed(4)}</td>
-                        <td class="px-3 py-3 text-right font-mono text-blue-300">${parseFloat(m.exit_price || 0).toFixed(4)}</td>
-                        <td class="px-3 py-3 text-right font-mono font-bold ${pnlColor}">${parseFloat(m.profit_loss) >= 0 ? '+' : ''}${parseFloat(m.profit_loss).toFixed(2)}</td>
-                        <td class="px-3 py-3 text-right font-mono">H:${(m.market_health || 0).toFixed(0)}% / C:${((m.ai_confidence || 0) * 100).toFixed(0)}%</td>
-                        <td class="px-3 py-3 text-[10px] text-slate-400 max-w-xs break-words whitespace-normal leading-relaxed">${m.lesson_learned || ''}</td>
-                        <td class="px-3 py-3 text-right">
-                            <button onclick="deleteRecord('trade_memory', ${m.id})" class="text-red-500/50 hover:text-red-500 transition-colors p-1" title="Delete Record">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
-                        </td>
-                    </tr>`;
+                        const [date, time] = parseDateTime(m.entry_time || m.timestamp || '');
+                        
+                        return `
+                        <tr class="hover:bg-white/5 transition border-b border-white/5 last:border-0 group">
+                            <td class="px-3 py-3 font-mono text-purple-500 font-bold text-[10px] w-8">${m.id || '?'}</td>
+                            <td class="px-3 py-3 font-mono text-slate-400">${time}</td>
+                            <td class="px-3 py-3 font-mono text-slate-500 text-[9px]">${date}</td>
+                            <td class="px-3 py-3 font-bold text-white tracking-tight">${m.symbol || '---'}</td>
+                            <td class="px-3 py-3 font-bold ${sideColor} text-[10px]">${m.side || '---'}</td>
+                            <td class="px-3 py-3 text-right font-mono text-blue-300/80">${parseFloat(m.entry_price || 0).toFixed(parseFloat(m.entry_price) < 1 ? 6 : 4)}</td>
+                            <td class="px-3 py-3 text-right font-mono text-blue-100/60">${parseFloat(m.exit_price || 0).toFixed(parseFloat(m.exit_price) < 1 ? 6 : 4)}</td>
+                            <td class="px-3 py-3 text-right font-mono font-bold ${pnlColor} bg-white/5 rounded-sm">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</td>
+                            <td class="px-3 py-3 text-right font-mono text-[10px] text-slate-300">
+                                <span class="opacity-40">H:</span>${(m.market_health || 0).toFixed(0)}% 
+                                <span class="opacity-40 ml-1">C:</span>${((m.ai_confidence || 0) * 100).toFixed(0)}%
+                            </td>
+                            <td class="px-3 py-3 text-[10px] text-slate-500 max-w-[200px] truncate group-hover:whitespace-normal group-hover:text-slate-300 transition-all cursor-help">${m.lesson_learned || 'Adaptive optimization logged.'}</td>
+                            <td class="px-3 py-3 text-right">
+                                <button onclick="deleteRecord('trade_memory', ${m.id})" class="text-white/10 hover:text-red-500 transition-all">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </td>
+                        </tr>`;
+                    } catch (err) {
+                        console.error('🧠 [DASHBOARD] Row Render Error:', err, m);
+                        return ''; // Skip corrupt row
+                    }
                 }).join('');
-            } catch (e) { }
+            } catch (error) {
+                console.error('%c⚠️ [DASHBOARD] Memory Fetch Failure:', 'color: #ef4444; font-weight: bold;', error);
+                const tbody = document.getElementById('memory-table-body');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-red-500 italic font-bold">SYNC FAIL: ${error.message}</td></tr>`;
+            }
         }
 
         async function updateRevenue() {
