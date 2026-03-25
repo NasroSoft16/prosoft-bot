@@ -495,6 +495,7 @@ class TradingBot:
 
                 # ── Neural Memory Logging (Safe Keyworded Push) ──
                 try:
+                    db_abs_path = os.path.abspath(self.memory.db_path)
                     self.memory.log_trade(
                         symbol        = trade['symbol'],
                         side          = trade.get('side', 'BUY'),
@@ -502,22 +503,18 @@ class TradingBot:
                         exit_p        = exit_price,
                         entry_t       = trade.get('entry_time', trade.get('timestamp', '')),
                         exit_t        = datetime.now().isoformat(),
-                        pnl           = pnl_pct,  # Record % in DB for consistency
+                        pnl           = pnl_pct,
                         conf          = trade.get('ai_conf', trade.get('conf', 0.85)),
                         health        = trade.get('market_health', self.stats.get('market_health', 50)),
                         sentiment     = self.stats.get('sentiment', 'Neural'),
                         strategy_used = trade.get('strategy', reason),
                     )
-                    self.add_log(f"🧠 Brain-Link: Trade execution saved to Neural Memory. (Reason: {reason})")
+                    self.add_log(f"🧠 Brain-Link: Trade saved to -> {db_abs_path} (Reason: {reason})")
                 except Exception as log_err:
                     app_logger.error(f"Brain-Link Fail: {log_err}")
 
                 # ── Update Statistics (Explicit Casting) ──
-                self.stats['daily_pnl'] = float(self.stats.get('daily_pnl', 0.0)) + float(pnl_absolute)
-                self.stats['daily_pnl_pct'] = float(self.stats.get('daily_pnl_pct', 0.0)) + float(pnl_pct)
-                self.stats['session_pnl'] = float(self.stats.get('session_pnl', 0.0)) + float(pnl_absolute)
-                self.stats['closed_trades'] = int(self.stats.get('closed_trades', 0)) + 1
-                self.stats['trades_count'] = int(self.stats.get('trades_count', 0)) + 1
+                self._update_closing_stats(pnl_absolute, pnl_pct)
 
                 if self.stats['closed_trades'] % 10 == 0:
                     self.add_log("⚙️ System: Triggering strategy optimization cycle...")
@@ -1433,15 +1430,12 @@ class TradingBot:
             except Exception as e:
                 self.add_log(f"Exit Protocol Error: {str(e)}")
 
-        # ── Update Statistics (Explicit Casting) ──
-        self.stats['daily_pnl'] = float(self.stats.get('daily_pnl', 0.0)) + float(pnl_absolute)
-        self.stats['daily_pnl_pct'] = float(self.stats.get('daily_pnl_pct', 0.0)) + float(pnl_pct)
-        self.stats['session_pnl'] = float(self.stats.get('session_pnl', 0.0)) + float(pnl_absolute)
-        self.stats['closed_trades'] = int(self.stats.get('closed_trades', 0)) + 1
-        self.stats['trades_count'] = int(self.stats.get('trades_count', 0)) + 1
         
-        # ── Neural Memory Logging (Safe Keyworded Push) ──
+        # ── Statistics & Neural Memory Unification ──
+        self._update_closing_stats(pnl_absolute, pnl_pct)
+        
         try:
+            db_abs_path = os.path.abspath(self.memory.db_path)
             entry_t = trade.get('entry_time', trade.get('timestamp', trade.get('time', '')))
             conf = trade.get('ai_conf', trade.get('conf', 0.85))
             
@@ -1452,15 +1446,23 @@ class TradingBot:
                 exit_p        = price,
                 exit_t        = datetime.now().isoformat(),
                 entry_t       = entry_t,
-                pnl           = pnl_pct,  # Record % in DB for consistency
+                pnl           = pnl_pct,
                 conf          = conf,
                 health        = float(self.stats.get('market_health', 50)),
                 sentiment     = str(self.stats.get('sentiment', 'Neural')),
                 strategy_used = str(trade.get('strategy', reason))
             )
-            self.add_log(f"🧠 Brain-Link: Trade archived to Neural Memory (Dashboard Exit).")
+            self.add_log(f"🧠 Brain-Link: Trade saved to -> {db_abs_path} (Dashboard Exit)")
         except Exception as log_err:
             self.add_log(f"⚠️ Brain-Link Failed: {log_err}")
+
+    def _update_closing_stats(self, pnl_absolute, pnl_pct):
+        """Standardized statistics update helper."""
+        self.stats['daily_pnl'] = float(self.stats.get('daily_pnl', 0.0)) + float(pnl_absolute)
+        self.stats['daily_pnl_pct'] = float(self.stats.get('daily_pnl_pct', 0.0)) + float(pnl_pct)
+        self.stats['session_pnl'] = float(self.stats.get('session_pnl', 0.0)) + float(pnl_absolute)
+        self.stats['closed_trades'] = int(self.stats.get('closed_trades', 0)) + 1
+        self.stats['trades_count'] = int(self.stats.get('trades_count', 0)) + 1
         
         if pnl_absolute < 0:
             self.stats['consecutive_losses'] = int(self.stats.get('consecutive_losses', 0)) + 1
