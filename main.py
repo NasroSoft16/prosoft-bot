@@ -1490,14 +1490,14 @@ class TradingBot:
         self.healer.save_trade_state(self.active_trades)
         
         try:
-            color_emoji = "🟢" if pnl > 0 else "🔴"
-            status_text = "Profitable / رابحة" if pnl > 0 else "Loss / خسارة"
+            color_emoji = "🟢" if pnl_absolute > 0 else "🔴"
+            status_text = "Profitable / رابحة" if pnl_absolute > 0 else "Loss / خسارة"
             await self.telegram.send_message(
                 f"{color_emoji} *Position Closed | إغلاق المركز*\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"🔹 *Asset:* `{trade['symbol']}`\n"
                 f"🔹 *Result:* {status_text} (`{pnl_pct:+.2f}%`)\n"
-                f"🔹 *PNL:* `${pnl:+.2f}`\n"
+                f"🔹 *PNL:* `${pnl_absolute:+.2f}`\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"🧠 *Neural Lesson:*\n{ai_lesson}"
             )
@@ -1509,7 +1509,7 @@ class TradingBot:
         try:
             # Consistent use of total_equity for circuit breaker
             equity = self.stats.get('total_equity', self.stats.get('balance', 0))
-            self.circuit_breaker.record_result(pnl, equity)
+            self.circuit_breaker.record_result(pnl_absolute, equity)
         except Exception as _cb_err:
             self.add_log(f"⚠️ [CB] Record error: {_cb_err}")
         
