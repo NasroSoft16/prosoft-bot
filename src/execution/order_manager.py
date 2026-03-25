@@ -6,35 +6,79 @@ class OrderManager:
         self.wrapper = client_wrapper
         self.client = client_wrapper.client
 
+    def _get_symbol_filters(self, symbol):
+        """Fetches filters for a specific symbol from symbol_info."""
+        try:
+            info = self.client.get_symbol_info(symbol)
+            if not info or 'filters' not in info:
+                return None
+            return info['filters']
+        except Exception as e:
+            app_logger.error(f"Error fetching filters for {symbol}: {e}")
+            return None
+
     def _format_quantity(self, symbol, quantity):
         """Formats the quantity precisely to Binance's LOT_SIZE step size by truncating."""
         try:
-            info = self.client.get_symbol_info(symbol)
-            for f in info['filters']:
+            filters = self._get_symbol_filters(symbol)
+            if not filters:
+                return float(f"{quantity:.4f}")
+
+            for f in filters:
                 if f['filterType'] == 'LOT_SIZE':
                     step_size = float(f['stepSize'])
                     if step_size <= 0: return quantity
 
                     import math
-                    # Use a small epsilon to avoid float precision issues during division
-                    # floor(0.0001 / 0.0001) might be 0, so we add 1e-10
                     precision = int(round(-math.log10(step_size), 0)) if step_size < 1 else 0
                     
-                    # Truncate to step size
                     factor = 10 ** precision
                     truncated_qty = math.floor(quantity * factor + 1e-10) / factor
                     
-                    qty_str = "{:0.0{}f}".format(truncated_qty, precision)
-                    return float(qty_str)
+                    return truncated_qty
         except Exception as e:
-            app_logger.error(f"Error fetching lot size for {symbol}: {e}")
+            app_logger.error(f"Error formatting quantity for {symbol}: {e}")
             
-        return float(f"{quantity:.4f}") # fallback truncation
+        return float(f"{quantity:.4f}")
+
+    def check_min_notional(self, symbol, quantity, price):
+        """Validates if price * quantity meets the minimum notional requirement."""
+        try:
+            filters = self._get_symbol_filters(symbol)
+            if not filters:
+                return True, 0
+
+            for f in filters:
+                if f['filterType'] == 'NOTIONAL':
+                    min_notional = float(f['minNotional'])
+                    notional = quantity * price
+                    if notional < min_notional:
+                        return False, min_notional
+                    return True, min_notional
+                if f['filterType'] == 'MIN_NOTIONAL': # Older versions of API might use this
+                    min_notional = float(f['minNotional'])
+                    notional = quantity * price
+                    if notional < min_notional:
+                        return False, min_notional
+                    return True, min_notional
+            return True, 0
+        except Exception as e:
+            app_logger.error(f"Error checking min notional for {symbol}: {e}")
+            return True, 0
 
     def place_market_buy(self, symbol, quantity):
         """Places a market buy order."""
         try:
             formatted_qty = self._format_quantity(symbol, quantity)
+            
+            # Check notional
+            price = self.wrapper.get_symbol_ticker(symbol)
+            if price:
+                allowed, min_val = self.check_min_notional(symbol, formatted_qty, float(price))
+                if not allowed:
+                    app_logger.warning(f"⚠️ Market BUY Rejected: {symbol} Notional ${formatted_qty * float(price):.2f} < Min ${min_val:.2f}")
+                    return None
+
             order = self.client.create_order(
                 symbol=symbol,
                 side='BUY',
@@ -54,6 +98,16 @@ class OrderManager:
         """Places a market sell order."""
         try:
             formatted_qty = self._format_quantity(symbol, quantity)
+            
+            # Check notional
+            price = self.wrapper.get_symbol_ticker(symbol)
+            if price:
+                allowed, min_val = self.check_min_notional(symbol, formatted_qty, float(price))
+                if not allowed:
+                    app_logger.warning(f"⚠️ Market SELL Rejected: {symbol} Notional ${formatted_qty * float(price):.2f} < Min ${min_val:.2f}")
+                    # Special Case: If it's too small, we might want to tell the caller so they can cleanup
+                    return "NOTIONAL_ERROR" 
+
             order = self.client.create_order(
                 symbol=symbol,
                 side='SELL',

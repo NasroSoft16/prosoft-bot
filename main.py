@@ -475,10 +475,14 @@ class TradingBot:
             
             if qty > 0:
                 order = self.order_manager.place_market_sell(trade['symbol'], qty)
+                if order == "NOTIONAL_ERROR":
+                    self.add_log(f"⚠️ CLEANUP: {trade['symbol']} balance too small to sell (${qty * exit_price:.2f}). Removing from active tracker.")
+                    order = True # Treat as success for cleanup logic
+                    reason = "Cleanup/Dust"
 
             # ALWAYS proceed to log and remove if qty is 0, if order succeeded, 
             # or if it's a manual exit (we want it gone from dashboard)
-            if order or qty == 0 or reason == 'Manual Exit' or reason == 'Cleanup':
+            if order or qty == 0 or reason == 'Manual Exit' or reason == 'Cleanup' or reason == "Cleanup/Dust":
                 # ── Unified PnL Calculation ──
                 pnl_decimal = (exit_price - entry_p) / entry_p if entry_p > 0 else 0.0
                 pnl_pct = pnl_decimal * 100
