@@ -2,6 +2,7 @@ import sqlite3
 import pandas as pd
 import shutil
 import os
+import numpy as np
 from datetime import datetime
 from src.utils.logger import app_logger
 
@@ -199,7 +200,7 @@ class NeuralMemory:
                 f"SELECT * FROM trade_memory ORDER BY id DESC LIMIT {limit}", conn
             )
             conn.close()
-            return df.to_dict('records')
+            return df.replace({np.nan: None, np.inf: None, -np.inf: None}).to_dict('records')
         except Exception:
             return []
 
@@ -250,7 +251,7 @@ class NeuralMemory:
             conn.close()
             
             return {
-                'revenue': rev_df.to_dict('records') if not rev_df.empty else []
+                'revenue': rev_df.replace({np.nan: None, np.inf: None, -np.inf: None}).to_dict('records') if not rev_df.empty else []
             }
         except Exception:
             return None
@@ -264,6 +265,8 @@ class NeuralMemory:
                 conn, params=(f"{today}%",)
             )
             conn.close()
+            # FIX: Ensure JSON compliance by replacing NaN/Infinity with None (null)
+            df = df.replace({np.nan: None, np.inf: None, -np.inf: None})
             return df.to_dict('records') if not df.empty else []
         except Exception:
             return []
@@ -273,7 +276,7 @@ class NeuralMemory:
             conn = sqlite3.connect(self.db_path)
             df = pd.read_sql_query(f"SELECT * FROM revenue_memory ORDER BY id DESC LIMIT {limit}", conn)
             conn.close()
-            return df.to_dict('records')
+            return df.replace({np.nan: None, np.inf: None, -np.inf: None}).to_dict('records')
         except Exception:
             return []
 
