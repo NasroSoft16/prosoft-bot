@@ -514,7 +514,7 @@ class TradingBot:
                     app_logger.error(f"Brain-Link Fail: {log_err}")
 
                 # ── Update Statistics (Explicit Casting) ──
-                self._update_closing_stats(pnl_absolute, pnl_pct)
+                await self._update_closing_stats(trade, pnl_absolute, pnl_pct, reason)
 
                 if self.stats['closed_trades'] % 10 == 0:
                     self.add_log("⚙️ System: Triggering strategy optimization cycle...")
@@ -1432,7 +1432,7 @@ class TradingBot:
 
         
         # ── Statistics & Neural Memory Unification ──
-        self._update_closing_stats(pnl_absolute, pnl_pct)
+        await self._update_closing_stats(trade, pnl_absolute, pnl_pct, reason)
         
         try:
             db_abs_path = os.path.abspath(self.memory.db_path)
@@ -1456,7 +1456,7 @@ class TradingBot:
         except Exception as log_err:
             self.add_log(f"⚠️ Brain-Link Failed: {log_err}")
 
-    def _update_closing_stats(self, pnl_absolute, pnl_pct):
+    async def _update_closing_stats(self, trade, pnl_absolute, pnl_pct, reason):
         """Standardized statistics update helper."""
         self.stats['daily_pnl'] = float(self.stats.get('daily_pnl', 0.0)) + float(pnl_absolute)
         self.stats['daily_pnl_pct'] = float(self.stats.get('daily_pnl_pct', 0.0)) + float(pnl_pct)
