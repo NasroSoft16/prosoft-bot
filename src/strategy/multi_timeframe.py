@@ -53,11 +53,11 @@ class MultiTimeframeAnalyzer:
 
             if rsi < 38 and ema_fast >= ema_slow and macd_hist > 0:
                 signal = 'BUY'      # oversold + bullish trend
-            elif rsi > 62 and ema_fast < ema_slow and macd_hist < 0:
+            elif rsi > 70 and ema_fast < ema_slow and macd_hist < 0:
                 signal = 'SELL'     # overbought + bearish trend
-            elif 45 <= rsi <= 62 and close > ema_fast > ema_slow and macd_hist > 0:
-                signal = 'BUY'      # trend-ride zone
-            elif 38 <= rsi < 45 and macd_hist > 0 and close > ema_fast:
+            elif 42 <= rsi <= 72 and close > ema_fast > ema_slow and macd_hist > 0:
+                signal = 'BUY'      # trend-ride zone (more aggressive)
+            elif 38 <= rsi < 42 and macd_hist > 0 and close > ema_fast:
                 signal = 'BUY'      # recovering from dip
 
             return {
