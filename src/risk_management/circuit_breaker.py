@@ -47,14 +47,14 @@ class CircuitBreaker:
         self.max_consecutive_loss = max_consecutive_loss
 
         # Runtime state
-        self.is_tripped         = False
-        self.trip_reason        = None
-        self.consecutive_losses = 0
-        self.last_reset_date    = date.today()
+        self.is_tripped             = False
+        self.trip_reason            = ""
+        self.consecutive_losses     = 0
+        self.last_reset_date        = date.today()
 
         # Balance tracking (set from main.py via set_balance())
-        self._session_start_balance = None
-        self._current_balance       = None
+        self._session_start_balance: float = 0.0
+        self._current_balance: float       = 0.0
 
         os.makedirs('data', exist_ok=True)
         self._load_state()
@@ -75,11 +75,15 @@ class CircuitBreaker:
 
                 saved_date = date.fromisoformat(state.get('date', str(date.today())))
                 if saved_date == date.today():
-                    self.is_tripped         = state.get('is_tripped', False)
-                    self.consecutive_losses = state.get('consecutive_losses', 0)
-                    self.trip_reason        = state.get('trip_reason')
+                    self.is_tripped             = state.get('is_tripped', False)
+                    self.consecutive_losses     = state.get('consecutive_losses', 0)
+                    self.trip_reason            = state.get('trip_reason')
+                    self._session_start_balance = state.get('session_start_balance')
                     if self.is_tripped:
                         app_logger.warning(f"[CB] ⚠️ Restored tripped state: {self.trip_reason}")
+                else:
+                    # If it's a new day, we don't restore the tripped state or start balance
+                    pass
         except Exception as e:
             app_logger.warning(f"[CB] Could not load saved state: {e}")
 
@@ -87,11 +91,12 @@ class CircuitBreaker:
         try:
             with open(STATE_FILE, 'w') as f:
                 json.dump({
-                    'date':               str(date.today()),
-                    'is_tripped':         self.is_tripped,
-                    'consecutive_losses': self.consecutive_losses,
-                    'trip_reason':        self.trip_reason,
-                    'timestamp':          datetime.now().isoformat()
+                    'date':                  str(date.today()),
+                    'is_tripped':            self.is_tripped,
+                    'consecutive_losses':    self.consecutive_losses,
+                    'trip_reason':           self.trip_reason,
+                    'session_start_balance': self._session_start_balance,
+                    'timestamp':             datetime.now().isoformat()
                 }, f, indent=2)
         except Exception as e:
             app_logger.warning(f"[CB] Could not save state: {e}")
@@ -118,9 +123,10 @@ class CircuitBreaker:
         reference balance for daily-loss calculation.
         """
         self._current_balance = balance
-        if self._session_start_balance is None:
+        if self._session_start_balance is None or self._session_start_balance <= 0:
             self._session_start_balance = balance
             app_logger.info(f"[CB] Session start balance set to ${balance:.2f}")
+            self._save_state()
 
     # ── Public API ────────────────────────────────────────────────────────────
 

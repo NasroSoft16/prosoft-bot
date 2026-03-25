@@ -663,6 +663,16 @@ class TradingBot:
             self.add_log(f"> Service: {service.ljust(18)} [{status}]")
         
         await self.telegram.send_message("🚀 *PROSOFT QUANTUM PRIME SYSTEM STARTUP*\nEngines are online. Trading system engaged.")
+        
+        # Sync Initial Equity for Circuit Breaker accuracy
+        try:
+            self.portfolio.update_portfolio()
+            summ = self.portfolio.get_summary()
+            self.stats['total_equity'] = summ.get('total_value', 0.0)
+            self.stats['balance'] = self.api.get_account_balance('USDT')
+            self.add_log(f"Portfolio Initialized: Equity=${self.stats['total_equity']:,.2f}")
+        except: pass
+
         await self.sync_from_binance()
 
         try:
@@ -1189,7 +1199,11 @@ class TradingBot:
                         await self.healer.run_health_check()
 
                     try:
-                        self.circuit_breaker.set_balance(self.stats.get('balance', 0))
+                        # Use total_equity (USDT + Assets) for daily loss calculation to avoid false alarms
+                        equity = self.stats.get('total_equity', self.stats.get('balance', 0))
+                        if equity > 0:
+                            self.circuit_breaker.set_balance(equity)
+                            
                         if not self.circuit_breaker.can_trade():
                             cb_st = self.circuit_breaker.get_status()
                             self.add_log(f"🔴 [CIRCUIT BREAKER] Trading BLOCKED: {cb_st['trip_reason']} | Loss: {cb_st['daily_loss_pct']:.1f}%")
@@ -1452,8 +1466,9 @@ class TradingBot:
             self.active_trades.remove(trade)
             
         try:
-            current_balance = self.stats.get('balance', 0)
-            self.circuit_breaker.record_result(pnl, current_balance)
+            # Consistent use of total_equity for circuit breaker
+            equity = self.stats.get('total_equity', self.stats.get('balance', 0))
+            self.circuit_breaker.record_result(pnl, equity)
         except Exception as _cb_err:
             self.add_log(f"⚠️ [CB] Record error: {_cb_err}")
         
