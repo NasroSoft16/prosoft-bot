@@ -416,15 +416,15 @@ class TradingBot:
                     trade_sl = new_sl
                     self.add_log(f"🛡️ [PROSOFT SHIELD] {trade_symbol}: Profit Locked at Break-Even (+0.1%)")
 
-            # Stage 2: Aggressive Profit Trail (1.5% profit)
-            if pnl_pct >= 0.015:
+            # Stage 2: Aggressive Profit Trail (1% profit)
+            if pnl_pct >= 0.01: 
                 # Follow at 1% distance from current price
                 new_sl = trade_price * 0.99 
                 if new_sl > trade_sl:
                     trade['trailing_sl'] = new_sl
                     trade['sl'] = new_sl
                     trade_sl = new_sl
-                    self.add_log(f"📈 [DYNAMIC TRAIL] {trade_symbol}: Following price at 1% offset")
+                    self.add_log(f"📈 [DYNAMIC TRAIL] {trade_symbol}: Following price at 1% offset (Secure Mode)")
 
             # ── Update trailing stop (ATR-based for focus symbol) ──
             if atr > 0 and trade_symbol == self.symbol:
