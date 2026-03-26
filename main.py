@@ -394,10 +394,10 @@ class TradingBot:
 
             # --- [PROSOFT GHOST-SL GUARD] ---
             # If SL became NaN or 0 due to an external error, restore a 5% emergency buffer
-            raw_sl = trade.get('trailing_sl', trade.get('sl', self.stats['price'] * 0.95))
+            raw_sl = trade.get('trailing_sl', trade.get('sl', self.stats['price'] * 0.98))
             import math
             if math.isnan(raw_sl) or raw_sl <= 0:
-                raw_sl = trade.get('entry_price', trade_price) * 0.95
+                raw_sl = trade.get('entry_price', trade_price) * 0.98
             
             trade_sl = float(raw_sl)
             trade_tp = float(trade.get('tp', 0))
