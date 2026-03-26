@@ -928,10 +928,17 @@ class TradingBot:
                         if rocket and self.execution_mode == 'auto' and not self.active_trades:
                             self.add_log(f"🚀 MEME ROCKET ENGAGED: Executing scalp on {self.symbol}")
                             balance = self.api.get_account_balance('USDT')
-                            qty = max(20.0, balance * 0.15) / rocket['entry_price']
-                            await self.execute_trade(self.symbol, 'BUY', qty, rocket['entry_price'], 
-                                                     rocket['entry_price'] * (1 - rocket['emergency_sl']/100),
-                                                     rocket['entry_price'] * (1 + rocket['target_profit']/100), 0.99)
+                            # Safety cap: use 90% of balance if $20 is too much, but stay above $10.1
+                            trade_amount = min(20.0, balance * 0.95)
+                            if trade_amount < 10.1: trade_amount = balance * 0.99
+                            
+                            if trade_amount >= 10.0:
+                                qty = trade_amount / rocket['entry_price']
+                                await self.execute_trade(self.symbol, 'BUY', qty, rocket['entry_price'], 
+                                                         rocket['entry_price'] * (1 - rocket['emergency_sl']/100),
+                                                         rocket['entry_price'] * (1 + rocket['target_profit']/100), 0.99)
+                            else:
+                                self.add_log(f"⚠️ [MEME ROCKET] Balance too low (${balance:.2f}) for even a minimum trade.")
                         elif rocket:
                             await self.telegram.send_message(
                                 f"🚀 *MEME ROCKET ALERT / تنبيه صاروخ الميم* 🚀\n"
@@ -1369,7 +1376,22 @@ class TradingBot:
     async def execute_trade(self, symbol, side, qty, price, sl, tp, conf):
         self.add_log(f"CORE EXECUTION: {side} {symbol} @ {price}")
         try:
-            final_qty = qty * self.stats.get('qty_multiplier', 1.0)
+            balance = self.api.get_account_balance('USDT')
+            multiplier = self.stats.get('qty_multiplier', 1.0)
+            
+            # 12.8 PROSOFT: Smart Sizing for Small Accounts
+            target_usd = qty * price * multiplier
+            safe_usd = min(target_usd, balance * 0.95)
+            
+            # Ensure we don't fall below Binance $10 limit if we have enough
+            if safe_usd < 10.1 and balance >= 10.1:
+                safe_usd = balance * 0.98  # Use almost everything if we are at the limit
+            
+            if safe_usd < 10.0:
+                self.add_log(f"⚠️ [EXECUTION] Aborted: Resulting amount ${safe_usd:.2f} is below Binance Minimum or Balance.")
+                return False
+
+            final_qty = safe_usd / price
             order_res = self.orders.place_market_buy(symbol, final_qty)
         except Exception as e:
             self.add_log(f"Execution Error: {str(e)}")

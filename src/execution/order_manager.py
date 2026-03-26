@@ -88,7 +88,7 @@ class OrderManager:
             app_logger.info(f"Market BUY Order placed: {order['orderId']}")
             return order
         except BinanceAPIException as e:
-            app_logger.error(f"Binance API Error during BUY order: {e}")
+            app_logger.error(f"❌ [BINANCE ERROR] BUY FAIL for {symbol}: {e.message} (Code: {e.code})")
             return None
         except Exception as e:
             app_logger.error(f"Error placing BUY order: {e}")
