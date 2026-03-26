@@ -416,15 +416,15 @@ class TradingBot:
                     trade_sl = new_sl
                     self.add_log(f"🛡️ [PROSOFT SHIELD] {trade_symbol}: Profit Locked at Break-Even (+0.1%)")
 
-            # Stage 2: Aggressive Profit Trail (1% profit)
-            if pnl_pct >= 0.01: 
-                # Follow at 1% distance from current price
-                new_sl = trade_price * 0.99 
+            # Stage 2: Aggressive Profit Trail (0.5% profit)
+            if pnl_pct >= 0.005: 
+                # Follow at 0.5% distance from current price to rise with every tick
+                new_sl = trade_price * 0.995 
                 if new_sl > trade_sl:
                     trade['trailing_sl'] = new_sl
                     trade['sl'] = new_sl
                     trade_sl = new_sl
-                    self.add_log(f"📈 [DYNAMIC TRAIL] {trade_symbol}: Following price at 1% offset (Secure Mode)")
+                    self.add_log(f"📈 [DYNAMIC TRAIL] {trade_symbol}: Rising with price (Locked: +{pnl_pct*100:.2f}%)")
 
             # ── Update trailing stop (ATR-based for focus symbol) ──
             if atr > 0 and trade_symbol == self.symbol:
@@ -787,8 +787,8 @@ class TradingBot:
                                         snipe_qty = snipe_amt / snipe_price
                                         order_res = self.orders.place_market_buy(new_asset, snipe_qty)
                                         if order_res:
-                                            snipe_sl = snipe_price * 0.95   
-                                            snipe_tp = snipe_price * 1.10   
+                                            snipe_sl = snipe_price * 0.98   
+                                            snipe_tp = snipe_price * 1.05   
                                             snipe_trade = {
                                                 'symbol': new_asset,
                                                 'side': 'BUY',
@@ -1622,7 +1622,7 @@ class TradingBot:
                         'symbol': symbol,
                         'entry_price': entry_price,
                         'qty': qty,
-                        'sl': entry_price * 0.95, 
+                        'sl': entry_price * 0.98, 
                         'tp': entry_price * 1.05, 
                         'side': 'BUY',
                         'conf': 85.0, 

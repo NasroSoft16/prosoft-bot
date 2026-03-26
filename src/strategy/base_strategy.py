@@ -133,7 +133,7 @@ class BaseStrategy:
             if atr <= 0:
                 return {'signal': 'WAIT', 'reason': 'ATR=0 (no volatility data)'}
 
-            stop_loss   = close - (atr * sl_mult)
+            stop_loss   = close * 0.98  # Fixed 2% SL protection as requested
             take_profit = close + (atr * tp_mult)
 
             # Sanity: TP/SL ratio must be > 1.5
