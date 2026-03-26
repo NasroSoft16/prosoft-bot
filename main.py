@@ -99,7 +99,7 @@ from src.strategy.micro_scalper            import MicroScalper
 load_dotenv()
 
 class TradingBot:
-    def __init__(self, symbol='BTCUSDT', timeframe='15m', interval_sec=10):
+    def __init__(self, symbol='BTCUSDT', timeframe='15m', interval_sec=5):
         self.symbol = os.getenv('SYMBOL', symbol)
         self.timeframe = os.getenv('TIMEFRAME', timeframe)
         self.interval_sec = int(interval_sec)
@@ -379,6 +379,11 @@ class TradingBot:
 
         atr = float(df.iloc[-1].get('ATR', 0)) if df is not None else 0
 
+        # CRITICAL: Ultra-Fresh Ticker Refresh for Trailing Stops
+        try:
+            self.stats['tickers'] = self.api.get_all_tickers()
+        except: pass
+
         for trade in list(self.active_trades):
             trade_symbol = trade.get('symbol', self.symbol)
             
@@ -415,6 +420,8 @@ class TradingBot:
                     trade['sl'] = new_sl
                     trade_sl = new_sl
                     self.add_log(f"🛡️ [PROSOFT SHIELD] {trade_symbol}: Profit Locked at Break-Even (+0.1%)")
+                    # NEW: Sync with Binance to ensure safety
+                    await self._sync_remote_sl(trade)
 
             # Stage 2: Aggressive Profit Trail (0.5% profit)
             if pnl_pct >= 0.005: 
@@ -425,6 +432,8 @@ class TradingBot:
                     trade['sl'] = new_sl
                     trade_sl = new_sl
                     self.add_log(f"📈 [DYNAMIC TRAIL] {trade_symbol}: Rising with price (Locked: +{pnl_pct*100:.2f}%)")
+                    # NEW: Sync with Binance to ensure safety
+                    await self._sync_remote_sl(trade)
 
             # ── Update trailing stop (ATR-based for focus symbol) ──
             if atr > 0 and trade_symbol == self.symbol:
@@ -552,6 +561,33 @@ class TradingBot:
 
         except Exception as e:
             app_logger.error(f"Trade close error: {e}")
+
+    async def _sync_remote_sl(self, trade):
+        """
+        Synchronizes the local SL/TP with Binance by replacing existing OCO/SL orders.
+        """
+        try:
+            symbol = trade['symbol']
+            qty = trade.get('qty', 0)
+            if trade.get('partial_done'):
+                qty *= 0.6
+            
+            # Cancel old OCO if exists
+            if 'oco_id' in trade:
+                try:
+                    self.api.client.cancel_order_list(symbol=symbol, orderListId=trade['oco_id'])
+                except: pass
+            
+            # Place new OCO with updated SL and original/default TP
+            tp = trade.get('tp', trade['entry_price'] * 1.05)
+            sl = trade['sl']
+            
+            oco = self.order_manager.place_oco_order(symbol, qty, tp, sl)
+            if oco:
+                trade['oco_id'] = oco.get('orderListId')
+                self.add_log(f"🔄 [REMOTE SYNC] {symbol}: Binance SL updated to {sl:.6f}")
+        except Exception as e:
+            app_logger.warning(f"Remote SL Sync failed for {trade['symbol']}: {e}")
 
     async def _scalper_cycle(self, market_health):
         """
@@ -1319,7 +1355,7 @@ class TradingBot:
                     # Adaptive Cycle Intensity: 
                     # If trades are active, we monitor every 3 seconds for SL/TP precision.
                     # If idle, we scan every 10 seconds to save API quota.
-                    current_interval = 3 if self.active_trades else self.interval_sec
+                    current_interval = 1 if self.active_trades else self.interval_sec
                     
                     await asyncio.wait_for(self.wakeup_event.wait(), timeout=current_interval)
                     self.wakeup_event.clear()
