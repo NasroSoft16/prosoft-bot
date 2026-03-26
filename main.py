@@ -441,13 +441,14 @@ class TradingBot:
                 trade.update(updated)
                 trade_sl = trade.get('trailing_sl', trade_sl)
 
-            # ── Check stop loss hit ──
-            if trade_price <= trade_sl:
+            # ── [PROSOFT GLOBAL GUARD: Hard 2% Limit] ──
+            if trade_price <= trade_sl or pnl_pct <= -0.02:
+                reason = "SL" if trade_price <= trade_sl else "GLOBAL SAFETY (2%)"
                 self.add_log(
-                    f"🔴 SL HIT: {trade_symbol} @ {trade_price:.6f} "
-                    f"(SL={trade_sl:.6f})"
+                    f"🔴 {reason} HIT: {trade_symbol} @ {trade_price:.6f} "
+                    f"(PNL: {pnl_pct*100:.2f}%)"
                 )
-                await self._close_trade(trade, trade_price, reason='SL')
+                await self._close_trade(trade, trade_price, reason=reason)
                 continue
 
             # ── Check take profit hit ──
