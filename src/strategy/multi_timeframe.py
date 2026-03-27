@@ -29,6 +29,7 @@ class MultiTimeframeAnalyzer:
     def __init__(self, api, ta):
         self.api = api
         self.ta  = ta
+        self.threshold = float(os.getenv('MTF_CONSENSUS_THRESHOLD', '0.55'))
 
     # ── Private ───────────────────────────────────────────────────────────────
 
@@ -115,11 +116,11 @@ class MultiTimeframeAnalyzer:
         buy_ratio  = buy_weight  / total_w if total_w else 0
         sell_ratio = sell_weight / total_w if total_w else 0
 
-        if buy_ratio >= CONSENSUS_THRESHOLD:
+        if buy_ratio >= self.threshold:
             decision   = 'BUY'
             confidence = buy_score
             veto       = False
-        elif sell_ratio >= CONSENSUS_THRESHOLD:
+        elif sell_ratio >= self.threshold:
             decision   = 'SELL'
             confidence = sell_score
             veto       = True   # no long entry when trend is down

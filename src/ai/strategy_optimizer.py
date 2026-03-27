@@ -18,6 +18,7 @@ class StrategyOptimizer:
 
         # Live parameters that get updated by the optimizer
         self.ai_confidence_threshold = float(os.getenv('AI_CONFIDENCE_THRESHOLD', 0.55))
+        self.mtf_consensus_threshold = float(os.getenv('MTF_CONSENSUS_THRESHOLD', 0.55))
         self.tp_multiplier           = float(os.getenv('ATR_TP_MULTIPLIER',       5.0))
         self.sl_multiplier           = float(os.getenv('ATR_SL_MULTIPLIER',       2.2))
         self.max_concurrent_trades   = int(os.getenv('MAX_CONCURRENT_TRADES',     3))
@@ -72,6 +73,27 @@ class StrategyOptimizer:
                 f"🧠 [OPTIMIZER] ✅ APPLIED: relaxing threshold → {new_thresh:.2f}"
             )
             changes['confidence_threshold'] = new_thresh
+
+        # ── Rule 1b: MTF Consensus threshold ────────────────────────────
+        if win_rate < 0.45 and len(df) >= 10:
+            new_mtf = min(0.65, self.mtf_consensus_threshold + 0.05)
+            self.mtf_consensus_threshold = new_mtf
+            if bot_instance and hasattr(bot_instance, 'mtf'):
+                bot_instance.mtf.threshold = new_mtf
+            app_logger.warning(
+                f"🧠 [OPTIMIZER] ✅ APPLIED: MTF threshold → {new_mtf:.2f} (Strict mode)"
+            )
+            changes['mtf_threshold'] = new_mtf
+            
+        elif win_rate > 0.65 and self.mtf_consensus_threshold > 0.35:
+            new_mtf = max(0.35, self.mtf_consensus_threshold - 0.05)
+            self.mtf_consensus_threshold = new_mtf
+            if bot_instance and hasattr(bot_instance, 'mtf'):
+                bot_instance.mtf.threshold = new_mtf
+            app_logger.info(
+                f"🧠 [OPTIMIZER] ✅ APPLIED: MTF threshold → {new_mtf:.2f} (Loose mode)"
+            )
+            changes['mtf_threshold'] = new_mtf
 
         # ── Rule 2: TP multiplier vs average profit per win ───────────────
         if not wins.empty:
