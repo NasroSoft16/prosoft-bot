@@ -128,6 +128,19 @@ class BinanceClientWrapper:
             app_logger.error(f"Error fetching ticker for {symbol}: {e}")
             return None
 
+    def get_order_book(self, symbol, limit=20):
+        """Fetches the current order book (bids and asks) for a symbol."""
+        if not self.client: return None
+        try:
+            ob = self.client.get_order_book(symbol=symbol, limit=limit)
+            return {
+                'bids': [[float(b[0]), float(b[1])] for b in ob['bids']],
+                'asks': [[float(a[0]), float(a[1])] for a in ob['asks']]
+            }
+        except Exception as e:
+            app_logger.error(f"Error fetching order book for {symbol}: {e}")
+            return None
+
     def get_all_tickers(self):
         """Phase 14.1: Bulk price fetch for institutional-grade monitoring speed."""
         if not self.client: return {}

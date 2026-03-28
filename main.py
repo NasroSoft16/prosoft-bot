@@ -572,7 +572,7 @@ class TradingBot:
                 if pnl_absolute < 0:
                     # Apply 5-minute cooldown to prevent immediate revenge trading
                     self.blacklisted_symbols[trade['symbol']] = time.time() + 300
-                    self.logger.warning(f"❄️ [COOL-DOWN] Applied 5m rest to {trade['symbol']} due to loss.")
+                    app_logger.warning(f"❄️ [COOL-DOWN] Applied 5m rest to {trade['symbol']} due to loss.")
                     self.add_log(f"❄️ [COOL-DOWN] {trade['symbol']} resting for 5m due to loss.")
 
                 if self.stats['closed_trades'] % 10 == 0:
