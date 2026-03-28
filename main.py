@@ -306,11 +306,22 @@ class TradingBot:
         if symbol in self.blacklisted_symbols:
             expiry = self.blacklisted_symbols[symbol]
             if time.time() < expiry:
-                return False, f"Symbol {symbol} is blacklisted for {int((expiry - time.time())/3600)}h (recent loss)"
+                return False, f"Symbol {symbol} is on 5m cool-down (Recent Loss). Waiting reset."
             else:
-                del self.blacklisted_symbols[symbol] # Clean up expired
+                del self.blacklisted_symbols[symbol]
 
-        # ── Gate 9: Micro-Account Balance Floor ──
+        # ── Gate 9: Liquidity & Spread Guard (Smart Filter) ──
+        # Instead of banning symbols, we check the actual market health (Orderbook)
+        ob = self.api.get_order_book(symbol)
+        if ob and ob['asks'] and ob['bids']:
+            # Gap between best Buy and best Sell
+            spread = (ob['asks'][0][0] - ob['bids'][0][0]) / ob['asks'][0][0]
+            if spread > 0.005:  # Allowed up to 0.5% spread for high-volatility moves
+                return False, f"Gap too wide: Spread {spread:.2%} exceeds 0.5% limit"
+
+        # ── Gate 10: Micro-Account Balance Floor ──
+
+        # ── Gate 11: Micro-Account Balance Floor ──
         balance = self.api.get_account_balance('USDT')
         if balance < 10.10: # Extra safety buffer for Binance $10 limit
             return False, f"Critical Balance Balance Floor: ${balance:.2f} (Protection engaged)"
@@ -557,11 +568,12 @@ class TradingBot:
                 # ── Update Statistics (Explicit Casting) ──
                 await self._update_closing_stats(trade, pnl_absolute, pnl_pct, reason)
 
-                # ── [NEW v14.5: Blacklist Symbol on Loss] ──
+                # ── [UPDATED v14.7: 5-Minute Cooldown on Loss] ──
                 if pnl_absolute < 0:
-                    # Isolate this coin for 12 hours to prevent revenge trading
-                    self.blacklisted_symbols[trade['symbol']] = time.time() + (12 * 3600)
-                    self.add_log(f"🚫 [ISOLATION] {trade['symbol']} blacklisted for 12h due to loss.")
+                    # Apply 5-minute cooldown to prevent immediate revenge trading
+                    self.blacklisted_symbols[trade['symbol']] = time.time() + 300
+                    self.logger.warning(f"❄️ [COOL-DOWN] Applied 5m rest to {trade['symbol']} due to loss.")
+                    self.add_log(f"❄️ [COOL-DOWN] {trade['symbol']} resting for 5m due to loss.")
 
                 if self.stats['closed_trades'] % 10 == 0:
                     self.add_log("⚙️ System: Triggering strategy optimization cycle...")
@@ -1683,8 +1695,11 @@ class TradingBot:
                 qty = float(b['free']) + float(b['locked'])
                 symbol = f"{asset}USDT"
                 
+                # ── [UPDATED v14.9: Sensitive Ghost Recovery] ──
+                import math
                 ticker = self.api.get_symbol_ticker(symbol)
-                if not ticker or (qty * ticker < 1.0): continue
+                # Lower threshold to 0.3 USDT to catch assets even in micro-accounts
+                if not ticker or (qty * ticker < 0.3): continue
                 
                 if not any(t['symbol'] == symbol for t in self.active_trades):
                     self.add_log(f"🛡️ [RECOVERY] Auditing ghost asset: {asset}...")
@@ -1711,7 +1726,14 @@ class TradingBot:
                         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     self.active_trades.append(new_trade)
-                    self.add_log(f"✅ [RECOVERY] Restored {symbol} to monitoring. Entry: ${entry_price:.4f}")
+                    self.add_log(f"✅ [RECOVERY] Ghost Asset Found: {symbol} (${(qty*ticker):.2f}). Restored to monitoring.")
+                    
+                    # Notify Telegram
+                    asyncio.create_task(self.telegram.send_message(
+                        f"🛡️ *GHOST RECOVERY DETECTED*\n"
+                        f"Asset: `{symbol}` found in Binance but missing from bot memory.\n"
+                        f"Action: Restored to monitoring state with Entry at `${entry_price:.4f}`"
+                    ))
                     
         except Exception as e:
             self.add_log(f"Recovery Audit Error: {e}")
