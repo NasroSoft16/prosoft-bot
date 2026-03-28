@@ -226,6 +226,9 @@ class TradingBot:
         self.last_report_date = None 
         
         self.ui.update_ui(self.symbol, self.timeframe, self.stats, self.logs)
+        
+        # ── [NEW v14.5: Symbol Isolation & Blacklist] ──
+        self.blacklisted_symbols = {} # {symbol: expiry_timestamp}
 
         # ═══════════════════════════════════════════════════════════════════════════════
         #  UPGRADE PATCH ALIASES & ADDITIONS (v2.0)
@@ -298,6 +301,19 @@ class TradingBot:
             pass       # FGI handled in position sizing, not as a hard block
         elif fgi > 90:
             return False, f"Extreme Greed (FGI={fgi}) — stand aside"
+
+        # ── Gate 8: Symbol Blacklist (Isolation) ──
+        if symbol in self.blacklisted_symbols:
+            expiry = self.blacklisted_symbols[symbol]
+            if time.time() < expiry:
+                return False, f"Symbol {symbol} is blacklisted for {int((expiry - time.time())/3600)}h (recent loss)"
+            else:
+                del self.blacklisted_symbols[symbol] # Clean up expired
+
+        # ── Gate 9: Micro-Account Balance Floor ──
+        balance = self.api.get_account_balance('USDT')
+        if balance < 10.10: # Extra safety buffer for Binance $10 limit
+            return False, f"Critical Balance Balance Floor: ${balance:.2f} (Protection engaged)"
 
         return True, "All gates passed"
 
@@ -540,6 +556,12 @@ class TradingBot:
 
                 # ── Update Statistics (Explicit Casting) ──
                 await self._update_closing_stats(trade, pnl_absolute, pnl_pct, reason)
+
+                # ── [NEW v14.5: Blacklist Symbol on Loss] ──
+                if pnl_absolute < 0:
+                    # Isolate this coin for 12 hours to prevent revenge trading
+                    self.blacklisted_symbols[trade['symbol']] = time.time() + (12 * 3600)
+                    self.add_log(f"🚫 [ISOLATION] {trade['symbol']} blacklisted for 12h due to loss.")
 
                 if self.stats['closed_trades'] % 10 == 0:
                     self.add_log("⚙️ System: Triggering strategy optimization cycle...")

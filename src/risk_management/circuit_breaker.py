@@ -51,6 +51,7 @@ class CircuitBreaker:
         self.trip_reason            = ""
         self.consecutive_losses     = 0
         self.last_reset_date        = date.today()
+        self.last_trip_time         = None # New: Track exact time of halt
 
         # Balance tracking (set from main.py via set_balance())
         self._session_start_balance: float = 0.0
@@ -79,6 +80,11 @@ class CircuitBreaker:
                     self.consecutive_losses     = state.get('consecutive_losses', 0)
                     self.trip_reason            = state.get('trip_reason')
                     self._session_start_balance = state.get('session_start_balance')
+                    
+                    ltt = state.get('last_trip_time')
+                    if ltt:
+                        self.last_trip_time = datetime.fromisoformat(ltt)
+
                     if self.is_tripped:
                         app_logger.warning(f"[CB] ⚠️ Restored tripped state: {self.trip_reason}")
                 else:
@@ -96,6 +102,7 @@ class CircuitBreaker:
                     'consecutive_losses':    self.consecutive_losses,
                     'trip_reason':           self.trip_reason,
                     'session_start_balance': self._session_start_balance,
+                    'last_trip_time':        self.last_trip_time.isoformat() if self.last_trip_time else None,
                     'timestamp':             datetime.now().isoformat()
                 }, f, indent=2)
         except Exception as e:
@@ -109,7 +116,8 @@ class CircuitBreaker:
         if today > self.last_reset_date:
             app_logger.info("[CB] 🌅 New day — Circuit Breaker reset.")
             self.is_tripped             = False
-            self.trip_reason            = None
+            self.trip_reason            = ""
+            self.last_trip_time         = None
             self.consecutive_losses     = 0
             self.last_reset_date        = today
             self._session_start_balance = self._current_balance
@@ -136,11 +144,24 @@ class CircuitBreaker:
         Returns True if trading is allowed, False if the breaker has tripped.
         """
         self._check_daily_reset()
+        
+        # 🟢 SMART RECOVERY: If tripped more than 4 hours ago, allow a "Retry" 
+        # to see if market has improved (Strategy: Market Context Re-evaluation)
+        if self.is_tripped and hasattr(self, 'last_trip_time') and self.last_trip_time:
+            from datetime import datetime
+            elapsed = (datetime.now() - self.last_trip_time).total_seconds() / 3600
+            if elapsed >= 4.0:
+                app_logger.info(f"[CB] 🔄 SMART RECOVERY: 4 hours passed since last trip ({self.trip_reason}). Resetting for re-evaluation.")
+                self.is_tripped = False
+                self.trip_reason = ""
+                self._save_state()
+                return True
+
         if self.is_tripped:
             app_logger.warning(f"[CB] 🔴 TRADING BLOCKED | Reason: {self.trip_reason}")
         return not self.is_tripped
 
-    def record_result(self, profit: float, new_balance: float = None):
+    def record_result(self, profit: float, new_balance: float = 0.0):
         """
         Call AFTER each trade closes.
 
@@ -183,6 +204,7 @@ class CircuitBreaker:
         if not self.is_tripped:   # Log only on first trip
             self.is_tripped  = True
             self.trip_reason = reason
+            self.last_trip_time = datetime.now()
             app_logger.critical(f"[CB] 🔴 CIRCUIT BREAKER TRIPPED: {reason}")
 
     def get_status(self) -> dict:
