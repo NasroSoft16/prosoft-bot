@@ -228,7 +228,9 @@ class TradingBot:
         self.ui.update_ui(self.symbol, self.timeframe, self.stats, self.logs)
         
         # ── [NEW v14.5: Symbol Isolation & Blacklist] ──
-        self.blacklisted_symbols = {} # {symbol: expiry_timestamp}
+        self.blacklist_file = 'data/isolation_state.json'
+        self.blacklisted_symbols = self._load_blacklist() 
+        self.market_crash_gate = 0 # Timestamp until global entry block
 
         # ═══════════════════════════════════════════════════════════════════════════════
         #  UPGRADE PATCH ALIASES & ADDITIONS (v2.0)
@@ -309,6 +311,11 @@ class TradingBot:
                 return False, f"Symbol {symbol} is on 5m cool-down (Recent Loss). Waiting reset."
             else:
                 del self.blacklisted_symbols[symbol]
+                self._save_blacklist()
+
+        # ── [NEW v15.0: Global Market Pulse Gate] ──
+        if time.time() < self.market_crash_gate:
+            return False, "Global Market Pause: Systemic Crash detected recently (Pulse Guard ACTIVE)."
 
         # ── Gate 9: Liquidity & Spread Guard (Smart Filter) ──
         # Instead of banning symbols, we check the actual market health (Orderbook)
@@ -320,11 +327,9 @@ class TradingBot:
                 return False, f"Gap too wide: Spread {spread:.2%} exceeds 0.5% limit"
 
         # ── Gate 10: Micro-Account Balance Floor ──
-
-        # ── Gate 11: Micro-Account Balance Floor ──
         balance = self.api.get_account_balance('USDT')
         if balance < 10.10: # Extra safety buffer for Binance $10 limit
-            return False, f"Critical Balance Balance Floor: ${balance:.2f} (Protection engaged)"
+            return False, f"Critical Balance Floor: ${balance:.2f}"
 
         return True, "All gates passed"
 
@@ -468,6 +473,27 @@ class TradingBot:
                 trade.update(updated)
                 trade_sl = trade.get('trailing_sl', trade_sl)
 
+            # ── [NEW v15.0: Sudden Collapse Detection] ──
+            # If we are in a loss (>0.5% loss), start checking for rapid collapse
+            if pnl_pct <= -0.005:
+                # Fetch fresh 1m data for this specific trade symbol if it's not the main focus
+                target_df = df if trade_symbol == self.symbol else self.api.get_historical_klines(trade_symbol, '1m', limit=20)
+                if target_df is not None:
+                    # CRITICAL: Calculate indicators for non-focus symbols so RSI is available
+                    if trade_symbol != self.symbol:
+                        target_df = self.ta.calculate_indicators(target_df)
+                        
+                    is_collapsing, collapse_reason = await self._check_flash_crash(trade_symbol, target_df)
+                    if is_collapsing:
+                        self.add_log(f"🚨 [EMERGENCY EXIT] {trade_symbol}: {collapse_reason} | Saving balance.")
+                        await self._close_trade(trade, trade_price, reason=collapse_reason)
+
+                        # ── SYSTEMIC CRASH PROTECTION ──
+                        # If an emergency exit happens, block NEW entries globally for 15m
+                        self.market_crash_gate = time.time() + 900 
+                        self.add_log("🛑 [PULSE-GUARD] Systemic risk detected. Entry gate locked for 15m.")
+                        continue
+
             # ── [PROSOFT GLOBAL GUARD: Hard 2% Limit] ──
             if trade_price <= trade_sl or pnl_pct <= -0.02:
                 reason = "SL" if trade_price <= trade_sl else "GLOBAL SAFETY (2%)"
@@ -571,7 +597,9 @@ class TradingBot:
                 # ── [UPDATED v14.7: 5-Minute Cooldown on Loss] ──
                 if pnl_absolute < 0:
                     # Apply 5-minute cooldown to prevent immediate revenge trading
-                    self.blacklisted_symbols[trade['symbol']] = time.time() + 300
+                    expiry = time.time() + 300
+                    self.blacklisted_symbols[trade['symbol']] = expiry
+                    self._save_blacklist()
                     app_logger.warning(f"❄️ [COOL-DOWN] Applied 5m rest to {trade['symbol']} due to loss.")
                     self.add_log(f"❄️ [COOL-DOWN] {trade['symbol']} resting for 5m due to loss.")
 
@@ -596,6 +624,64 @@ class TradingBot:
 
         except Exception as e:
             app_logger.error(f"Trade close error: {e}")
+
+    # ── [NEW v15.0: Flash-Crash Protection] ──
+    async def _check_flash_crash(self, symbol, df) -> tuple[bool, str]:
+        """
+        PROSOFT MOMENTUM GUARD:
+        Analyzes recent 1m candles for signs of a vertical collapse.
+        Returns (is_collapsing, reason).
+        """
+        try:
+            if df is None or len(df) < 5:
+                return False, ""
+            
+            # Use last 3 1m candles
+            last_3 = df.iloc[-3:]
+            
+            # Condition 1: Big Red Candle (Body > 1.2% drop in 1 min)
+            current_candle = last_3.iloc[-1]
+            body_size_pct = abs(float(current_candle['close']) - float(current_candle['open'])) / float(current_candle['open']) * 100
+            is_red = float(current_candle['close']) < float(current_candle['open'])
+            
+            if is_red and body_size_pct >= 1.25:
+                # If RSI is also falling sharply
+                rsi = float(current_candle.get('RSI', 50))
+                if rsi < 35:
+                    return True, f"Flash Crash: Body {body_size_pct:.2f}% drop + RSI {rsi:.1f}"
+
+            # Condition 2: Successive rapid drops (Accumulated > 2% in 3 mins)
+            total_drop = (float(last_3.iloc[-1]['close']) - float(last_3.iloc[0]['open'])) / float(last_3.iloc[0]['open']) * 100
+            if total_drop <= -2.1:
+                return True, f"Momentum Collapse: {total_drop:.2f}% drop in 3m"
+
+            return False, ""
+        except Exception as e:
+            app_logger.error(f"Flash-Crash check error for {symbol}: {e}")
+            return False, ""
+
+    def _save_blacklist(self):
+        """Persists isolation state to disk."""
+        try:
+            with open(self.blacklist_file, 'w') as f:
+                import json
+                json.dump(self.blacklisted_symbols, f)
+        except Exception as e:
+            app_logger.error(f"Error saving blacklist: {e}")
+
+    def _load_blacklist(self) -> dict:
+        """Loads isolation state from disk."""
+        try:
+            if os.path.exists(self.blacklist_file):
+                with open(self.blacklist_file, 'r') as f:
+                    import json
+                    data = json.load(f)
+                    # Filter out expired ones immediately
+                    now = time.time()
+                    return {s: exp for s, exp in data.items() if exp > now}
+        except Exception as e:
+            app_logger.error(f"Error loading blacklist: {e}")
+        return {}
 
     async def _sync_remote_sl(self, trade):
         """
@@ -655,6 +741,19 @@ class TradingBot:
                 signal = self.micro_scalper.check_scalp_signal(df, symbol=sym)
                 if not signal or signal['confidence'] < 0.75:
                     continue
+
+                # Gate 00: Global Pulse Guard (Flash-Crash block)
+                if time.time() < self.market_crash_gate:
+                    continue
+
+                # Gate 0: Blacklist/Cooldown (CRITICAL FIX)
+                if sym in self.blacklisted_symbols:
+                    expiry = self.blacklisted_symbols[sym]
+                    if time.time() < expiry:
+                        continue
+                    else:
+                        del self.blacklisted_symbols[sym]
+                        self._save_blacklist()
 
                 # Quick gate: manipulation shield only (MTF too slow for 1m)
                 shield = self.manipulation_shield.analyze(df)
@@ -844,6 +943,19 @@ class TradingBot:
 
                     new_asset = self.sniper.scan_for_new_listings()
                     if new_asset:
+                        # Gate 00: Global Pulse Guard
+                        if time.time() < self.market_crash_gate:
+                            continue
+
+                        # Gate 0: Blacklist Check
+                        if new_asset in self.blacklisted_symbols:
+                            expiry = self.blacklisted_symbols[new_asset]
+                            if time.time() < expiry:
+                                continue
+                            else:
+                                del self.blacklisted_symbols[new_asset]
+                                self._save_blacklist()
+
                         self.add_log(f"⚡ LISTING SNIPER TRIGGRED: {new_asset}")
                         if self.execution_mode == 'auto':
                             await self.farmer.recall_funds()
@@ -961,6 +1073,19 @@ class TradingBot:
 
                         rocket = self.rocket_sniper.detect_rocket(df, self.symbol)
                         if rocket and self.execution_mode == 'auto' and not self.active_trades:
+                            # Gate 00: Global Pulse Guard
+                            if time.time() < self.market_crash_gate:
+                                continue
+
+                            # Gate 0: Blacklist Check
+                            if self.symbol in self.blacklisted_symbols:
+                                expiry = self.blacklisted_symbols[self.symbol]
+                                if time.time() < expiry:
+                                    continue
+                                else:
+                                    del self.blacklisted_symbols[self.symbol]
+                                    self._save_blacklist()
+                                    
                             self.add_log(f"🚀 MEME ROCKET ENGAGED: Executing scalp on {self.symbol}")
                             balance = self.api.get_account_balance('USDT')
                             # Safety cap: use 90% of balance if $20 is too much, but stay above $10.1
@@ -1596,6 +1721,11 @@ class TradingBot:
         
         if pnl_absolute < 0:
             self.stats['consecutive_losses'] = int(self.stats.get('consecutive_losses', 0)) + 1
+            # UNIFIED FIX: Trigger cooldown on manual/dashboard exits too
+            expiry = time.time() + 300
+            self.blacklisted_symbols[trade['symbol']] = expiry
+            self._save_blacklist()
+            self.add_log(f"❄️ [COOL-DOWN] Applied 5m rest to {trade['symbol']} after loss.")
         else:
             self.stats['consecutive_losses'] = 0
             
