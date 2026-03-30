@@ -293,10 +293,21 @@ class TradingBot:
             if not allowed:
                 return False, mtf_reason
 
-        # ── Gate 6: Neural Memory Veto ──
+        # ── Gate 6: Neural Memory Veto & Adaptive Confidence ──
         veto, veto_reason = self.memory.should_veto_trade(symbol, market_health)
         if veto:
             return False, veto_reason
+            
+        # Recovery Guard: If symbol lost recently, require HIGHER consensus
+        recent_lost = [t for t in self.memory.get_recent_memories(limit=10) 
+                      if t['symbol'] == symbol and t['profit_loss'] < 0]
+        if recent_lost:
+            # We check if MTF consensus (if available) passes a higher bar
+            if hasattr(self, 'mtf'):
+                res = self.mtf.get_signal(symbol)
+                high_bar = 72.0 
+                if res['confidence'] < high_bar:
+                    return False, f"RECOVERY GUARD: {symbol} needs ≥{high_bar}% confidence (current {res['confidence']:.0f}%) due to recent failure."
 
         # ── Gate 7: Macro filter (FGI) ──
         if fgi < 15:  # extreme fear — allow contrarian buys only
@@ -308,7 +319,8 @@ class TradingBot:
         if symbol in self.blacklisted_symbols:
             expiry = self.blacklisted_symbols[symbol]
             if time.time() < expiry:
-                return False, f"Symbol {symbol} is on 5m cool-down (Recent Loss). Waiting reset."
+                m, s = divmod(expiry - time.time(), 60)
+                return False, f"Symbol {symbol} is in ISOLATION (Recent Loss). Time left: {int(m)}m {int(s)}s."
             else:
                 del self.blacklisted_symbols[symbol]
                 self._save_blacklist()
@@ -444,34 +456,48 @@ class TradingBot:
             pnl_pct = (trade_price / entry_p - 1) if entry_p > 0 else 0
 
             # ── [PROSOFT SHIELD: Trailing Profit Guard] ──
-            # Stage 1: Break-even Lock (0.5% profit)
-            if pnl_pct >= 0.005: 
-                new_sl = entry_p * 1.001 # Move to entry + 0.1%
-                if new_sl > trade_sl:
-                    trade['trailing_sl'] = new_sl
-                    trade['sl'] = new_sl
-                    trade_sl = new_sl
-                    self.add_log(f"🛡️ [PROSOFT SHIELD] {trade_symbol}: Profit Locked at Break-Even (+0.1%)")
-                    # NEW: Sync with Binance to ensure safety
-                    await self._sync_remote_sl(trade)
+            # Determine if this is a "Meme/Rocket" or High-Volatility trade
+            is_volatile = 'Meme' in trade.get('strategy', '') or 'Rocket' in trade.get('strategy', '') or 'Scalp' in trade.get('strategy', '')
+            
+            # --- PROTECTIVE RECOVERY (v16.0: MAGNETIC SHIELD for Volatile Assets) ---
+            if is_volatile:
+                # Stage 1: Fast Break-even Lock (for Memes: at 0.3% profit)
+                if pnl_pct >= 0.003: 
+                    new_sl = entry_p * 1.001 
+                    if new_sl > trade_sl:
+                        trade['trailing_sl'] = new_sl
+                        trade_sl = new_sl
+                        self.add_log(f"نِ [MAGNETIC LOCK] {trade_symbol}: Capital Protected at +0.1%")
 
-            # Stage 2: Aggressive Profit Trail (0.5% profit)
-            if pnl_pct >= 0.005: 
-                # Follow at 0.5% distance from current price to rise with every tick
-                new_sl = trade_price * 0.995 
-                if new_sl > trade_sl:
-                    trade['trailing_sl'] = new_sl
-                    trade['sl'] = new_sl
-                    trade_sl = new_sl
-                    self.add_log(f"📈 [DYNAMIC TRAIL] {trade_symbol}: Rising with price (Locked: +{pnl_pct*100:.2f}%)")
-                    # NEW: Sync with Binance to ensure safety
-                    await self._sync_remote_sl(trade)
+                # Stage 2: Ultra-Tight Adhesive Trail (0.4% distance)
+                if pnl_pct >= 0.004:
+                    new_sl = trade_price * 0.996 # Follow at 0.4% distance
+                    if new_sl > trade_sl:
+                        trade['trailing_sl'] = new_sl
+                        trade_sl = new_sl
+                        # self.add_log(f"🧲 [ADHESIVE TRAIL] {trade_symbol}: +{pnl_pct*100:.2f}%") # Quiet log to avoid spam
+            else:
+                # --- STANDARD ASSET PROTECTION ---
+                # Stage 1: Break-even Lock (0.5% profit)
+                if pnl_pct >= 0.005: 
+                    new_sl = entry_p * 1.001 
+                    if new_sl > trade_sl:
+                        trade['trailing_sl'] = new_sl
+                        trade_sl = new_sl
+                        self.add_log(f"🛡️ [PROSOFT SHIELD] {trade_symbol}: Profit Locked at Break-Even")
 
-            # ── Update trailing stop (ATR-based for focus symbol) ──
-            if atr > 0 and trade_symbol == self.symbol:
-                updated = self.strategy.update_trailing_stop(trade, trade_price, atr)
-                trade.update(updated)
-                trade_sl = trade.get('trailing_sl', trade_sl)
+                # Stage 2: Aggressive Profit Trail (0.5% distance)
+                if pnl_pct >= 0.006: 
+                    new_sl = trade_price * 0.995 
+                    if new_sl > trade_sl:
+                        trade['trailing_sl'] = new_sl
+                        trade_sl = new_sl
+                        # self.add_log(f"📈 [DYNAMIC TRAIL] {trade_symbol}: Rising with price")
+            
+            # Sync with Binance to ensure safety
+            if trade_sl > trade.get('sl', 0):
+                trade['sl'] = trade_sl
+                await self._sync_remote_sl(trade)
 
             # ── [NEW v15.0: Sudden Collapse Detection] ──
             # If we are in a loss (>0.5% loss), start checking for rapid collapse
@@ -594,14 +620,26 @@ class TradingBot:
                 # ── Update Statistics (Explicit Casting) ──
                 await self._update_closing_stats(trade, pnl_absolute, pnl_pct, reason)
 
-                # ── [UPDATED v14.7: 5-Minute Cooldown on Loss] ──
+                # ── [UPDATED v15.0: Smart Symbol Isolation] ──
                 if pnl_absolute < 0:
-                    # Apply 5-minute cooldown to prevent immediate revenge trading
-                    expiry = time.time() + 300
+                    # check if this symbol failed recently (within last 12h)
+                    recent_losses = [t for t in self.memory.get_recent_memories(limit=20) 
+                                   if t['symbol'] == trade['symbol'] and t['profit_loss'] < 0]
+                    
+                    # Default: 1 hour rest
+                    cooldown_sec = 3600 
+                    
+                    # If it's a repeated loss (2 or more in recent history)
+                    if len(recent_losses) >= 1:
+                        cooldown_sec = 14400 # 4 hours for persistent failures
+                        app_logger.critical(f"🔥 [DOUBLE LOSS GUARD] {trade['symbol']} failed again. Blocking for 4 hours.")
+                    
+                    expiry = time.time() + cooldown_sec
                     self.blacklisted_symbols[trade['symbol']] = expiry
                     self._save_blacklist()
-                    app_logger.warning(f"❄️ [COOL-DOWN] Applied 5m rest to {trade['symbol']} due to loss.")
-                    self.add_log(f"❄️ [COOL-DOWN] {trade['symbol']} resting for 5m due to loss.")
+                    msg = f"❄️ [COOL-DOWN] Applied {cooldown_sec/60:.0f}m rest to {trade['symbol']} due to loss."
+                    app_logger.warning(msg)
+                    self.add_log(msg)
 
                 if self.stats['closed_trades'] % 10 == 0:
                     self.add_log("⚙️ System: Triggering strategy optimization cycle...")

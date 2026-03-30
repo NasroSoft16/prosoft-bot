@@ -149,7 +149,7 @@ class NeuralMemory:
             )
             conn.close()
 
-            if df.empty or len(df) < 3:
+            if df.empty or len(df) < 1:
                 return False, ""
 
             avg_loss_health = float(df['market_health'].mean())
