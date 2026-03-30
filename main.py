@@ -162,8 +162,7 @@ class TradingBot:
             'btc_dominance': 50.0,
             'last_weekly_review': None,
             'last_periodic_sync': 0,
-            'last_daily_briefing': 0,
-            'last_pdf_report': 0 
+            'last_daily_briefing': 0
         }
 
         self.whales = WhaleTracker()
@@ -1544,13 +1543,7 @@ class TradingBot:
 
                     # 7. Periodic position & report updates
                     if loop_count % 5 == 0:
-                        if time.time() - self.stats.get('last_pdf_report', 0) > 43200:
-                            try:
-                                self.add_log("System Protocol: Auto-dispatching Detailed PDF Intel (12h Cycle)...")
-                                report_path = self.reporter.generate_daily_report(self.stats, self.logs)
-                                await self.telegram.send_document(report_path, caption="📄 PROSOFT QUANTUM PRIME — 12-Hour Sector Intel Report")
-                                self.stats['last_pdf_report'] = time.time()
-                            except: pass
+                        pass # High-Intelligence Telegram Report active in _check_daily_report
 
                     loop_count += 1
                     live.update(self.ui.update_ui(self.symbol, self.timeframe, self.stats, self.logs))
