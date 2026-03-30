@@ -1286,10 +1286,12 @@ class TradingBot:
                     if loop_count > 0:
                         if loop_count % 100 == 0:
                             self.add_log("🧠 System Protocol: Running AI Strategy Optimization cycle...")
-                            optimization = self.optimizer.run_optimization_cycle()
-                            if optimization and optimization.get('type') == 'ADJUST_THRESHOLD':
-                                self.ai_threshold = optimization['value']
-                                self.add_log(f"🧠 [OPTIMIZER] Auto-Refactoring: AI Confidence Threshold elevated to {self.ai_threshold}")
+                            optimization = self.optimizer.run_optimization_cycle(bot_instance=self)
+                            if optimization and optimization.get('changes_applied'):
+                                # Store for the nightly report
+                                if 'daily_evolution' not in self.stats: self.stats['daily_evolution'] = {}
+                                self.stats['daily_evolution'].update(optimization['changes_applied'])
+                                self.add_log(f"🧠 [OPTIMIZER] Recorded {len(optimization['changes_applied'])} neural evolution shifts.")
 
                         from datetime import timezone, timedelta
                         now_alg = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -1961,79 +1963,25 @@ class TradingBot:
             today_str = now.strftime("%Y-%m-%d")
             
             if self.last_report_date != today_str and now.hour >= 23:
-                data = self.memory.get_daily_report_data()
-                if not data: return
-                
                 self.last_report_date = today_str
                 
-                rev_total = 0
-                rev_lines = ""
-                for r in data['revenue']:
-                    rev_total += r['total']
-                    src_map = {
-                        "YieldFarmer": "🌾 زراعة الأصول (Farming)", 
-                        "ListingSniper": "🚀 قناص العملات الجديدة", 
-                        "FundingArb": "⚖️ موازنة التمويل (Arb)"
-                    }
-                    src_label = src_map.get(r['source'], r['source'])
-                    rev_lines += f"🔹 {src_label}: `+${r['total']:.4f}`\n"
+                # Fetch today's data for the Intelligent Report
+                trades_today = self.memory.get_today_detailed_trades()
                 
-                trades = self.memory.get_today_detailed_trades()
-                trade_pnl = 0
-                win_count = 0
-                trade_lines = ""
+                # Get optimizer changes (summarize what happened today from live state)
+                evo_summary = self.stats.get('daily_evolution', "تطور مستمر: النظام يراقب السيولة لضمان أفضل دخول.")
                 
-                if trades:
-                    for t in trades[:15]: 
-                        pnl = t['profit_loss']
-                        trade_pnl += pnl
-                        if pnl > 0: win_count += 1
-                        
-                        emoji = "🟢" if pnl > 0 else "🔴"
-                        side_ar = "شراء" if t['side'] == 'BUY' else "بيع"
-                        trade_lines += f"{emoji} `{t['symbol']}` ({side_ar}): `{pnl:+.2f}$`\n"
-                
-                total_pos = len(trades)
-                win_rate = (win_count / total_pos * 100) if total_pos > 0 else 0
-                
-                ai_tip = "استمر في مراقبة السوق بحذر. حافظ على إدارة المخاطر."
-                try:
-                    if self.gemini and self.gemini.api_keys:
-                        perf_context = f"PNL Today: {trade_pnl:.2f}. Win Rate: {win_rate:.1f}%. Total Positions: {total_pos}. Yield Earned: {rev_total:.4f}."
-                        prompt = (f"Market Performance Summary: {perf_context}. "
-                                 "Based on today's performance, generate a professional, inspiring, and concise 'Trading Tip or Lesson' in Arabic. "
-                                 "Focus on psychology or strategy. Use a human-like analyst tone.")
-                        result = await self.gemini.ask(prompt)
-                        if result: ai_tip = result
-                except: pass
-                
-                total_day = rev_total + trade_pnl
-                p_emoji = "💎" if total_day >= 0 else "📉"
-                
-                header = "📊 *PROSOFT: التقرير اليومي الشامل*"
-                footer = "🤖 *ذكاء PROSOFT يوفر لك الأمان والعائد المستمر.*"
-                
-                report = (
-                    f"{header}\n\n"
-                    f"📅 *تاريخ اليوم:* `{today_str}`\n"
-                    f"🕒 *وقت الإنشاء:* `{now.strftime('%H:%M:%S')}`\n\n"
-                    f"--- 💹 *استراتيجيات التداول الذكي* ---\n"
-                    f"🔢 *عدد الصفقات:* `{total_pos}`\n"
-                    f"🏆 *نسبة النجاح:* `{win_rate:.1f}%`\n"
-                    f"💵 *صافي ربح الصفقات:* `${trade_pnl:+.2f}`\n\n"
-                    f"📜 *تفاصيل صفقات اليوم:*\n"
-                    f"{trade_lines if trade_lines else 'لم يتم تنفيذ صفقات اليوم.'}\n\n"
-                    f"--- 🍃 *مصادر الدخل السلبي* ---\n"
-                    f"{rev_lines if rev_lines else 'لا توجد مداخيل خاملة مسجلة.'}\n\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"{p_emoji} *إجمالي الربح الصافي اليوم:* `{total_day:+.2f}$`\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"💡 *نصيحة الفريق الاستراتيجي:*\n_{ai_tip}_\n\n"
-                    f"{footer}"
+                # Generate the High-Intelligence Report
+                intel_report = self.reporter.generate_daily_telegram_report(
+                    stats             = self.stats,
+                    trades_today      = trades_today,
+                    optimizer_changes = evo_summary
                 )
                 
-                await self.telegram.send_message(report)
-                self.add_log(f"Daily Intelligence Summary dispatched in Arabic. Total: ${total_day:.2f}")
+                await self.telegram.send_message(intel_report)
+                self.add_log(f"🧠 [INTELLIGENCE DISPATCH] Daily Neural Learning Report sent to Telegram.")
+                # Reset evolution tracking for the next day
+                self.stats['daily_evolution'] = {} 
         except Exception as e:
             app_logger.error(f"Daily Report Thread Error: {e}")
 

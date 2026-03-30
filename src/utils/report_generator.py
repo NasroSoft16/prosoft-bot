@@ -174,3 +174,61 @@ class ReportGenerator:
         
         pdf.output(filepath)
         return filepath
+
+    def generate_daily_telegram_report(self, stats, trades_today, optimizer_changes):
+        """
+        Generates a professional Arabic intelligence report for Telegram.
+        Focuses on: Learning, Evolution, and Strategy performance.
+        """
+        date_now = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        # 🟢 General Stats
+        total_pnl = sum([t.get('profit_loss', 0) for t in trades_today])
+        win_rate = (len([t for t in trades_today if t.get('profit_loss', 0) > 0]) / len(trades_today) * 100) if trades_today else 0
+        
+        # 🧠 Neural Learning (Lessons)
+        lessons = []
+        for t in trades_today[-5:]: # Last 5 lessons
+            status = "✅" if (t.get('profit_loss') and t.get('profit_loss') > 0) else "❌"
+            lessons.append(f"{status} {t['symbol']}: {t.get('lesson_learned', 'No data')}")
+        
+        lessons_str = "\n".join(lessons) if lessons else "لا توجد دروس مسجلة اليوم."
+
+        # 📈 Evolution (Optimizer changes)
+        evo_parts = []
+        if optimizer_changes:
+            # Handle if optimizer_changes is a dict or string
+            if isinstance(optimizer_changes, dict):
+                for key, val in optimizer_changes.items():
+                    evo_parts.append(f"🔹 تم تعديل {key} إلى {val}")
+            else:
+                evo_parts.append(str(optimizer_changes))
+        evo_str = "\n".join(evo_parts) if evo_parts else "النظام مستقر (لا تعديلات ضرورية)."
+
+        # 🚀 Strategy Performance
+        strat_stats = {}
+        for t in trades_today:
+            s = t.get('strategy_used', 'Other')
+            strat_stats[s] = strat_stats.get(s, 0) + (t.get('profit_loss') or 0)
+        
+        strat_str = "\n".join([f"🔸 {s}: {val:+.2f}%" for s, val in strat_stats.items()]) if strat_stats else "لم يتم تفعيل استراتيجيات محددة."
+
+        report = (
+            f"🧠 *تقرير الاستخبارات اليومي PROSOFT Core*\n"
+            f"📅 *التاريخ:* `{date_now}`\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📊 *الأداء العام اليوم:*\n"
+            f"▫️ إجمالي الـ PnL: `{total_pnl:+.2f}%` \n"
+            f"▫️ نسبة النجاح: `{win_rate:.1f}%` ({len(trades_today)} صفقة)\n"
+            f"▫️ رصيد المحفظة: `${stats.get('total_equity', 0):,.2f}`\n\n"
+            f"🧠 *ماذا تعلم البرنامج اليوم؟*\n"
+            f"{lessons_str}\n\n"
+            f"🧬 *التطور العصبي (Self-Evolve):*\n"
+            f"{evo_str}\n\n"
+            f"🚀 *أداء الاستراتيجيات النشطة:*\n"
+            f"{strat_str}\n\n"
+            f"🎮 *حالة الذكاء:* `ONLINE - عالي الاستجابة`\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"📩 _تم توليد التقرير آلياً بواسطة PROSOFT QUANTUM v2.0_"
+        )
+        return report
