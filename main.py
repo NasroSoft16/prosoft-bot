@@ -568,8 +568,8 @@ class TradingBot:
             
             if is_stagnant and pnl_pct < 0.001:
                 self.add_log(f"⏳ [TIME-EXIT] {trade_symbol}: Closing stagnant trade after {time_limit}m to free capital.")
-                # Force exit via strategy-defined protocol
-                await self._force_exit_trade(trade, "TIME_LIMIT_REACHED")
+                # FIX: Use the correct internal method _close_trade
+                await self._close_trade(trade, trade_price, reason="TIME_LIMIT_REACHED")
                 continue
 
             # Sync with Binance to ensure safety
