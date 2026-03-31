@@ -29,6 +29,6 @@ class MemeRocketSniper:
                 'signal': 'ROCKET_BUY',
                 'entry_price': df.iloc[-1]['close'],
                 'target_profit': 5.0, # Aggressive 5% target for rockets
-                'emergency_sl': 2.0   # Unified 2% Stop loss to match user policy
+                'emergency_sl': 0.2   # Ultra-tight 0.2% Stop loss for memes (Breakeven focus)
             }
         return None

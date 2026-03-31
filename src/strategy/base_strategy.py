@@ -133,7 +133,12 @@ class BaseStrategy:
             if atr <= 0:
                 return {'signal': 'WAIT', 'reason': 'ATR=0 (no volatility data)'}
 
-            stop_loss   = close * 0.98  # Fixed 2% SL protection as requested
+            # --- DYNAMIC ATR-BASED STOP LOSS ---
+            # Using 1.5 * ATR for a tighter stop, but capping at 1.5% to stay under User Limit
+            dynamic_sl = close - (atr * 1.5)
+            hard_cap_sl = close * 0.985 # 1.5% Max Loss
+            
+            stop_loss = max(dynamic_sl, hard_cap_sl)
             take_profit = close + (atr * tp_mult)
 
             # Sanity: TP/SL ratio must be > 1.5

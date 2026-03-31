@@ -95,6 +95,7 @@ from src.risk_management.circuit_breaker   import CircuitBreaker
 from src.strategy.multi_timeframe          import MultiTimeframeAnalyzer
 from src.ai.fear_greed_integration         import FearGreedIntegration
 from src.strategy.micro_scalper            import MicroScalper
+from src.strategy.quantum_alpha              import QuantumAlphaStrategy
 
 load_dotenv()
 
@@ -192,6 +193,7 @@ class TradingBot:
         self.heatmap = LiquidityHeatmap(self.api)              
         self.memory = NeuralMemory()
         self.micro_scalper = MicroScalper(self.api)
+        self.quantum_alpha = QuantumAlphaStrategy()
         
         # --- NEW MODULES (v12.0) ---
         self.shield = ManipulationShield()        # درع التلاعب
@@ -460,13 +462,14 @@ class TradingBot:
             
             # --- PROTECTIVE RECOVERY (v16.0: MAGNETIC SHIELD for Volatile Assets) ---
             if is_volatile:
-                # Stage 1: Fast Break-even Lock (for Memes: at 0.3% profit)
-                if pnl_pct >= 0.003: 
-                    new_sl = entry_p * 1.001 
+                # Stage 1: Fast Break-even Lock (for Memes: at 0.1% profit)
+                # Reduced from 0.3% to lock profit faster for high-risk assets
+                if pnl_pct >= 0.001: 
+                    new_sl = entry_p * 1.0005 # Tight lock
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
-                        self.add_log(f"نِ [MAGNETIC LOCK] {trade_symbol}: Capital Protected at +0.1%")
+                        self.add_log(f"🛡️ [MEME-LOCK] {trade_symbol}: Profit secured @ +0.05%")
 
                 # Stage 2: Ultra-Tight Adhesive Trail (0.4% distance)
                 if pnl_pct >= 0.004:
@@ -520,8 +523,9 @@ class TradingBot:
                         continue
 
             # ── [PROSOFT GLOBAL GUARD: Hard 2% Limit] ──
-            if trade_price <= trade_sl or pnl_pct <= -0.02:
-                reason = "SL" if trade_price <= trade_sl else "GLOBAL SAFETY (2%)"
+            # Use 1.95% to allow for slippage so it stays under 2%
+            if trade_price <= trade_sl or pnl_pct <= -0.0195:
+                reason = "SL" if trade_price <= trade_sl else "GLOBAL SAFETY (1.95%)"
                 self.add_log(
                     f"🔴 {reason} HIT: {trade_symbol} @ {trade_price:.6f} "
                     f"(PNL: {pnl_pct*100:.2f}%)"
@@ -1530,10 +1534,16 @@ class TradingBot:
                                 self.add_log(f"⛔ BLOCKED: {reason}")
                                 self._last_block_log = _now
                         else:
-                            # 4. Execute Signal
-                            signal = self.strategy.check_entry_signal(df)
+                            # 4. Execute Signal (Prioritize QuantumAlpha)
+                            signal = self.quantum_alpha.check_entry_signal(df)
+                            if signal['signal'] == 'WAIT':
+                                # Fallback to standard strategy
+                                signal = self.strategy.check_entry_signal(df)
+                            
                             if signal['signal'] == 'BUY':
-                                ai_conf = self.ai.calculate_confidence(df.iloc[-1])
+                                # Calculate final confidence
+                                ai_conf = signal.get('confidence', self.ai.calculate_confidence(df.iloc[-1]))
+                                
                                 if ai_conf >= self.ai_confidence_threshold:
                                     trade = await self._execute_entry(self.symbol, signal, ai_conf, mkt_health, fgi=fgi_val)
                                     if trade:

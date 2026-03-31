@@ -1,0 +1,110 @@
+import pandas as pd
+from src.utils.logger import app_logger
+from src.indicators.technical_analysis import TechnicalAnalysis
+
+class QuantumAlphaStrategy:
+    """
+    PROSOFT QUANTUM ALPHA (v2.0)
+    High-Intelligence momentum strategy using VWAP, CMF, and StochRSI.
+    Designed to replace basic MTF with sophisticated institutional-level entries.
+    """
+    
+    def __init__(self, rsi_min=30, rsi_max=75):
+        self.ta = TechnicalAnalysis()
+        self.rsi_min = rsi_min
+        self.rsi_max = rsi_max
+        self.name = "Quantum Alpha"
+
+    def check_entry_signal(self, df):
+        """
+        Calculates institutional-grade entry signals.
+        Returns BUY/WAIT with full risk parameters.
+        """
+        try:
+            if df is None or len(df) < 50:
+                return {'signal': 'WAIT', 'reason': 'Warming up engine...'}
+            
+            curr = df.iloc[-1]
+            prev = df.iloc[-2]
+            
+            # --- EXTRACT INDICATORS ---
+            close = float(curr['close'])
+            vwap = float(curr.get('VWAP', close))
+            cmf = float(curr.get('CMF', 0))
+            stoch_rsi = float(curr.get('STOCH_RSI', 0.5))
+            rsi = float(curr.get('RSI', 50))
+            ema_20 = float(curr.get('EMA_20', 0))
+            ema_50 = float(curr.get('EMA_50', 0))
+            atr = float(curr.get('ATR', close * 0.01))
+            
+            # --- INSTITUTIONAL ALIGNMENT ---
+            is_bullish_trend = close > vwap and close > ema_20 > ema_50
+            is_money_flowing = cmf > 0.05  # Positive money flow
+            is_stoch_oversold = stoch_rsi < 0.2
+            is_stoch_recovering = stoch_rsi > prev.get('STOCH_RSI', 0) and stoch_rsi > 0.1
+            
+            # --- THE "QUANTUM" SETUP ---
+            # 1. Trend Ride (Institutional bias + momentum)
+            is_quantum_buy = (
+                is_bullish_trend 
+                and is_money_flowing 
+                and (is_stoch_recovering or 0.3 < stoch_rsi < 0.7)
+                and rsi < 70
+            )
+            
+            # 2. Reversal (Extreme oversold + money flow pivot)
+            is_reversal_buy = (
+                is_stoch_oversold 
+                and rsi < 35 
+                and cmf > -0.05 
+                and close > prev.get('close', 0)
+            )
+
+            signal_type = None
+            confidence = 0.0
+            
+            if is_quantum_buy:
+                signal_type = "Quantum Pulse (Trend)"
+                confidence = 0.88 if cmf > 0.15 else 0.82
+            elif is_reversal_buy:
+                signal_type = "Quantum Pivot (Reversal)"
+                confidence = 0.78
+            
+            if not signal_type:
+                return {'signal': 'WAIT', 'reason': 'Market not in High-Alpha zone'}
+
+            app_logger.info(f"🌌 [QUANTUM ALPHA] Entry Found: {signal_type} | Conf: {confidence:.0%}")
+
+            # --- DYNAMIC RISK MANAGEMENT ---
+            # SL = Entry - (2.5 * ATR) for trend, (1.8 * ATR) for reversal
+            sl_mult = 2.5 if "Trend" in signal_type else 1.8
+            stop_loss = close - (atr * sl_mult)
+            
+            # Global Hard Cap for Risk (to avoid the -2% slippage issues)
+            # If ATR is too wide, we cap it at 1.8% to leave room for slippage before 2% global limit
+            hard_limit = close * 0.982 
+            if stop_loss < hard_limit:
+                stop_loss = hard_limit
+            
+            # TP = Risk * 2.5 (Reward/Risk focus)
+            risk = close - stop_loss
+            take_profit = close + (risk * 2.5)
+
+            return {
+                'signal': 'BUY',
+                'entry_price': close,
+                'stop_loss': stop_loss,
+                'take_profit': take_profit,
+                'confidence': confidence,
+                'strategy': self.name,
+                'indicators': {
+                    'Source': 'QuantumAlpha',
+                    'CMF': round(cmf, 3),
+                    'VWAP_DIST': round((close/vwap-1)*100, 2),
+                    'Pattern': signal_type
+                }
+            }
+
+        except Exception as e:
+            app_logger.error(f"QuantumAlpha Strategy Error: {e}")
+            return {'signal': 'ERROR', 'reason': str(e)}

@@ -22,6 +22,16 @@ class TechnicalAnalysis:
             df['MACD_SIGNAL'] = ta.trend.macd_signal(df['close'])
             df['MACD_HIST']   = ta.trend.macd_diff(df['close'])
 
+            # ── Stochastic RSI (Fast Momentum) ──
+            df['STOCH_RSI'] = ta.momentum.stochrsi(df['close'], window=14, smooth1=3, smooth2=3)
+
+            # ── CMF (Money Flow) ──
+            df['CMF'] = ta.volume.chaikin_money_flow(df['high'], df['low'], df['close'], df['volume'], window=20)
+
+            # ── VWAP (Institutional Bias) ──
+            vwap = ta.volume.VolumeWeightedAveragePrice(df['high'], df['low'], df['close'], df['volume'], window=14)
+            df['VWAP'] = vwap.volume_weighted_average_price()
+
             # ── ATR (dynamic SL / TP) ──
             df['ATR'] = ta.volatility.average_true_range(
                 df['high'], df['low'], df['close'], window=14
