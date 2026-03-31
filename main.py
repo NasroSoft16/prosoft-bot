@@ -505,35 +505,35 @@ class TradingBot:
             # Determine if this is a "Meme/Rocket" or High-Volatility trade
             is_volatile = 'Meme' in trade.get('strategy', '') or 'Rocket' in trade.get('strategy', '') or 'Scalp' in trade.get('strategy', '')
             
-            # --- PROTECTIVE RECOVERY (v20.0: PROSOFT Ultra-Scalper Mode) ---
+            # --- PROTECTIVE RECOVERY (v23.0: Ultra-Safe Trailing Mode) ---
             if is_volatile:
-                # Stage 1: Fast Fee-Lock (0.3% profit -> 0.25% SL)
+                # Stage 1: Absolute Fee-Lock (0.3% profit -> 0.21% SL)
                 if pnl_pct >= 0.003: 
-                    new_sl = entry_p * 1.0025 
+                    new_sl = entry_p * 1.0021 
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
-                        self.add_log(f"⚡ [MEME-SCALP] {trade_symbol}: Fees + Profit secured @ +0.25%")
+                        self.add_log(f"⚡ [MEME-ULTRA-SAFE] {trade_symbol}: Fees secured @ +0.21%")
 
-                # Stage 2: Extreme Adhesive Trail (0.2% distance at 0.5% profit)
-                if pnl_pct >= 0.005:
-                    new_sl = trade_price * 0.998 
+                # Stage 2: Tight Adhesive Trail (0.25% distance at 0.6% profit)
+                if pnl_pct >= 0.006:
+                    new_sl = trade_price * 0.9975 
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
             else:
                 # --- STANDARD ASSET PROTECTION ---
-                # Stage 1: Ultra-Fee Shield Lock (0.4% profit -> 0.30% SL)
-                if pnl_pct >= 0.004: 
-                    new_sl = entry_p * 1.003
+                # Stage 1: Absolute Fee-Shield Lock (0.3% profit -> 0.21% SL)
+                if pnl_pct >= 0.003: 
+                    new_sl = entry_p * 1.0021
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
-                        self.add_log(f"🛡️ [ULTRA-SCALP] {trade_symbol}: Binance Fees+ secured @ +0.30%")
+                        self.add_log(f"🛡️ [ULTRA-FEE-SHIELD] {trade_symbol}: Binance Fees secured @ +0.21%")
 
-                # Stage 2: Proactive Strict Hybrid Trail (0.25% distance at 0.65% profit)
+                # Stage 2: Strict Profit Trail (0.3% distance at 0.65% profit)
                 if pnl_pct >= 0.0065: 
-                    new_sl = trade_price * 0.9975 
+                    new_sl = trade_price * 0.997 
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
