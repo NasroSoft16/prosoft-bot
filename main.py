@@ -288,6 +288,13 @@ class TradingBot:
         if not shield_result['is_safe']:
             return False, f"Shield: {shield_result['reason']}"
 
+        # ── Gate 4B: Order Flow VETO (تضارب الإشارات - جديد) ──
+        # إذا كان ORDER FLOW يقول STRONG_SELL, نمنع الدخول حتى لو قال MTF BUY
+        # هذا التضارب جعلنا نخسر ZEC مرتين
+        if order_flow and order_flow.get('bias') == 'STRONG_SELL':
+            pressure = order_flow.get('pressure_score', 50)
+            return False, f"ORDER FLOW VETO: Real selling pressure detected ({pressure:.0f}%). MTF ignored."
+
         # ── Gate 5: MTF Consensus ──
         if hasattr(self, 'mtf'):
             allowed, mtf_reason = self.mtf.is_entry_allowed(symbol)
@@ -299,16 +306,27 @@ class TradingBot:
         if veto:
             return False, veto_reason
             
-        # Recovery Guard: If symbol lost recently, require HIGHER consensus
-        recent_lost = [t for t in self.memory.get_recent_memories(limit=10) 
+        # ── Recovery Guard v2.0: حارس التعافي المدعوم ──
+        recent_lost = [t for t in self.memory.get_recent_memories(limit=15) 
                       if t['symbol'] == symbol and t['profit_loss'] < 0]
-        if recent_lost:
-            # We check if MTF consensus (if available) passes a higher bar
+        
+        if len(recent_lost) >= 2:
+            # خسارتان متتاليتان: احجب 6 ساعات + تطلب 90% MTF
+            expiry = self.blacklisted_symbols.get(symbol, 0)
+            if time.time() < expiry + 21600:  # 6h isolation after 2 losses
+                return False, f"DOUBLE-LOSS GUARD: {symbol} blocked 6h after 2 consecutive losses."
             if hasattr(self, 'mtf'):
                 res = self.mtf.get_signal(symbol)
-                high_bar = 72.0 
+                high_bar = 90.0  # مرفوعة من 72% إلى 90%
                 if res['confidence'] < high_bar:
-                    return False, f"RECOVERY GUARD: {symbol} needs ≥{high_bar}% confidence (current {res['confidence']:.0f}%) due to recent failure."
+                    return False, f"DOUBLE-LOSS GUARD: {symbol} needs ≥{high_bar:.0f}% MTF (got {res['confidence']:.0f}%) after 2 losses."
+        
+        elif len(recent_lost) == 1:
+            if hasattr(self, 'mtf'):
+                res = self.mtf.get_signal(symbol)
+                high_bar = 80.0  # بعد خسارة واحدة فقط
+                if res['confidence'] < high_bar:
+                    return False, f"RECOVERY GUARD: {symbol} needs ≥{high_bar:.0f}% MTF (got {res['confidence']:.0f}%) after 1 loss."
 
         # ── Gate 7: Macro filter (FGI) ──
         if fgi < 15:  # extreme fear — allow contrarian buys only
