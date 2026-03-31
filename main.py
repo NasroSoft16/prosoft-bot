@@ -505,41 +505,38 @@ class TradingBot:
             # Determine if this is a "Meme/Rocket" or High-Volatility trade
             is_volatile = 'Meme' in trade.get('strategy', '') or 'Rocket' in trade.get('strategy', '') or 'Scalp' in trade.get('strategy', '')
             
-            # --- PROTECTIVE RECOVERY (v16.0: MAGNETIC SHIELD for Volatile Assets) ---
+            # --- PROTECTIVE RECOVERY (v17.0: Commission-Covering Guard) ---
             if is_volatile:
-                # Stage 1: Fast Break-even Lock (for Memes: at 0.1% profit)
-                # Reduced from 0.3% to lock profit faster for high-risk assets
-                if pnl_pct >= 0.001: 
-                    new_sl = entry_p * 1.0005 # Tight lock
+                # Stage 1: Fast Fee-Lock (0.3% profit -> 0.21% SL to cover Binance 0.2% fee)
+                if pnl_pct >= 0.003: 
+                    new_sl = entry_p * 1.0021 
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
-                        self.add_log(f"🛡️ [MEME-LOCK] {trade_symbol}: Profit secured @ +0.05%")
+                        self.add_log(f"⚡ [MEME-FEE-LOCK] {trade_symbol}: Fees secured @ +0.21%")
 
                 # Stage 2: Ultra-Tight Adhesive Trail (0.4% distance)
-                if pnl_pct >= 0.004:
+                if pnl_pct >= 0.005:
                     new_sl = trade_price * 0.996 # Follow at 0.4% distance
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
-                        # self.add_log(f"🧲 [ADHESIVE TRAIL] {trade_symbol}: +{pnl_pct*100:.2f}%") # Quiet log to avoid spam
             else:
                 # --- STANDARD ASSET PROTECTION ---
-                # Stage 1: Break-even Lock (0.5% profit)
-                if pnl_pct >= 0.005: 
-                    new_sl = entry_p * 1.001 
+                # Stage 1: Fee-Shield Lock (0.4% profit -> 0.21% SL)
+                if pnl_pct >= 0.004: 
+                    new_sl = entry_p * 1.0021
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
-                        self.add_log(f"🛡️ [PROSOFT SHIELD] {trade_symbol}: Profit Locked at Break-Even")
+                        self.add_log(f"🛡️ [FEE-SHIELD] {trade_symbol}: Binance Fees+ locked at +0.21%")
 
                 # Stage 2: Aggressive Profit Trail (0.5% distance)
-                if pnl_pct >= 0.006: 
+                if pnl_pct >= 0.008: 
                     new_sl = trade_price * 0.995 
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
-                        # self.add_log(f"📈 [DYNAMIC TRAIL] {trade_symbol}: Rising with price")
             
             # Sync with Binance to ensure safety
             if trade_sl > trade.get('sl', 0):
