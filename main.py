@@ -505,7 +505,24 @@ class TradingBot:
             # Determine if this is a "Meme/Rocket" or High-Volatility trade
             is_volatile = 'Meme' in trade.get('strategy', '') or 'Rocket' in trade.get('strategy', '') or 'Scalp' in trade.get('strategy', '')
             
-            # --- PROTECTIVE RECOVERY (v23.0: Ultra-Safe Trailing Mode) ---
+            # --- ADHESIVE OPTIMIZER (v25.0: Continuous Micro-Trailing) ---
+            # Track the highest price reached since entry to lock in every cent
+            if trade_price > trade.get('highest_peak', 0):
+                trade['highest_peak'] = trade_price
+            
+            highest_peak = trade.get('highest_peak', entry_p)
+            
+            # --- Continuous Shadow Trailing (Starts at 0.1% profit) ---
+            if pnl_pct >= 0.001:
+                # Standard trail at 0.7% distance from peak, Volatile at 0.5%
+                trail_dist = 0.005 if is_volatile else 0.007
+                adhesive_sl = highest_peak * (1 - trail_dist)
+                
+                if adhesive_sl > trade_sl:
+                    trade['trailing_sl'] = adhesive_sl
+                    trade_sl = adhesive_sl
+
+            # --- PROTECTIVE RECOVERY (v23.0: High-Impact Shield Jumps) ---
             if is_volatile:
                 # Stage 1: Absolute Fee-Lock (0.3% profit -> 0.21% SL)
                 if pnl_pct >= 0.003: 
@@ -513,7 +530,7 @@ class TradingBot:
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
-                        self.add_log(f"⚡ [MEME-ULTRA-SAFE] {trade_symbol}: Fees secured @ +0.21%")
+                        self.add_log(f"⚡ [MEME-SHIELD] {trade_symbol}: Fees secured @ +0.21%")
 
                 # Stage 2: Tight Adhesive Trail (0.25% distance at 0.6% profit)
                 if pnl_pct >= 0.006:
@@ -538,6 +555,23 @@ class TradingBot:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
             
+            # --- TIME-PROTECT ENGINE (v26.0: Liquidity Preservation) ---
+            # Don't let precious capital freeze in a stagnant market
+            from datetime import datetime, timedelta
+            entry_time = trade.get('entry_time')
+            if isinstance(entry_time, str):
+                entry_time = datetime.fromisoformat(entry_time)
+            
+            # Time Limits: 20m for Volatile, 45m for Standard
+            time_limit = 20 if is_volatile else 45
+            is_stagnant = (datetime.now() - entry_time) > timedelta(minutes=time_limit)
+            
+            if is_stagnant and pnl_pct < 0.001:
+                self.add_log(f"⏳ [TIME-EXIT] {trade_symbol}: Closing stagnant trade after {time_limit}m to free capital.")
+                # Force exit via strategy-defined protocol
+                await self._force_exit_trade(trade, "TIME_LIMIT_REACHED")
+                continue
+
             # Sync with Binance to ensure safety
             if trade_sl > trade.get('sl', 0):
                 trade['sl'] = trade_sl
