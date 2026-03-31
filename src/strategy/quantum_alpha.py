@@ -75,16 +75,16 @@ class QuantumAlphaStrategy:
 
             app_logger.info(f"🌌 [QUANTUM ALPHA] Entry Found: {signal_type} | Conf: {confidence:.0%}")
 
-            # --- DYNAMIC RISK MANAGEMENT ---
-            # SL = Entry - (2.5 * ATR) for trend, (1.8 * ATR) for reversal
-            sl_mult = 2.5 if "Trend" in signal_type else 1.8
-            stop_loss = close - (atr * sl_mult)
+            # --- DYNAMIC EXPERT RISK (v24.0: Quantum Adaptive) ---
+            # Adaptive SLR based on signal confidence + market volatility (ATR)
+            sl_mult = 1.9 if "Trend" in signal_type else 1.4
             
-            # Global Hard Cap for Risk (to avoid the -2% slippage issues)
-            # If ATR is too wide, we cap it at 1.8% to leave room for slippage before 2% global limit
-            hard_limit = close * 0.982 
-            if stop_loss < hard_limit:
-                stop_loss = hard_limit
+            # Use Signal-Specific Capping: Trend is safer (1.5%), Reversal is tighter (1.1%)
+            max_p_cap = 0.015 if "Trend" in signal_type else 0.011
+            
+            # The Final SL Distance (ATR-Driven vs Percentage-Capped)
+            sl_distance = min(atr * sl_mult, close * max_p_cap)
+            stop_loss = close - sl_distance
             
             # TP = Risk * 2.5 (Reward/Risk focus)
             risk = close - stop_loss

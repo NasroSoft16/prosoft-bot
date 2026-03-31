@@ -133,12 +133,15 @@ class BaseStrategy:
             if atr <= 0:
                 return {'signal': 'WAIT', 'reason': 'ATR=0 (no volatility data)'}
 
-            # --- DYNAMIC ATR-BASED STOP LOSS ---
-            # Using 1.5 * ATR for a tighter stop, but capping at 1.5% to stay under User Limit
-            dynamic_sl = close - (atr * 1.5)
-            hard_cap_sl = close * 0.985 # 1.5% Max Loss
+            # --- EXPERT ADAPTIVE STOP LOSS (v24.0) ---
+            # Instead of a static percentage, we calculate based on Volatility (ATR)
+            # Use 1.5x ATR for standard volatility, but cap at 1.4% for account safety
+            dynamic_sl_dist = atr * 1.6 
+            price_percentage_limit = close * 0.014 # 1.4% Hard Expert Cap
             
-            stop_loss = max(dynamic_sl, hard_cap_sl)
+            # The Stop Loss is the closer of the two (Safety First)
+            sl_distance = min(dynamic_sl_dist, price_percentage_limit)
+            stop_loss = close - sl_distance
             take_profit = close + (atr * tp_mult)
 
             # Sanity: TP/SL ratio must be > 1.5
