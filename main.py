@@ -301,9 +301,22 @@ class TradingBot:
             if not allowed:
                 return False, mtf_reason
 
+        # ── 🚀 ROCKET OVERRIDE (Breakout Exemption) ──
+        # إذا وجدنا ملامح انفجار حقيقي مؤكد، سنسامح العملة من أخطاء الماضي!
+        is_rocket = False
+        mtf_conf = 0.0
+        if hasattr(self, 'mtf'):
+            mtf_conf = self.mtf.get_signal(symbol).get('confidence', 0)
+            
+        if (mtf_conf >= 90.0 and 
+            order_flow and order_flow.get('bias') == 'STRONG_BUY' and 
+            order_flow.get('pressure_score', 0) >= 65.0):
+            is_rocket = True
+            app_logger.warning(f"🚀 [ROCKET OVERRIDE] {symbol} shows extreme breakout patterns. Bypassing Memory Vetoes!")
+
         # ── Gate 6: Neural Memory Veto & Adaptive Confidence ──
         veto, veto_reason = self.memory.should_veto_trade(symbol, market_health)
-        if veto:
+        if veto and not is_rocket:
             return False, veto_reason
             
         # ── Recovery Guard v2.1: حارس التعافي - مصلح ──
@@ -319,7 +332,7 @@ class TradingBot:
             isolation_expiry = self.blacklisted_symbols.get(symbol, 0)
             # إذا الحجب لا يزال سارياً (expiry في المستقبل), نطبق 6 ساعات إضافية
             extended_expiry = isolation_expiry + 21600  # +6h extra after blacklist expires
-            if isolation_expiry > 0 and time.time() < extended_expiry:
+            if isolation_expiry > 0 and time.time() < extended_expiry and not is_rocket:
                 mins_left = int((extended_expiry - time.time()) / 60)
                 return False, f"DOUBLE-LOSS GUARD: {symbol} blocked for {mins_left}m more after 2 losses."
             if hasattr(self, 'mtf'):
@@ -346,8 +359,14 @@ class TradingBot:
         if symbol in self.blacklisted_symbols:
             expiry = self.blacklisted_symbols[symbol]
             if time.time() < expiry:
-                m, s = divmod(expiry - time.time(), 60)
-                return False, f"Symbol {symbol} is in ISOLATION (Recent Loss). Time left: {int(m)}m {int(s)}s."
+                if is_rocket:
+                    # نلغي الحظر نهائياً لأن السهم انفجر
+                    app_logger.info(f"🔓 [UNBAN] Removing {symbol} from isolation due to Rocket Override")
+                    del self.blacklisted_symbols[symbol]
+                    self._save_blacklist()
+                else:
+                    m, s = divmod(expiry - time.time(), 60)
+                    return False, f"Symbol {symbol} is in ISOLATION (Recent Loss). Time left: {int(m)}m {int(s)}s."
             else:
                 del self.blacklisted_symbols[symbol]
                 self._save_blacklist()
