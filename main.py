@@ -505,9 +505,9 @@ class TradingBot:
             # Determine if this is a "Meme/Rocket" or High-Volatility trade
             is_volatile = 'Meme' in trade.get('strategy', '') or 'Rocket' in trade.get('strategy', '') or 'Scalp' in trade.get('strategy', '')
             
-            # --- PROTECTIVE RECOVERY (v17.0: Commission-Covering Guard) ---
+            # --- PROTECTIVE RECOVERY (v19.0: Ultra-Strict Hybrid Guard) ---
             if is_volatile:
-                # Stage 1: Fast Fee-Lock (0.3% profit -> 0.21% SL to cover Binance 0.2% fee)
+                # Stage 1: Fast Fee-Lock (0.3% profit -> 0.21% SL)
                 if pnl_pct >= 0.003: 
                     new_sl = entry_p * 1.0021 
                     if new_sl > trade_sl:
@@ -515,9 +515,9 @@ class TradingBot:
                         trade_sl = new_sl
                         self.add_log(f"⚡ [MEME-FEE-LOCK] {trade_symbol}: Fees secured @ +0.21%")
 
-                # Stage 2: Ultra-Tight Adhesive Trail (0.4% distance)
-                if pnl_pct >= 0.005:
-                    new_sl = trade_price * 0.996 # Follow at 0.4% distance
+                # Stage 2: Ultra-Tight Trail (0.3% distance at 0.6% profit)
+                if pnl_pct >= 0.006:
+                    new_sl = trade_price * 0.997 
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
@@ -531,9 +531,9 @@ class TradingBot:
                         trade_sl = new_sl
                         self.add_log(f"🛡️ [FEE-SHIELD] {trade_symbol}: Binance Fees+ locked at +0.21%")
 
-                # Stage 2: Aggressive Profit Trail (0.5% distance)
+                # Stage 2: Ultra-Strict Hybrid Trail (0.3% distance at 0.8% profit)
                 if pnl_pct >= 0.008: 
-                    new_sl = trade_price * 0.995 
+                    new_sl = trade_price * 0.997 
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
