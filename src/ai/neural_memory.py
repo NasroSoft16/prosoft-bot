@@ -154,10 +154,10 @@ class NeuralMemory:
 
             avg_loss_health = float(df['market_health'].mean())
 
+            # إصلاح: كان يتطلب 4 خسائر وهذا كثير جداً - خفضناه إلى 2
             # Veto if losses typically happen at health HIGHER than current
-            # i.e., the market looks good but historically we lose here
             if (avg_loss_health < current_market_health + 12
-                    and len(df) >= 4):
+                    and len(df) >= 2):
                 reason = (
                     f"MEMORY VETO: {symbol} lost {len(df)}× "
                     f"when health≈{avg_loss_health:.0f}% "

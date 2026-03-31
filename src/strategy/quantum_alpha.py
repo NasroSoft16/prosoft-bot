@@ -95,10 +95,12 @@ class QuantumAlphaStrategy:
                 'entry_price': close,
                 'stop_loss': stop_loss,
                 'take_profit': take_profit,
+                'rr_ratio': round(risk * 2.5 / risk, 2) if risk > 0 else 0,
                 'confidence': confidence,
                 'strategy': self.name,
                 'indicators': {
                     'Source': 'QuantumAlpha',
+                    'Strategy': signal_type,  # مطلوب لقاعدة البيانات
                     'CMF': round(cmf, 3),
                     'VWAP_DIST': round((close/vwap-1)*100, 2),
                     'Pattern': signal_type
