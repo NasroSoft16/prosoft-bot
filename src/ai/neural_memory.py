@@ -154,14 +154,17 @@ class NeuralMemory:
 
             avg_loss_health = float(df['market_health'].mean())
 
-            # إصلاح: كان يتطلب 4 خسائر وهذا كثير جداً - خفضناه إلى 2
-            # Veto if losses typically happen at health HIGHER than current
-            if (avg_loss_health < current_market_health + 12
-                    and len(df) >= 2):
+            # إصلاح منطق المقلوب:
+            # احجب فقط إذا الظروف الحالية مشابهة أو أسوأ من وقت الخسارة (فرق ≤ 10%)
+            # إذا الصحة الحالية أفضل بـ 10%+ → اسمح بالدخول (الظروف تحسنت)
+            health_diff = current_market_health - avg_loss_health
+            conditions_similar_or_worse = health_diff <= 10.0  # within 10% of loss conditions
+
+            if conditions_similar_or_worse and len(df) >= 2:
                 reason = (
                     f"MEMORY VETO: {symbol} lost {len(df)}× "
                     f"when health≈{avg_loss_health:.0f}% "
-                    f"(current={current_market_health:.0f}%)"
+                    f"(current={current_market_health:.0f}%, diff={health_diff:+.0f}%)"
                 )
                 app_logger.warning(f"🧠 {reason}")
                 return True, reason
