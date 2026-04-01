@@ -103,11 +103,23 @@ class BaseStrategy:
                 and macd_hist > 0
             )
 
-            # ── Volume confirmation (required for breakout + squeeze) ──
+            # ── Condition 5: Velocity Guard & Climax Filter (v29.0) ──
+            is_climax = bool(curr.get('IS_CLIMAX', False))
+            velocity  = float(curr.get('VELOCITY', 0))
+            
+            # ── Volume confirmation ──
             vol_ok = self.ta.is_volume_spike(df, multiplier=self.volume_multiplier)
 
             # ── Final decision ──
             signal_type = None
+            
+            # EXPERT VETO: If it's a parabolic climax, we do NOT enter.
+            if is_climax or velocity > 2.5: # Reject if spike > 2.5% in ONE candle
+                return {
+                    'signal': 'WAIT', 
+                    'reason': f'Climax Spike Detected ({velocity:.2f}%). Entry unsafe.'
+                }
+
             if is_breakout and vol_ok:
                 signal_type = "Momentum Breakout"
             elif is_knife:

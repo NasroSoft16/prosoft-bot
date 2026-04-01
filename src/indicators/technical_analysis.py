@@ -49,8 +49,15 @@ class TechnicalAnalysis:
             df['BB_LOWER'] = bb.bollinger_lband()
             df['BB_WIDTH'] = (df['BB_UPPER'] - df['BB_LOWER']) / df['close']
 
-            # ── Momentum (rate of change) ──
+            # ── Momentum & Velocity (rate of change) ──
             df['MOM_10'] = df['close'].pct_change(10) * 100
+            df['MOM_3']  = df['close'].pct_change(3) * 100
+            df['VELOCITY'] = df['close'].diff() / df['close'].shift(1) * 100 # Change per candle
+            
+            # ── Climax Detection (Parabolic spikes) ──
+            df['CANDLE_SIZE'] = (df['close'] - df['open']).abs()
+            df['AVG_CANDLE_SIZE'] = df['CANDLE_SIZE'].rolling(window=10).mean()
+            df['IS_CLIMAX'] = df['CANDLE_SIZE'] > (df['AVG_CANDLE_SIZE'] * 2.5) # 2.5x larger than avg
 
             # ── Smart fill ──
             df.ffill(inplace=True)
