@@ -134,14 +134,17 @@ class NeuralMemory:
     def should_veto_trade(self, symbol: str, current_market_health: float) -> tuple:
         """
         Returns (veto: bool, reason: str).
-        Vetoes a trade if past failures on this symbol happened at
-        similar or higher market health conditions.
+        Vetoes a trade if past failures on this symbol happened recently
+        at similar or higher market health conditions.
+        --- NEURAL FORGIVENESS (v31.0) ---
+        If the last failure was more than 12 hours ago, the "Grudge" is lifted.
         """
         try:
             conn = sqlite3.connect(self.db_path)
+            # Fetch last 8 losses with their exit times
             df   = pd.read_sql_query(
                 """
-                SELECT profit_loss, market_health FROM trade_memory
+                SELECT id, profit_loss, market_health, exit_time FROM trade_memory
                 WHERE symbol=? AND profit_loss < 0
                 ORDER BY id DESC LIMIT 8
                 """,
@@ -152,19 +155,39 @@ class NeuralMemory:
             if df.empty or len(df) < 1:
                 return False, ""
 
+            # --- TIME-DECAY FORGIVENESS ---
+            # Check if the MOS RECENT loss is older than 12 hours
+            try:
+                last_loss_time_str = df['exit_time'].iloc[0]
+                if last_loss_time_str:
+                    # Clean the string for parsing (Binance likes 2026-04-01T12:00:00.000)
+                    dt_str = last_loss_time_str.split('.')[0].replace('T', ' ')
+                    last_loss_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                    hours_since_last_fail = (datetime.now() - last_loss_dt).total_seconds() / 3600
+                    
+                    # If last failure was > 12 hours ago, forgive the coin (Give it a fresh start)
+                    if hours_since_last_fail > 12.0:
+                        app_logger.info(f"🧊 [FORGIVENESS] {symbol} last failed {hours_since_last_fail:.1f}h ago. Veto lifted.")
+                        return False, ""
+            except Exception as time_err:
+                app_logger.warning(f"Forgiveness time parse error: {time_err}")
+
+            # --- TRADITIONAL HEALTH VETO ---
             avg_loss_health = float(df['market_health'].mean())
-
-            # إصلاح منطق المقلوب:
-            # احجب فقط إذا الظروف الحالية مشابهة أو أسوأ من وقت الخسارة (فرق ≤ 10%)
-            # إذا الصحة الحالية أفضل بـ 10%+ → اسمح بالدخول (الظروف تحسنت)
             health_diff = current_market_health - avg_loss_health
-            conditions_similar_or_worse = health_diff <= 10.0  # within 10% of loss conditions
+            
+            # If current health is MUCH BETTER (e.g. +20%), we forgive even if recent
+            if health_diff > 20.0:
+                app_logger.info(f"🌟 [RECOVERY VETO] {symbol} forgiven because Market Health improved by {health_diff:+.0f}%")
+                return False, ""
 
+            # If conditions are similar or worse AND we lost 2+ times recently
+            conditions_similar_or_worse = health_diff <= 10.0
             if conditions_similar_or_worse and len(df) >= 2:
                 reason = (
-                    f"MEMORY VETO: {symbol} lost {len(df)}× "
-                    f"when health≈{avg_loss_health:.0f}% "
-                    f"(current={current_market_health:.0f}%, diff={health_diff:+.0f}%)"
+                    f"NEURAL GRUDGE: {symbol} failed {len(df)}× recently "
+                    f"at health≈{avg_loss_health:.0f}% "
+                    f"(current={current_market_health:.0f}%)"
                 )
                 app_logger.warning(f"🧠 {reason}")
                 return True, reason
