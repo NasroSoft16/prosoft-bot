@@ -1244,6 +1244,9 @@ class TradingBot:
                             self.stats['total_equity'] = summ.get('total_value', 0.0)
                             self.stats['balance'] = self.api.get_account_balance('USDT')
                             
+                            # v27.0: Feed the latest balance to Telegram Footer
+                            self.telegram.update_stats(self.stats.get('total_equity', 0.0))
+                            
                             current_assets = [a['asset'] for a in summ.get('assets', [])]
                             for trade in list(self.active_trades):
                                 symbol_base = trade['symbol'].replace('USDT', '')
