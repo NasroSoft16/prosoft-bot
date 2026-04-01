@@ -13,6 +13,25 @@ class TelegramBot:
         self.token = token or os.getenv('TELEGRAM_BOT_TOKEN')
         self.chat_id = chat_id or os.getenv('TELEGRAM_CHAT_ID')
         self.bot = Bot(token=self.token) if self.token else None
+        # Expert stats
+        self.current_balance = 0.0
+        self.model_version = "v26.2"
+
+    def update_stats(self, balance, version="v26.2"):
+        """Updates the global stats for the notification footer."""
+        self.current_balance = balance
+        self.model_version = version
+
+    def _append_footer(self, text):
+        """Internal helper to add the professional status footer."""
+        if self.current_balance > 0:
+            footer = (
+                f"\n\n━━━━━━━━━━━━━━━━━━━━\n"
+                f"📊 *Current Equity / الرصيد:* `${self.current_balance:.2f}`\n"
+                f"🧠 *Pulse:* `{self.model_version}` | `STABLE`"
+            )
+            return text + footer
+        return text
         
     async def verify_connection(self):
         """Standard connectivity check (Used during startup/diagnostics)."""
@@ -54,7 +73,7 @@ class TelegramBot:
 
             await self.bot.send_message(
                 chat_id=self.chat_id, 
-                text=message, 
+                text=self._append_footer(message), 
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=reply_markup
             )
@@ -78,7 +97,7 @@ class TelegramBot:
         try:
             await self.bot.send_message(
                 chat_id=self.chat_id, 
-                text=text, 
+                text=self._append_footer(text), 
                 parse_mode=parse_mode
             )
             return True
