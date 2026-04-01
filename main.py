@@ -548,12 +548,13 @@ class TradingBot:
                         trade_sl = new_sl
                         self.add_log(f"🛡️ [ULTRA-FEE-SHIELD] {trade_symbol}: Binance Fees secured @ +0.21%")
 
-                # Stage 2: Strict Profit Trail (0.3% distance at 0.65% profit)
-                if pnl_pct >= 0.0065: 
+                # Stage 2: THE ADHESIVE TIGHTENER (v32.0: Trigger at 0.3% profit, trail at 0.3% distance)
+                if pnl_pct >= 0.003: 
                     new_sl = trade_price * 0.997 
                     if new_sl > trade_sl:
                         trade['trailing_sl'] = new_sl
                         trade_sl = new_sl
+                        self.add_log(f"⚡ [ADHESIVE-TIGHTENER] {trade_symbol}: Locking in profit + trail @ 0.3% distance")
             
             # --- TIME-PROTECT ENGINE (v26.0: Liquidity Preservation) ---
             # Don't let precious capital freeze in a stagnant market
