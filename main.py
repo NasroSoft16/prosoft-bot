@@ -558,13 +558,21 @@ class TradingBot:
             # --- TIME-PROTECT ENGINE (v26.0: Liquidity Preservation) ---
             # Don't let precious capital freeze in a stagnant market
             from datetime import datetime, timedelta
-            entry_time = trade.get('entry_time')
-            if isinstance(entry_time, str):
-                entry_time = datetime.fromisoformat(entry_time)
+            entry_time = trade.get('entry_time') or trade.get('time')
             
-            # Time Limits: 20m for Volatile, 45m for Standard
-            time_limit = 20 if is_volatile else 45
-            is_stagnant = (datetime.now() - entry_time) > timedelta(minutes=time_limit)
+            if entry_time:
+                if isinstance(entry_time, str):
+                    try:
+                        entry_time = datetime.fromisoformat(entry_time)
+                    except:
+                        # Fallback for older time formats
+                        entry_time = datetime.now()
+                
+                # Time Limits: 20m for Volatile, 45m for Standard
+                time_limit = 20 if is_volatile else 45
+                is_stagnant = (datetime.now() - entry_time) > timedelta(minutes=time_limit)
+            else:
+                is_stagnant = False # Safety: if no time info, don't kill the trade yet
             
             if is_stagnant and pnl_pct < 0.001:
                 self.add_log(f"⏳ [TIME-EXIT] {trade_symbol}: Closing stagnant trade after {time_limit}m to free capital.")
