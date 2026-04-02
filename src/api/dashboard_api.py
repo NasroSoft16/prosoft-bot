@@ -527,27 +527,29 @@ class DashboardAPI:
 
         @self.app.route('/api/download_brain')
         def download_brain():
-            """Hyper-Robust neural backup for diverse server environments (Railway/VPS)."""
+            """Precision neural backup using the bot's live memory path."""
             try:
                 import os
-                # High-priority search paths
-                possible_paths = [
-                    os.path.join(os.getcwd(), 'brain.db'),
-                    os.path.join(os.getcwd(), 'data', 'brain.db'),
-                    '/app/brain.db', # Common Railway path
-                    '/app/data/brain.db'
-                ]
+                # Priority 1: Use the path the bot is actually using
+                target_path = getattr(self.bot.memory, 'db_path', None)
                 
-                target_path = None
-                for path in possible_paths:
-                    if os.path.exists(path):
-                        target_path = path
-                        break
+                # Priority 2: Standard fallbacks
+                if not target_path or not os.path.exists(target_path):
+                    possible_paths = [
+                        os.path.join(os.getcwd(), 'brain.db'),
+                        os.path.join(os.getcwd(), 'data', 'brain.db'),
+                        '/data/brain.db', # Confirmed from User Image
+                        '/app/data/brain.db'
+                    ]
+                    for path in possible_paths:
+                        if os.path.exists(path):
+                            target_path = path
+                            break
                 
-                if target_path:
+                if target_path and os.path.exists(target_path):
                     return send_file(target_path, as_attachment=True, download_name=f"PROSOFT_BRAIN_BACKUP_{datetime.now().strftime('%Y%m%d')}.db")
                 
-                return jsonify({"status": "error", "message": "Neural Database not found in standard paths"}), 404
+                return jsonify({"status": "error", "message": f"Neural Core not found at {target_path if target_path else 'standard paths'}"}), 404
             except Exception as e:
                 return jsonify({"status": "error", "message": str(e)}), 500
 
