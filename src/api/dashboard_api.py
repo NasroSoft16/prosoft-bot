@@ -524,6 +524,41 @@ class DashboardAPI:
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)}), 500
 
+        @self.app.route('/api/download_report')
+        def download_report():
+            """Generate and download PDF report directly from browser."""
+            try:
+                report_path = self.bot.reporter.generate_daily_report(self.bot.stats, self.bot.logs)
+                return send_file(report_path, as_attachment=True, download_name=os.path.basename(report_path))
+            except Exception as e:
+                return jsonify({'status': 'error', 'message': str(e)}), 500
+
+        @self.app.route('/api/download_brain')
+        def download_brain():
+            """Hyper-Robust neural backup for diverse server environments (Railway/VPS)."""
+            try:
+                import os
+                # High-priority search paths
+                possible_paths = [
+                    os.path.join(os.getcwd(), 'brain.db'),
+                    os.path.join(os.getcwd(), 'data', 'brain.db'),
+                    '/app/brain.db', # Common Railway path
+                    '/app/data/brain.db'
+                ]
+                
+                target_path = None
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        target_path = path
+                        break
+                
+                if target_path:
+                    return send_file(target_path, as_attachment=True, download_name=f"PROSOFT_BRAIN_BACKUP_{datetime.now().strftime('%Y%m%d')}.db")
+                
+                return jsonify({"status": "error", "message": "Neural Database not found in standard paths"}), 404
+            except Exception as e:
+                return jsonify({"status": "error", "message": str(e)}), 500
+
         @self.app.route('/api/scanner', methods=['GET'])
         def get_scanner():
             # Use cached results from main loop
