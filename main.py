@@ -571,8 +571,8 @@ class TradingBot:
                 await self._close_trade(trade, trade_price, reason="TIME_LIMIT_REACHED")
                 continue
 
-            # Sync with Binance to ensure safety
-            if trade_sl > trade.get('sl', 0):
+            # Sync with Binance to ensure safety (Rate limited to 0.15% jumps to prevent API spam)
+            if trade_sl > trade.get('sl', 0) * 1.0015:
                 trade['sl'] = trade_sl
                 await self._sync_remote_sl(trade)
 
@@ -754,20 +754,7 @@ class TradingBot:
         except Exception as e:
             app_logger.error(f"Trade close error: {e}")
 
-    async def _sync_remote_sl(self, trade):
-        """
-        Updates the remote Binance OCO order if the local trailing SL has tightened.
-        If no OCO exists (e.g. manual trades), it gracefully ignores.
-        """
-        if 'oco_id' in trade:
-            try:
-                self.api.client.cancel_order_list(symbol=trade['symbol'], orderListId=trade['oco_id'])
-                # Re-create OCO with the new SL
-                oco_res = self.orders.place_oco_order(trade['symbol'], trade['qty'], trade['tp'], trade['sl'])
-                if oco_res:
-                    trade['oco_id'] = oco_res.get('orderListId')
-            except Exception as e:
-                app_logger.warning(f"Failed to sync remote SL for {trade['symbol']}: {e}")
+
 
     # ── [NEW v15.0: Flash-Crash Protection] ──
     async def _check_flash_crash(self, symbol, df) -> tuple[bool, str]:
