@@ -82,13 +82,23 @@ class GeminiAI:
         """Dashboard data feed."""
         if not self.api_keys: return []
         info = []
-        for i in range(len(self.api_keys)):
+        for i, key in enumerate(self.api_keys):
             stats = self.usage_stats.get(i, {})
+            # Determine real-time visual status
+            status = 'READY'
+            if stats.get('suspended'): status = 'SUSPENDED'
+            elif stats.get('limit_hit'): status = 'LIMIT HIT'
+            elif stats.get('requests', 0) > 0 and stats.get('errors', 0) == 0: status = 'ONLINE'
+            elif stats.get('errors', 0) > 0: status = f"ERROR {stats.get('last_code', '')}"
+
             info.append({
-                'id': i + 1,
-                'status': 'LIMIT HIT' if stats.get('limit_hit') else 'ONLINE',
+                'node': i + 1,
+                'model': stats.get('active_model', self.model_name),
+                'status': status,
                 'requests': stats.get('requests', 0),
-                'active': i == self.current_key_idx
+                'errors': stats.get('errors', 0),
+                'limit_hit': stats.get('limit_hit', False),
+                'suspended': stats.get('suspended', False)
             })
         return info
 

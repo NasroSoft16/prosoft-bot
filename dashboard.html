@@ -1553,7 +1553,7 @@
                     }
                 }
 
-                // 7. AI Cluster Visualizer
+                // 7. AI Cluster Visualizer (v37.0 Color Intel)
                 const aiNodesList = document.getElementById('ai-nodes-list');
                 if (s.ai_cluster && aiNodesList) {
                     document.getElementById('cluster-count').innerText = `${s.ai_cluster.length} NODES`;
@@ -1562,8 +1562,13 @@
                         aiNodesList.innerHTML = `<p class="text-[10px] text-slate-500 text-center italic">Initializing AI Nodes...</p>`;
                     } else {
                         aiNodesList.innerHTML = s.ai_cluster.map((n, i) => {
-                            let statusColor = n.limit_hit ? 'text-red-400' : (n.session_reqs > 0 ? 'text-green-400' : 'text-blue-400/50');
-                            let statusText = n.limit_hit ? 'LIMIT HIT' : (n.session_reqs > 0 ? 'ACTIVE' : 'READY');
+                            let statusText = n.status || 'READY';
+                            let statusColor = 'text-blue-400/50'; // Default READY
+
+                            if (statusText === 'ONLINE') statusColor = 'text-emerald-400';
+                            else if (statusText.includes('ERROR') || statusText === 'LIMIT HIT' || statusText === 'SUSPENDED') statusColor = 'text-red-500';
+                            else if (statusText === 'READY') statusColor = 'text-blue-300';
+
                             return `
                                 <div class="flex justify-between items-center text-[9px] border-b border-white/5 pb-1">
                                     <span class="text-slate-400 font-mono">Node ${i + 1}: <span class="text-slate-500 ml-1">${n.model || 'gemini'}</span></span>
