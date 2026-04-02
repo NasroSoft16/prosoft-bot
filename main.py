@@ -487,8 +487,15 @@ class TradingBot:
             
             # Fallback only if cache is empty
             if trade_price <= 0:
-                trade_price = self.api.get_symbol_ticker(trade_symbol) or current_price
+                fetched_price = self.api.get_symbol_ticker(trade_symbol)
+                if fetched_price is None and trade_symbol == self.symbol:
+                    fetched_price = current_price
+                trade_price = fetched_price
             
+            # Graceful skip if API is completely down
+            if not trade_price or trade_price <= 0:
+                continue
+                
             # Sanity Check: Ensure trade_price is float
             trade_price = float(trade_price)
 
