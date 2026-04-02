@@ -491,6 +491,11 @@
                     title="Export Intelligence PDF" data-en="EXPORT" data-ar="تصدير">
                     📄
                 </button>
+                <button id="backup-brain" onclick="downloadBrain()"
+                    class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-purple-400 hover:bg-purple-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-purple-500"
+                    title="Neural Backup (Save brain.db)" data-en="SAVE BRAIN" data-ar="حفظ الدماغ">
+                    💾
+                </button>
                 <button id="sync-btn"
                     class="bg-[#1f2937] px-4 py-2.5 rounded text-xs font-semibold text-blue-400 hover:bg-blue-600 hover:text-white transition flex items-center gap-2 border border-transparent hover:border-blue-500"
                     title="Deep Sync (Refresh Memory)" data-en="SYNC" data-ar="مزامنة">
@@ -1753,6 +1758,10 @@
 
         async function exportPDF() {
             window.location.href = `${API_BASE}/download_report`;
+        }
+
+        async function downloadBrain() {
+            window.location.href = `${API_BASE}/download_brain`;
         }
 
         async function triggerWipeDatabase() {
