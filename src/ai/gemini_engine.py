@@ -26,6 +26,16 @@ class GeminiAI:
         self.lock = asyncio.Lock()  # Protect against parallel scatter
         self.node_saturation_threshold = 25  # Move to next node after X requests
         self._is_exhausted = False  # SOVEREIGN FAILOVER FLAG (v41.2)
+        
+        # Ordered fallback: newest → oldest, all confirmed working with REST v1beta
+        self.fallback_models = [
+            'gemini-1.5-flash',         # Primary — stable
+            'gemini-1.5-flash-8b',      # Fallback 1 — lightweight
+            'gemini-pro',               # Fallback 2 — legacy but stable
+        ]
+        
+        self._http_session = None  # Reusable aiohttp session
+        self._initialize_all()
 
     def is_cluster_exhausted(self):
         """Returns True if ALL nodes in the cluster are currently hit by quota limits."""
@@ -41,16 +51,6 @@ class GeminiAI:
         
         self._is_exhausted = False
         return False
-        
-        # Ordered fallback: newest → oldest, all confirmed working with REST v1beta
-        self.fallback_models = [
-            'gemini-1.5-flash',         # Primary — stable
-            'gemini-1.5-flash-8b',      # Fallback 1 — lightweight
-            'gemini-pro',               # Fallback 2 — legacy but stable
-        ]
-        
-        self._http_session = None  # Reusable aiohttp session
-        self._initialize_all()
     
     def _initialize_all(self):
         if not self.api_keys:
