@@ -1042,7 +1042,7 @@ class TradingBot:
                     # Run corporate-grade institutional scan every 60 minutes
                     if time.time() - self.stats.get('last_macro_sweep', 0) > 3600:
                         self.add_log("🌍 [MACRO] Dispatching Intelligence Sweep: Analyzing Dollar Index & Geopolitics...")
-                        macro_data = await self.ai.get_macro_sentiment()
+                        macro_data = await self.gemini.get_macro_sentiment()
                         if macro_data:
                             self.stats['macro_context'] = macro_data
                             self.stats['last_macro_sweep'] = time.time()
