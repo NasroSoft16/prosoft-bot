@@ -1038,17 +1038,6 @@ class TradingBot:
                     self._force_ui_update()
                     await self._check_daily_report()
                     
-                    # ── [NEW v33.0: GLOBAL MACRO SWEEP] ──
-                    # Run corporate-grade institutional scan every 60 minutes
-                    if time.time() - self.stats.get('last_macro_sweep', 0) > 3600:
-                        self.add_log("🌍 [MACRO] Dispatching Intelligence Sweep: Analyzing Dollar Index & Geopolitics...")
-                        macro_data = await self.gemini.get_macro_sentiment()
-                        if macro_data:
-                            self.stats['macro_context'] = macro_data
-                            self.stats['last_macro_sweep'] = time.time()
-                            msg = f"🌍 [MACRO] Radar Pulse: {macro_data.get('macro_bias')} | DXY: {macro_data.get('dxy_pressure')} | Insights: {macro_data.get('reason')}"
-                            self.add_log(msg)
-                    
                     if time.time() - self.stats.get('last_daily_briefing', 0) > 86400:
                         await self._send_daily_briefing()
                         self.stats['last_daily_briefing'] = time.time()
@@ -1644,6 +1633,25 @@ class TradingBot:
                                 signal = self.strategy.check_entry_signal(df, symbol=self.symbol, macro_context=m_context)
                             
                             if signal['signal'] == 'BUY':
+                                # --- NEW v36.0: JUST-IN-TIME MACRO TRIGGER ---
+                                # Only sweep geopolitics/DXY when we actually have a trade signal
+                                now = time.time()
+                                if now - self.stats.get('last_macro_sweep', 0) > 900: # 15 min fresh window
+                                    self.add_log(f"🎯 [MOMENTUM] Signal detected on {self.symbol}. Triggering JIT Macro Intelligence Sweep...")
+                                    macro_data = await self.gemini.get_macro_sentiment()
+                                    if macro_data:
+                                        self.stats['macro_context'] = macro_data
+                                        self.stats['last_macro_sweep'] = now
+                                        self.add_log(f"🌍 [MACRO] JIT Result: {macro_data.get('macro_bias')} | DXY: {macro_data.get('dxy_pressure')}")
+                                
+                                # Re-validate with fresh macro context
+                                if self.stats.get('macro_context'):
+                                    m_context = self.stats['macro_context']
+                                    if 'PAXG' in self.symbol and m_context.get('gold_safety') == 'LOW':
+                                        self.add_log(f"⛔ [VETO] JIT Macro Interceptor blocked entry: {m_context.get('reason')}")
+                                        signal['signal'] = 'WAIT'
+                                        continue
+
                                 # Calculate final confidence
                                 ai_conf = signal.get('confidence', self.ai.calculate_confidence(df.iloc[-1]))
                                 
