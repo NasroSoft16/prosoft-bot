@@ -599,23 +599,41 @@
                 </div>
             </div>
 
-            <!-- AI CLUSTER STATUS (NEW) -->
+            <!-- AI CLUSTER STATUS (GEMINI) -->
             <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0f172a] border-blue-500/20">
                 <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center gap-2">
                         <span class="text-blue-400 text-sm">🧠</span>
                         <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest"
-                            data-en="AI CLUSTER INFRA" data-ar="بنية مجمع الذكاء"
-                            data-hint-en="AI CLUSTER INFRA: A distributed cluster of Gemini 1.5 Flash nodes providing 24/7 intelligence with built-in redundancy and auto-rotation logic."
-                            data-hint-ar="بنية مجمع الذكاء: مجموعة موزعة من عقد Gemini 1.5 Flash التي توفر ذكاءً على مدار الساعة طوال أيام الأسبوع مع تكرار مدمج ومنطق تدوير تلقائي.">
-                            AI CLUSTER INFRA</p>
+                            data-en="GEMINI CLUSTER INFRA" data-ar="بنية مجمع جيميناي"
+                            data-hint-en="GEMINI CLUSTER INFRA: Distributed Google Gemini 1.5 Flash nodes for high-resolution market sentiment.">
+                            GEMINI CLUSTER INFRA</p>
                     </div>
                     <div id="cluster-count"
                         class="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[8px] font-bold rounded border border-blue-500/20">
                         0 NODES</div>
                 </div>
                 <div id="ai-nodes-list" class="space-y-2">
-                    <p class="text-[9px] text-slate-500 italic text-center py-2">Initializing AI Nodes...</p>
+                    <p class="text-[9px] text-slate-500 italic text-center py-2">Initializing Gemini Nodes...</p>
+                </div>
+            </div>
+
+            <!-- AI CLUSTER STATUS (GROQ - NEW v42.0) -->
+            <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0f172a] border-amber-500/20">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-amber-400 text-sm">⚡</span>
+                        <p class="text-[10px] font-black text-amber-400 uppercase tracking-widest"
+                            data-en="GROQ CLUSTER INFRA" data-ar="بنية مجمع جروك"
+                            data-hint-en="GROQ CLUSTER INFRA: Lightning-fast Llama 3.1 nodes via Groq LPU for instantaneous technical reasoning.">
+                            GROQ CLUSTER INFRA</p>
+                    </div>
+                    <div id="groq-count"
+                        class="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[8px] font-bold rounded border border-amber-500/20">
+                        0 NODES</div>
+                </div>
+                <div id="groq-nodes-list" class="space-y-2">
+                    <p class="text-[9px] text-slate-500 italic text-center py-2">Initializing Groq Nodes...</p>
                 </div>
             </div>
 
@@ -1558,25 +1576,49 @@
                     }
                 }
 
-                // 7. AI Cluster Visualizer (v37.0 Color Intel)
+                // 7. AI Cluster Visualizer (GEMINI)
                 const aiNodesList = document.getElementById('ai-nodes-list');
-                if (s.ai_cluster && aiNodesList) {
-                    document.getElementById('cluster-count').innerText = `${s.ai_cluster.length} NODES`;
+                if (data.gemini_cluster && aiNodesList) {
+                    document.getElementById('cluster-count').innerText = `${data.gemini_cluster.length} NODES`;
 
-                    if (s.ai_cluster.length === 0) {
-                        aiNodesList.innerHTML = `<p class="text-[10px] text-slate-500 text-center italic">Initializing AI Nodes...</p>`;
+                    if (data.gemini_cluster.length === 0) {
+                        aiNodesList.innerHTML = `<p class="text-[10px] text-slate-500 text-center italic">Initializing Gemini Nodes...</p>`;
                     } else {
-                        aiNodesList.innerHTML = s.ai_cluster.map((n, i) => {
+                        aiNodesList.innerHTML = data.gemini_cluster.map((n, i) => {
                             let statusText = n.status || 'READY';
-                            let statusColor = 'text-blue-400/50'; // Default READY
+                            let statusColor = 'text-blue-400/50'; 
 
-                            if (statusText === 'ONLINE') statusColor = 'text-emerald-400';
-                            else if (statusText.includes('ERROR') || statusText === 'LIMIT HIT' || statusText === 'SUSPENDED') statusColor = 'text-red-500';
-                            else if (statusText === 'READY') statusColor = 'text-blue-300';
+                            if (statusText === 'ONLINE' || statusText === 'READY') statusColor = 'text-emerald-400';
+                            else if (statusText.includes('ERROR') || statusText === 'LIMIT HIT') statusColor = 'text-red-500';
 
                             return `
                                 <div class="flex justify-between items-center text-[9px] border-b border-white/5 pb-1">
-                                    <span class="text-slate-400 font-mono">Node ${i + 1}: <span class="text-slate-500 ml-1">${n.model || 'gemini'}</span></span>
+                                    <span class="text-slate-400 font-mono">Node ${i + 1}: <span class="text-slate-500 ml-1">Gemini AI</span></span>
+                                    <span class="font-bold ${statusColor}">${statusText} [${n.requests || 0}]</span>
+                                </div>
+                            `;
+                        }).join('');
+                    }
+                }
+
+                // 7b. AI Cluster Visualizer (GROQ - NEW v42.0)
+                const groqNodesList = document.getElementById('groq-nodes-list');
+                if (data.groq_cluster && groqNodesList) {
+                    document.getElementById('groq-count').innerText = `${data.groq_cluster.length} NODES`;
+
+                    if (data.groq_cluster.length === 0) {
+                        groqNodesList.innerHTML = `<p class="text-[10px] text-slate-500 text-center italic">Initializing Groq Nodes...</p>`;
+                    } else {
+                        groqNodesList.innerHTML = data.groq_cluster.map((n, i) => {
+                            let statusText = n.status || 'READY';
+                            let statusColor = 'text-blue-400/50'; 
+
+                            if (statusText === 'ONLINE' || statusText === 'READY') statusColor = 'text-amber-400';
+                            else if (statusText === 'LIMIT HIT') statusColor = 'text-red-500';
+
+                            return `
+                                <div class="flex justify-between items-center text-[9px] border-b border-white/5 pb-1">
+                                    <span class="text-slate-400 font-mono">Node ${i + 1}: <span class="text-slate-500 ml-1">Llama 3.1</span></span>
                                     <span class="font-bold ${statusColor}">${statusText} [${n.requests || 0}]</span>
                                 </div>
                             `;

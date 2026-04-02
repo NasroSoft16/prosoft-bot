@@ -164,7 +164,9 @@ class DashboardAPI:
                 'current_symbol': self.bot.symbol,
                 'active_trades': active_trades,
                 'logs': list(self.bot.logs[-50:]),
-                'historical_bars': self.bot.last_df.tail(60).to_dict('records') if hasattr(self.bot, 'last_df') and hasattr(self.bot.last_df, 'tail') else []
+                'historical_bars': self.bot.last_df.tail(60).to_dict('records') if hasattr(self.bot, 'last_df') and hasattr(self.bot.last_df, 'tail') else [],
+                'gemini_cluster': self.bot.gemini.get_quota_info() if hasattr(self.bot, 'gemini') else [],
+                'groq_cluster': self.bot.groq.get_quota_info() if hasattr(self.bot, 'groq') else []
             })
 
         @self.app.route('/api/accuracy', methods=['GET'])

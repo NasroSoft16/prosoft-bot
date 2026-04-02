@@ -6,9 +6,10 @@ from src.utils.logger import app_logger
 class QuantumIntelligence:
     """The advanced brain of the Trading Entity."""
     
-    def __init__(self, gemini=None):
+    def __init__(self, gemini=None, groq=None):
         self.reg_model = LinearRegression()
         self.gemini = gemini
+        self.groq = groq
 
     async def calculate_market_health(self, df, skip_ai=False):
         """
@@ -49,13 +50,18 @@ class QuantumIntelligence:
             # 2. AI ENHANCEMENT (The High-Resolution Layer)
             # Only use if nodes are healthy and not explicitly skipped
             if not skip_ai and self.gemini and hasattr(self.gemini, 'api_keys') and self.gemini.api_keys:
-                # Force AI to skip if we know it hit quota recently (Optional: checked in main)
+                # Build the analytical prompt
                 prompt = (f"Market Diagnostic: Trend={slope_pct:.2f}%, RSI={rsi:.1f}, ATR_Factor={volatility_penalty:.1f}. "
                          f"Recent Closes: {df['close'].tail(5).tolist()}. "
                          "Return 0-100 score for market safety. Return ONLY the integer.")
                 
-                # Use a timeout context if possible to prevent AI hangs
+                # A. Try Gemini (Primary for Context/Sentiment)
                 ai_score = await self.gemini.ask(prompt)
+                
+                # B. FAILOVER TO GROQ (Primary Lightning Fallback)
+                if not ai_score and self.groq and self.groq.api_keys:
+                    app_logger.info("⚡ [INTELLIGENCE] Gemini Exhausted. Flipping to Groq Lightning-AI...")
+                    ai_score = await self.groq.ask(f"Analyze this crypto technical data and rate safety 0-100: {prompt}")
                 
                 try: 
                     import re

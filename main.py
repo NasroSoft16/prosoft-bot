@@ -67,6 +67,8 @@ from src.strategy.market_scanner import MarketScanner
 from src.strategy.listing_sniper import ListingSniper
 from src.strategy.yield_farmer import YieldFarmer
 from src.api.dashboard_api import DashboardAPI
+from src.ai.gemini_engine import GeminiAI
+from src.ai.groq_engine import GroqAI
 from src.ai.quantum_intelligence import QuantumIntelligence
 from src.risk_management.portfolio_manager import PortfolioManager
 from src.utils.news_engine import GlobalNewsEngine
@@ -117,7 +119,8 @@ class TradingBot:
         self.risk = RiskManager()
         self.ai = ModelManager()
         self.gemini = GeminiAI()
-        self.intel = QuantumIntelligence(gemini=self.gemini)
+        self.groq = GroqAI()
+        self.intel = QuantumIntelligence(gemini=self.gemini, groq=self.groq)
         self.portfolio = PortfolioManager(self.api)
         self.whales = WhaleTracker()
         
