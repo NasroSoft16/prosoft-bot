@@ -513,60 +513,38 @@ class TradingBot:
             
             pnl_pct = (trade_price / entry_p - 1) if entry_p > 0 else 0
 
-            # ── [PROSOFT SHIELD: Trailing Profit Guard] ──
-            # Determine if this is a "Meme/Rocket" or High-Volatility trade
-            is_volatile = 'Meme' in trade.get('strategy', '') or 'Rocket' in trade.get('strategy', '') or 'Scalp' in trade.get('strategy', '')
+            # ── [PROSOFT SHIELD: Universal Trailing Profit Guard] ──
             
-            # --- ADHESIVE OPTIMIZER (v25.0: Continuous Micro-Trailing) ---
-            # Track the highest price reached since entry to lock in every cent
+            # Track the highest price reached since entry to lock in every cent securely
             if trade_price > trade.get('highest_peak', 0):
                 trade['highest_peak'] = trade_price
             
             highest_peak = trade.get('highest_peak', entry_p)
             
-            # --- Continuous Shadow Trailing (Starts at 0.1% profit) ---
+            # --- 1. Base Shadow Trailing (Starts at 0.1% profit) ---
             if pnl_pct >= 0.001:
-                # Standard trail at 0.7% distance from peak, Volatile at 0.5%
-                trail_dist = 0.005 if is_volatile else 0.007
-                adhesive_sl = highest_peak * (1 - trail_dist)
-                
+                # Modest start: Trail at 0.5% distance until we hit the real profit threshold
+                adhesive_sl = highest_peak * 0.995
                 if adhesive_sl > trade_sl:
                     trade['trailing_sl'] = adhesive_sl
                     trade_sl = adhesive_sl
 
-            # --- PROTECTIVE RECOVERY (v23.0: High-Impact Shield Jumps) ---
-            if is_volatile:
-                # Stage 1: Absolute Fee-Lock (0.3% profit -> 0.21% SL)
-                if pnl_pct >= 0.003: 
-                    new_sl = entry_p * 1.0021 
-                    if new_sl > trade_sl:
-                        trade['trailing_sl'] = new_sl
-                        trade_sl = new_sl
-                        self.add_log(f"⚡ [MEME-SHIELD] {trade_symbol}: Fees secured @ +0.21%")
+            # --- 2. Universal Extreme Lock (User Requested: 0.3% trigger -> 0.2% trail) ---
+            if pnl_pct >= 0.003:
+                # Part A: Absolute Fee-Shield (Always lock at least +0.21% above entry to cover fees)
+                fee_sl = entry_p * 1.0021
+                if fee_sl > trade_sl:
+                    trade['trailing_sl'] = fee_sl
+                    trade_sl = fee_sl
+                    self.add_log(f"🛡️ [FEE-SHIELD] {trade_symbol}: Guaranteed +0.21% profit secured.")
 
-                # Stage 2: Tight Adhesive Trail (0.25% distance at 0.6% profit)
-                if pnl_pct >= 0.006:
-                    new_sl = trade_price * 0.9975 
-                    if new_sl > trade_sl:
-                        trade['trailing_sl'] = new_sl
-                        trade_sl = new_sl
-            else:
-                # --- STANDARD ASSET PROTECTION ---
-                # Stage 1: Absolute Fee-Shield Lock (0.3% profit -> 0.21% SL)
-                if pnl_pct >= 0.003: 
-                    new_sl = entry_p * 1.0021
-                    if new_sl > trade_sl:
-                        trade['trailing_sl'] = new_sl
-                        trade_sl = new_sl
-                        self.add_log(f"🛡️ [ULTRA-FEE-SHIELD] {trade_symbol}: Binance Fees secured @ +0.21%")
-
-                # Stage 2: THE ADHESIVE TIGHTENER (v32.0: Trigger at 0.3% profit, trail at 0.3% distance)
-                if pnl_pct >= 0.003: 
-                    new_sl = trade_price * 0.997 
-                    if new_sl > trade_sl:
-                        trade['trailing_sl'] = new_sl
-                        trade_sl = new_sl
-                        self.add_log(f"⚡ [ADHESIVE-TIGHTENER] {trade_symbol}: Locking in profit + trail @ 0.3% distance")
+                # Part B: Extreme Adhesive Tightener (Trail at exactly 0.2% distance from highest peak)
+                # This guarantees taking maximum profits whether it's a Meme coin or Standard
+                tight_sl = highest_peak * 0.998 
+                if tight_sl > trade_sl:
+                    trade['trailing_sl'] = tight_sl
+                    trade_sl = tight_sl
+                    self.add_log(f"⚡ [ADHESIVE-TIGHTENER] {trade_symbol}: Locked trail at 0.2% distance from peak")
             
             # --- TIME-PROTECT ENGINE (v26.0: Liquidity Preservation) ---
             # Don't let precious capital freeze in a stagnant market
