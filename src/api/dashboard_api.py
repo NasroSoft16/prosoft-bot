@@ -516,15 +516,6 @@ class DashboardAPI:
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)}), 500
 
-        @self.app.route('/api/download_report', methods=['GET'])
-        def download_report():
-            """Generate and download PDF report directly from browser."""
-            try:
-                report_path = self.bot.reporter.generate_daily_report(self.bot.stats, self.bot.logs)
-                return send_file(report_path, as_attachment=True, download_name=os.path.basename(report_path))
-            except Exception as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 500
-
         @self.app.route('/api/download_report')
         def download_report():
             """Generate and download PDF report directly from browser."""
