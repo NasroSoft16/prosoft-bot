@@ -163,7 +163,9 @@ class TradingBot:
             'btc_dominance': 50.0,
             'last_weekly_review': None,
             'last_periodic_sync': 0,
-            'last_daily_briefing': 0
+            'last_daily_briefing': 0,
+            'macro_context': {},
+            'last_macro_sweep': 0
         }
 
         self.whales = WhaleTracker()
@@ -203,8 +205,8 @@ class TradingBot:
 
         # --- NEW MODULES (v14.0 Improvements) ---
         self.circuit_breaker = CircuitBreaker(
-            max_daily_loss_pct=float(os.getenv('CB_MAX_DAILY_LOSS_PCT', 5.0)),
-            max_consecutive_loss=int(os.getenv('CB_MAX_CONSECUTIVE_LOSS', 5))
+            max_daily_loss_pct=float(os.getenv('CB_MAX_DAILY_LOSS_PCT', 7.5)),
+            max_consecutive_loss=int(os.getenv('CB_MAX_CONSECUTIVE_LOSS', 10))
         )
         self.mtf = MultiTimeframeAnalyzer(self.api, self.ta)   # تحليل متعدد الأطر الزمنية
         self.fear_mode = FearGreedIntegration(self.macro_filter) # مؤشر الخوف والطمع
@@ -1036,6 +1038,17 @@ class TradingBot:
                     self._force_ui_update()
                     await self._check_daily_report()
                     
+                    # ── [NEW v33.0: GLOBAL MACRO SWEEP] ──
+                    # Run corporate-grade institutional scan every 60 minutes
+                    if time.time() - self.stats.get('last_macro_sweep', 0) > 3600:
+                        self.add_log("🌍 [MACRO] Dispatching Intelligence Sweep: Analyzing Dollar Index & Geopolitics...")
+                        macro_data = await self.ai.get_macro_sentiment()
+                        if macro_data:
+                            self.stats['macro_context'] = macro_data
+                            self.stats['last_macro_sweep'] = time.time()
+                            msg = f"🌍 [MACRO] Radar Pulse: {macro_data.get('macro_bias')} | DXY: {macro_data.get('dxy_pressure')} | Insights: {macro_data.get('reason')}"
+                            self.add_log(msg)
+                    
                     if time.time() - self.stats.get('last_daily_briefing', 0) > 86400:
                         await self._send_daily_briefing()
                         self.stats['last_daily_briefing'] = time.time()
@@ -1622,11 +1635,13 @@ class TradingBot:
                                 self.add_log(f"⛔ BLOCKED: {reason}")
                                 self._last_block_log = _now
                         else:
-                            # 4. Execute Signal (Prioritize QuantumAlpha)
-                            signal = self.quantum_alpha.check_entry_signal(df)
+                            # 4. Execute Signal (Prioritize QuantumAlpha with Macro Context)
+                            m_context = self.stats.get('macro_context', {})
+                            signal = self.quantum_alpha.check_entry_signal(df, symbol=self.symbol, macro_context=m_context)
+                            
                             if signal['signal'] == 'WAIT':
-                                # Fallback to standard strategy
-                                signal = self.strategy.check_entry_signal(df)
+                                # Fallback to standard strategy with Macro Context
+                                signal = self.strategy.check_entry_signal(df, symbol=self.symbol, macro_context=m_context)
                             
                             if signal['signal'] == 'BUY':
                                 # Calculate final confidence

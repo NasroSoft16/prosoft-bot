@@ -58,12 +58,29 @@ class BaseStrategy:
 
     # ── Entry signal ─────────────────────────────────────────────────────
 
-    def check_entry_signal(self, df):
+    def check_entry_signal(self, df, symbol: str = '', macro_context: dict = None):
         """
-        PROSOFT Elite Adaptive Entry.
+        PROSOFT Elite Adaptive Entry — NEW v33.0 "Macro Interceptor".
         Returns BUY signal with entry, SL, TP, and reasoning OR WAIT.
         """
         try:
+            # ── [MACRO INTERCEPTOR: CORPORATE-GRADE SHIELD] ──
+            if macro_context:
+                bias = macro_context.get('macro_bias', 'NEUTRAL')
+                gold_safety = macro_context.get('gold_safety', 'HIGH')
+                dxy_pressure = macro_context.get('dxy_pressure', 'LOW')
+                reason = macro_context.get('reason', 'ظروف الماكرو مستقرة')
+
+                # Hard Veto for Gold if DXY is mooning or AI detects a trap
+                if 'PAXG' in symbol and gold_safety == 'LOW':
+                    app_logger.warning(f"⛔ [MACRO VETO] Gold (PAXG) rejected: {reason}")
+                    return {'signal': 'WAIT', 'reason': f'Macro Shield Veto: {reason}'}
+
+                # Global Risk-Off: If DXY pressure is too high, require more RSI stability
+                if dxy_pressure == 'HIGH' and bias == 'BEARISH':
+                    self.rsi_min = 35 # Tighten oversold entry window
+                    self.rsi_max = 75 # Tighten overbought entry window
+            
             if len(df) < 30:
                 return {'signal': 'WAIT', 'reason': 'Insufficient history'}
 

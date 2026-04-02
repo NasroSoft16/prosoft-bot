@@ -230,7 +230,31 @@ class GeminiAI:
         app_logger.warning("🚨 [AI CLUSTER] Total Infrastructure Exhaustion. All nodes hit quota. Waiting for window reset...")
         return None
 
-    def analyze_image(self, image_bytes, question="Analyze this chart."):
+    async def get_macro_sentiment(self):
+        """
+        NEW v33.0: Institutional Macro Interceptor Protocol.
+        Analyzes Global DXY, Bond Yields, and Geopolitical Risk.
+        Returns structured sentiment for cross-asset validation.
+        """
+        prompt = (
+            "Analyze current GLOBAL MACRO sentiment for an institutional trading bot. "
+            "Specifically focus on: 1. US Dollar Index (DXY) strength. 2. US 10Y Bond Yields. "
+            "3. Geopolitical tension. 4. Gold (XAU) vs Digital Gold (PAXG) liquidity risk. "
+            "Return ONLY a JSON object: "
+            '{"macro_bias": "BULLISH/BEARISH/NEUTRAL", "gold_safety": "HIGH/LOW", '
+            '"dxy_pressure": "HIGH/LOW", "reason": "Short summary in Arabic"}'
+        )
+        
+        raw_res = await self.ask(prompt, market_context="Corporate Intelligence Sweep")
+        if not raw_res: return None
+        
+        try:
+            # Extract JSON from potential markdown tags
+            cleaned = raw_res.replace('```json', '').replace('```', '').strip()
+            return json.loads(cleaned)
+        except Exception as e:
+            app_logger.warning(f"Macro Parse Error: {e}")
+            return None
         """Visual analysis protocol — Synchronous REST for image analysis."""
         import base64
         import requests

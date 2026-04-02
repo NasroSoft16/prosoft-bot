@@ -15,12 +15,22 @@ class QuantumAlphaStrategy:
         self.rsi_max = rsi_max
         self.name = "Quantum Alpha"
 
-    def check_entry_signal(self, df):
+    def check_entry_signal(self, df, symbol: str = '', macro_context: dict = None):
         """
-        Calculates institutional-grade entry signals.
+        Calculates institutional-grade entry signals — NEW v33.0 "Macro Interceptor".
         Returns BUY/WAIT with full risk parameters.
         """
         try:
+            # ── [MACRO INTERCEPTOR: ALPHA SHIELD] ──
+            if macro_context:
+                gold_safety = macro_context.get('gold_safety', 'HIGH')
+                reason = macro_context.get('reason', '')
+
+                # Hard Veto for Gold in this Alpha strategy as well
+                if 'PAXG' in symbol and gold_safety == 'LOW':
+                    app_logger.warning(f"⛔ [QUANTUM VETO] PAXG rejected by Macro Interceptor: {reason}")
+                    return {'signal': 'WAIT', 'reason': f'Macro Shield Veto: {reason}'}
+
             if df is None or len(df) < 50:
                 return {'signal': 'WAIT', 'reason': 'Warming up engine...'}
             
