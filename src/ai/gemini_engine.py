@@ -25,6 +25,22 @@ class GeminiAI:
         self.model = True  # Dashboard flag (True = AI available)
         self.lock = asyncio.Lock()  # Protect against parallel scatter
         self.node_saturation_threshold = 25  # Move to next node after X requests
+        self._is_exhausted = False  # SOVEREIGN FAILOVER FLAG (v41.2)
+
+    def is_cluster_exhausted(self):
+        """Returns True if ALL nodes in the cluster are currently hit by quota limits."""
+        if not self.api_keys: return True
+        # Check if all keys have 'limit_hit' flag active
+        all_hit = all(self.usage_stats[i].get('limit_hit', False) for i in range(len(self.api_keys)))
+        if all_hit:
+            # Check if we've been in cooldown for less than 60s
+            recent_hit_times = [self.usage_stats[i].get('last_hit_time', 0) for i in range(len(self.api_keys))]
+            if recent_hit_times and (time.time() - max(recent_hit_times) < 60):
+                self._is_exhausted = True
+                return True
+        
+        self._is_exhausted = False
+        return False
         
         # Ordered fallback: newest → oldest, all confirmed working with REST v1beta
         self.fallback_models = [

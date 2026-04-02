@@ -1162,9 +1162,21 @@ class TradingBot:
                         self.stats['ema200'] = curr['EMA_200']
                         current_time = time.time()
                         last_ai_time = float(self.stats.get('last_ai_update', 0))
-                        last_quota_hit = float(self.stats.get('last_ai_quota_hit', 0))
+                        # --- [v41.3: SOVEREIGN INTELLIGENCE BROKER] ---
+                        # Failover strategy: Use AI ONLY if cluster is healthy
+                        ai_exhausted = self.gemini.is_cluster_exhausted()
                         
-                        use_ai = (current_time - last_quota_hit > 3600) and (current_time - last_ai_time > 600)
+                        # Optimization: Skip AI if exhausted OR too frequent, UNLESS in Ambush Mode
+                        buy_pressure = self.stats.get('order_flow', {}).get('pressure_score', 0)
+                        in_ambush = buy_pressure > 85
+                        
+                        cadence_met = (current_time - last_ai_time > 600) # every 10m standard
+                        if in_ambush: cadence_met = (current_time - last_ai_time > 120) # every 2m ambush
+                        
+                        use_ai = (not ai_exhausted) and cadence_met
+                        
+                        if ai_exhausted and loop_count % 30 == 0:
+                            self.add_log("🛡️ [SOVEREIGN FALLBACK] AI Exhaustion detected. Decisions driven by Native Intelligence.")
                         
                         dom_state = self.market_scanner.get_btc_dominance_state()
                         self.stats['btc_dominance'] = dom_state['dominance']
