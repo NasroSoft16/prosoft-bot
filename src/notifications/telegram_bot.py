@@ -15,9 +15,9 @@ class TelegramBot:
         self.bot = Bot(token=self.token) if self.token else None
         # Expert stats
         self.current_balance = 0.0
-        self.model_version = "v26.2"
+        self.model_version = "v40.0"
 
-    def update_stats(self, balance, version="v26.2"):
+    def update_stats(self, balance, version="v40.0"):
         """Updates the global stats for the notification footer."""
         self.current_balance = balance
         self.model_version = version

@@ -105,7 +105,7 @@ class TradingBot:
         self.timeframe = os.getenv('TIMEFRAME', timeframe)
         self.interval_sec = int(interval_sec)
         self.ai_threshold = float(os.getenv('AI_CONFIDENCE_THRESHOLD', 0.75))
-        self.version = "14.0 PROSOFT QUANTUM v2.0"
+        self.version = "14.0 PROSOFT QUANTUM v40.0"
         
         self.execution_mode = os.getenv('EXECUTION_MODE', 'manual')
         self.voice_alerts = os.getenv('VOICE_ALERTS', 'on') == 'on'
@@ -1476,7 +1476,20 @@ class TradingBot:
 
                     if loop_count > 0:
                         try:
-                            if (loop_count == 1) or (loop_count % 10 == 0):
+                            # --- [v40.0: ADAPTIVE AMBUSH HEARTBEAT] ---
+                            # Modulate AI frequency based on Risk vs Opportunity
+                            crash_risk = self.stats.get('crash_risk', 0)
+                            buy_pressure = self.stats.get('order_flow', {}).get('pressure_score', 0)
+                            
+                            # Determine cadence (loops to wait)
+                            if crash_risk > 60:
+                                macro_cadence = 60 # Hibernate: 5m (Save Quota)
+                            elif buy_pressure > 85:
+                                macro_cadence = 4  # AMBUSH MODE: 20s (Fast Strike)
+                            else:
+                                macro_cadence = 20 # Standard: 100s
+                                
+                            if (loop_count == 1) or (loop_count % macro_cadence == 0):
                                 try:
                                     rsi = self.stats.get('rsi', 50)
                                     health = self.stats.get('market_health', 50)
