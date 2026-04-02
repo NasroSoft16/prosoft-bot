@@ -656,6 +656,17 @@ class TradingBot:
             entry_p = trade.get('entry_price', exit_price)
             order = None
             
+            # --- [PROSOFT OCO CLEANUP] ---
+            if 'oco_id' in trade:
+                try:
+                    self.api.client.cancel_order_list(symbol=trade['symbol'], orderListId=trade['oco_id'])
+                except:
+                    pass
+                
+            try:
+                self.api.client._cancel_all_open_orders(symbol=trade['symbol'])
+            except: pass
+            
             # Safe Cap: Prevent 'Insufficient Balance' errors from float drift or fee deductions
             sym = trade.get('symbol', '')
             asset_name = sym.replace('USDT', '') if sym.endswith('USDT') else ''
@@ -752,9 +763,26 @@ class TradingBot:
                     self.voice_alerts.alert_take_profit()
                 else:
                     self.voice_alerts.alert_stop_loss()
+            else:
+                self.add_log(f"⚠️ SELL FAILED: {trade['symbol']} order rejected by Binance (API/Balance issue). Retrying...")
 
         except Exception as e:
             app_logger.error(f"Trade close error: {e}")
+
+    async def _sync_remote_sl(self, trade):
+        """
+        Updates the remote Binance OCO order if the local trailing SL has tightened.
+        If no OCO exists (e.g. manual trades), it gracefully ignores.
+        """
+        if 'oco_id' in trade:
+            try:
+                self.api.client.cancel_order_list(symbol=trade['symbol'], orderListId=trade['oco_id'])
+                # Re-create OCO with the new SL
+                oco_res = self.orders.place_oco_order(trade['symbol'], trade['qty'], trade['tp'], trade['sl'])
+                if oco_res:
+                    trade['oco_id'] = oco_res.get('orderListId')
+            except Exception as e:
+                app_logger.warning(f"Failed to sync remote SL for {trade['symbol']}: {e}")
 
     # ── [NEW v15.0: Flash-Crash Protection] ──
     async def _check_flash_crash(self, symbol, df) -> tuple[bool, str]:
