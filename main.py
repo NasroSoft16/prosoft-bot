@@ -514,6 +514,8 @@ class TradingBot:
             pnl_pct = (trade_price / entry_p - 1) if entry_p > 0 else 0
 
             # ── [PROSOFT SHIELD: Universal Trailing Profit Guard] ──
+            # Determine if this is a "Meme/Rocket" or High-Volatility trade
+            is_volatile = 'Meme' in trade.get('strategy', '') or 'Rocket' in trade.get('strategy', '') or 'Scalp' in trade.get('strategy', '')
             
             # Track the highest price reached since entry to lock in every cent securely
             if trade_price > trade.get('highest_peak', 0):
