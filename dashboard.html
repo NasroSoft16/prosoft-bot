@@ -599,6 +599,32 @@
                 </div>
             </div>
 
+            <!-- LIVE THRESHOLDS -->
+            <div class="prime-panel">
+                <div class="panel-header" data-en="Live Core Thresholds" data-ar="معايير التشغيل الحية" 
+                    data-hint-en="LIVE THRESHOLDS: Real-time limits adjusted dynamically by the Optimizer."
+                    data-hint-ar="معايير التشغيل: حدود حية يتم تعديلها ديناميكيا بواسطة المحسن.">
+                    Live Core Thresholds</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="Min Confidence" data-ar="الحد الأدنى للثقة">Min. Confidence</p>
+                        <p id="thresh-ai-conf" class="text-xs font-bold text-yellow-400">--</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="MTF Consensus" data-ar="التوافق الزمني">MTF Consensus</p>
+                        <p id="thresh-mtf" class="text-xs font-bold text-yellow-400">--</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="TP Multiplier" data-ar="مضاعف الربح">TP Multiplier</p>
+                        <p id="thresh-tp" class="text-xs font-bold text-white">--</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-500 font-bold mb-1 uppercase" data-en="SL Multiplier" data-ar="مضاعف الخسارة">SL Multiplier</p>
+                        <p id="thresh-sl" class="text-xs font-bold text-white">--</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- AI CLUSTER STATUS (GEMINI) -->
             <div class="prime-panel bg-gradient-to-br from-[#0a0d14] to-[#0f172a] border-blue-500/20">
                 <div class="flex items-center justify-between mb-3">
@@ -1521,6 +1547,14 @@
                 // AI Confidence (0-1)
                 const aiC = (s.ai_conf !== undefined && s.ai_conf !== null ? s.ai_conf : 0.0);
                 document.getElementById('ai-conf').innerText = `${(aiC * 100).toFixed(1)}%`;
+
+                // Update Live Thresholds UI
+                if (data.thresholds) {
+                    if (document.getElementById('thresh-ai-conf')) document.getElementById('thresh-ai-conf').innerText = data.thresholds.ai_conf_threshold || '--';
+                    if (document.getElementById('thresh-mtf')) document.getElementById('thresh-mtf').innerText = data.thresholds.mtf_threshold || '--';
+                    if (document.getElementById('thresh-tp')) document.getElementById('thresh-tp').innerText = parseFloat(data.thresholds.tp_multiplier || 0).toFixed(1) + 'x';
+                    if (document.getElementById('thresh-sl')) document.getElementById('thresh-sl').innerText = parseFloat(data.thresholds.sl_multiplier || 0).toFixed(1) + 'x';
+                }
                 
                 document.getElementById('balance').innerText = `$${Number(s.total_equity || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
                 

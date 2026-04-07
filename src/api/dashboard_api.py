@@ -158,10 +158,20 @@ class DashboardAPI:
                 except:
                     active_trades.append(t)
 
+            threshold_data = {}
+            if hasattr(self.bot, 'ai_confidence_threshold'):
+                threshold_data['ai_conf_threshold'] = f"{self.bot.ai_confidence_threshold*100:.1f}%"
+            if hasattr(self.bot, 'mtf') and hasattr(self.bot.mtf, 'threshold'):
+                threshold_data['mtf_threshold'] = f"{self.bot.mtf.threshold*100:.1f}%"
+            if hasattr(self.bot, 'strategy'):
+                threshold_data['tp_multiplier'] = getattr(self.bot.strategy, 'atr_multiplier_tp', 0)
+                threshold_data['sl_multiplier'] = getattr(self.bot.strategy, 'atr_multiplier_sl', 0)
+
             return jsonify({
                 'bot_stats': self.bot.stats,
                 'current_symbol': self.bot.symbol,
                 'active_trades': active_trades,
+                'thresholds': threshold_data,
                 'logs': list(self.bot.logs[-50:]),
                 'historical_bars': self.bot.last_df.tail(60).to_dict('records') if hasattr(self.bot, 'last_df') and hasattr(self.bot.last_df, 'tail') else []
             })
