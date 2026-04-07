@@ -64,6 +64,16 @@ class MarketScanner:
             if df is None or len(df) < 50:
                 return None
             
+            # --- DYNAMIC VOLATILITY FILTER (Stablecoin/Dead Coin Detector) ---
+            recent_high = df['high'].tail(20).max()
+            recent_low = df['low'].tail(20).min()
+            if recent_low > 0:
+                volatility_ratio = (recent_high - recent_low) / recent_low
+                if volatility_ratio < 0.005:  # Less than 0.5% movement in 20 candles
+                    # print(f"Skipping {symbol}: Dead Volume/Stablecoin (Volatility={volatility_ratio:.4f})")
+                    return None
+            # -----------------------------------------------------------------
+            
             # Indicators
             df['EMA_20'] = ta.trend.ema_indicator(df['close'], window=20)
             df['EMA_50'] = ta.trend.ema_indicator(df['close'], window=50)

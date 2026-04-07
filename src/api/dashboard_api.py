@@ -7,7 +7,6 @@ import os
 import json
 import asyncio
 import hashlib
-from datetime import datetime
 from src.utils.logger import app_logger
 
 CREDENTIALS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'credentials.json')
@@ -164,9 +163,7 @@ class DashboardAPI:
                 'current_symbol': self.bot.symbol,
                 'active_trades': active_trades,
                 'logs': list(self.bot.logs[-50:]),
-                'historical_bars': self.bot.last_df.tail(60).to_dict('records') if hasattr(self.bot, 'last_df') and hasattr(self.bot.last_df, 'tail') else [],
-                'gemini_cluster': self.bot.gemini.get_quota_info() if hasattr(self.bot, 'gemini') else [],
-                'groq_cluster': self.bot.groq.get_quota_info() if hasattr(self.bot, 'groq') else []
+                'historical_bars': self.bot.last_df.tail(60).to_dict('records') if hasattr(self.bot, 'last_df') and hasattr(self.bot.last_df, 'tail') else []
             })
 
         @self.app.route('/api/accuracy', methods=['GET'])
@@ -518,7 +515,7 @@ class DashboardAPI:
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)}), 500
 
-        @self.app.route('/api/download_report')
+        @self.app.route('/api/download_report', methods=['GET'])
         def download_report():
             """Generate and download PDF report directly from browser."""
             try:
@@ -526,34 +523,6 @@ class DashboardAPI:
                 return send_file(report_path, as_attachment=True, download_name=os.path.basename(report_path))
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)}), 500
-
-        @self.app.route('/api/download_brain')
-        def download_brain():
-            """Precision neural backup using the bot's live memory path."""
-            try:
-                import os
-                # Priority 1: Use the path the bot is actually using
-                target_path = getattr(self.bot.memory, 'db_path', None)
-                
-                # Priority 2: Standard fallbacks
-                if not target_path or not os.path.exists(target_path):
-                    possible_paths = [
-                        os.path.join(os.getcwd(), 'brain.db'),
-                        os.path.join(os.getcwd(), 'data', 'brain.db'),
-                        '/data/brain.db', # Confirmed from User Image
-                        '/app/data/brain.db'
-                    ]
-                    for path in possible_paths:
-                        if os.path.exists(path):
-                            target_path = path
-                            break
-                
-                if target_path and os.path.exists(target_path):
-                    return send_file(target_path, as_attachment=True, download_name=f"PROSOFT_BRAIN_BACKUP_{datetime.now().strftime('%Y%m%d')}.db")
-                
-                return jsonify({"status": "error", "message": f"Neural Core not found at {target_path if target_path else 'standard paths'}"}), 404
-            except Exception as e:
-                return jsonify({"status": "error", "message": str(e)}), 500
 
         @self.app.route('/api/scanner', methods=['GET'])
         def get_scanner():

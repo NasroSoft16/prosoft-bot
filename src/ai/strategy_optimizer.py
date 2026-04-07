@@ -52,8 +52,29 @@ class StrategyOptimizer:
 
         changes = {}
 
+        # ── Time-Decay Forgiveness (Unfreeze Logic) ──────────────────────
+        is_forgiven = False
+        last_trade_time_str = df['exit_time'].iloc[0] if 'exit_time' in df.columns and not df.empty else None
+        if last_trade_time_str:
+            try:
+                from datetime import datetime
+                dt_str = last_trade_time_str.split('.')[0].replace('T', ' ')
+                last_trade_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                hours_idle = (datetime.now() - last_trade_dt).total_seconds() / 3600
+                
+                if hours_idle > 24.0 and self.ai_confidence_threshold > 0.60:
+                    new_thresh = max(0.60, self.ai_confidence_threshold - 0.05)
+                    self.ai_confidence_threshold = new_thresh
+                    if bot_instance and hasattr(bot_instance, 'ai_confidence_threshold'):
+                        bot_instance.ai_confidence_threshold = new_thresh
+                    app_logger.info(f"🧠 [OPTIMIZER] 🧊 Time-Decay: Bot idle for {hours_idle:.1f}h. Relaxed threshold → {new_thresh:.2f}")
+                    changes['time_decay_forgiveness'] = True
+                    is_forgiven = True
+            except Exception as e:
+                app_logger.warning(f"Time decay parse error: {e}")
+
         # ── Rule 1: AI confidence threshold ──────────────────────────────
-        if win_rate < 0.55 and len(df) >= 10:
+        if win_rate < 0.55 and len(df) >= 10 and not is_forgiven:
             new_thresh = min(0.82, self.ai_confidence_threshold + 0.04)
             self.ai_confidence_threshold = new_thresh
             if bot_instance and hasattr(bot_instance, 'ai_confidence_threshold'):
