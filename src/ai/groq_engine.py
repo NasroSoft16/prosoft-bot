@@ -10,7 +10,8 @@ class GroqAI:
     """PROSOFT AI: Groq High-Speed Node Cluster — Direct REST Protocol"""
     
     def __init__(self):
-        self.raw_keys = os.getenv('GROQ_API_KEY', '')
+        # Support both singular and plural env variable names
+        self.raw_keys = os.getenv('GROQ_API_KEYS', os.getenv('GROQ_API_KEY', ''))
         self.api_keys = [k.strip() for k in self.raw_keys.split(',') if k.strip()]
         self.current_key_idx = 0
         
