@@ -26,6 +26,8 @@ class GeminiAI:
         self.lock = asyncio.Lock()  # Protect against parallel scatter
         self.node_saturation_threshold = 25  # Move to next node after X requests
         self._is_exhausted = False  # SOVEREIGN FAILOVER FLAG (v41.2)
+        self._cache = {}  # 🧠 NEURAL CACHE TO PROTECT API LIMITS
+
         
         # Ordered fallback: newest → oldest, all confirmed working with REST v1beta
         self.fallback_models = [
@@ -167,6 +169,18 @@ class GeminiAI:
         if not self.api_keys:
             return None
         
+        # Build prompt
+        prompt = question
+        if market_context:
+            system_prompt = "أنت كبير الاستراتيجيين في PROSOFT AI. فكر بعمق وقدم تحليلاً عصبياً دقيقاً. رد دائماً باللغة العربية (Arabic)."
+            prompt = f"{system_prompt}\nContext: {market_context}\nQ: {question}"
+
+        # 🧠 SMART CACHE SYSTEM: Avoid redundant calls within 5 minutes
+        now = time.time()
+        self._cache = {k: v for k, v in getattr(self, '_cache', {}).items() if now - v['time'] < 300}
+        if prompt in self._cache:
+            return self._cache[prompt]['response']
+        
         tries = 0
         max_tries = len(self.api_keys)
         
@@ -196,12 +210,6 @@ class GeminiAI:
                 active_key = self.api_keys[idx]
             
             try:
-                # Build prompt
-                prompt = question
-                if market_context:
-                    system_prompt = "أنت كبير الاستراتيجيين في PROSOFT AI. فكر بعمق وقدم تحليلاً عصبياً دقيقاً. رد دائماً باللغة العربية (Arabic)."
-                    prompt = f"{system_prompt}\nContext: {market_context}\nQ: {question}"
-                
                 # ATOMIC TRACKING
                 self.usage_stats[idx]['requests'] += 1
                 self.usage_stats[idx]['session_reqs'] += 1
@@ -224,6 +232,7 @@ class GeminiAI:
                 if response_text:
                     self.usage_stats[idx]['limit_hit'] = False
                     self.usage_stats[idx]['last_success'] = time.time()
+                    self._cache[prompt] = {'response': response_text, 'time': time.time()}
                     return response_text
                 
                 # All models failed for this key, rotate
@@ -231,6 +240,7 @@ class GeminiAI:
                 tries += 1
 
             except QuotaExceededError:
+                await asyncio.sleep(1.0) # 🛡️ THROTTLING DEFENSE: Cool down before shifting
                 async with self.lock:
                     app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} Quota Limit. Shifting...")
                     self.usage_stats[self.current_key_idx]['limit_hit'] = True

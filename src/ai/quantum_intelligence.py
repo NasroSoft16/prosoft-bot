@@ -47,6 +47,12 @@ class QuantumIntelligence:
             tech_health = 52 + (slope_pct * 12) + (rsi_health * 0.25) - (volatility_penalty * 1.5)
             tech_health = max(10, min(95, tech_health)) 
             
+            # 🛡️ SOVEREIGN BYPASS (Rate Limit Defender)
+            # If technicals literally scream "crash", skip feeding APIs to confirm it.
+            if tech_health < 40 and not skip_ai:
+                app_logger.warning(f"🛡️ [SOVEREIGN BYPASS] Technical health critically low ({tech_health:.1f}%). Bypassing AI to save quota.")
+                return tech_health
+            
             # 2. AI ENHANCEMENT (The High-Resolution Layer)
             # Only use if nodes are healthy and not explicitly skipped
             if not skip_ai and self.gemini and hasattr(self.gemini, 'api_keys') and self.gemini.api_keys:
