@@ -196,6 +196,20 @@ class DashboardAPI:
         def get_portfolio():
             summary = self.bot.portfolio.get_summary()
             return jsonify(summary)
+        @self.app.route('/api/download_brain', methods=['GET'])
+        def download_brain():
+            """Securely download the bot's SQLite database (Brain)."""
+            if not session.get('authenticated'):
+                return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
+            
+            db_path = os.environ.get("DB_PATH", "brain.db")
+            if os.path.exists(db_path):
+                try:
+                    return send_file(os.path.abspath(db_path), as_attachment=True)
+                except Exception as e:
+                    return jsonify({'status': 'error', 'message': f'Failed to download: {e}'}), 500
+            else:
+                return jsonify({'status': 'error', 'message': 'Brain file not found on server.'}), 404
 
         @self.app.route('/api/test_binance', methods=['POST'])
         def test_binance():
