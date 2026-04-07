@@ -82,44 +82,73 @@ class GroqAI:
             prompt = f"Context: {market_context}\nQ: {question}"
 
         now = time.time()
-        self._cache = {k: v for k, v in self._cache.items() if now - v['time'] < 300}
+        self._cache = {k: v for k, v in getattr(self, '_cache', {}).items() if now - v['time'] < 300}
         if prompt in self._cache:
             return self._cache[prompt]['response']
 
-        # Simplified logic for Groq
-        async with self.lock:
-            active_key = self.api_keys[self.current_key_idx]
-            
-        url = GROQ_API_BASE
-        headers = {
-            "Authorization": f"Bearer {active_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": self.model_name,
-            "messages": [
-                {"role": "system", "content": "You are PROSOFT AI, an elite crypto trading strategist. Be extremely concise. Reply with a single number if asked."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.5,
-            "max_tokens": 512
-        }
+        max_tries = len(self.api_keys)
+        tries = 0
 
-        try:
-            session = await self._get_session()
-            async with session.post(url, headers=headers, json=payload) as resp:
-                self.usage_stats[self.current_key_idx]['requests'] += 1
-                if resp.status == 200:
-                    data = await resp.json()
-                    response_text = data['choices'][0]['message']['content'].strip()
-                    self._cache[prompt] = {'response': response_text, 'time': time.time()}
-                    return response_text
-                elif resp.status == 429:
-                    self.usage_stats[self.current_key_idx]['limit_hit'] = True
+        while tries < max_tries:
+            async with self.lock:
+                idx = self.current_key_idx
+                if self.usage_stats[idx]['limit_hit'] or self.usage_stats[idx].get('errors', 0) >= 3:
+                    self.rotate_key(force=True)
+                    idx = self.current_key_idx
+                    
+                active_key = self.api_keys[idx]
+                
+            url = GROQ_API_BASE
+            headers = {
+                "Authorization": f"Bearer {active_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": self.model_name,
+                "messages": [
+                    {"role": "system", "content": "You are PROSOFT AI, an elite crypto trading strategist. Be extremely concise. Reply with a single number if asked."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.5,
+                "max_tokens": 512
+            }
+
+            try:
+                session = await self._get_session()
+                async with session.post(url, headers=headers, json=payload) as resp:
+                    async with self.lock:
+                        self.usage_stats[idx]['requests'] += 1
+                        
+                    if resp.status == 200:
+                        data = await resp.json()
+                        response_text = data['choices'][0]['message']['content'].strip()
+                        
+                        async with self.lock:
+                            self.usage_stats[idx]['limit_hit'] = False
+                            self._cache[prompt] = {'response': response_text, 'time': time.time()}
+                        return response_text
+                        
+                    elif resp.status == 429:
+                        async with self.lock:
+                            app_logger.warning(f"⚡ [GROQ CLUSTER] Node {idx+1} Quota Limit. Shifting...")
+                            self.usage_stats[idx]['limit_hit'] = True
+                            self.rotate_key()
+                        tries += 1
+                        continue
+                        
+                    else:
+                        async with self.lock:
+                            self.usage_stats[idx]['errors'] += 1
+                            app_logger.warning(f"⚡ [GROQ CLUSTER] Node {idx+1} Error ({resp.status}). Shifting...")
+                            self.rotate_key()
+                        tries += 1
+                        continue
+                        
+            except Exception as e:
+                async with self.lock:
+                    self.usage_stats[idx]['errors'] += 1
+                    app_logger.warning(f"⚡ [GROQ CLUSTER] Node {idx+1} Exception. Shifting...")
                     self.rotate_key()
-                else:
-                    self.usage_stats[self.current_key_idx]['errors'] += 1
-        except Exception as e:
-            self.usage_stats[self.current_key_idx]['errors'] += 1
-            
+                tries += 1
+                
         return None
