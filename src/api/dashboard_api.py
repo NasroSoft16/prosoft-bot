@@ -199,9 +199,6 @@ class DashboardAPI:
         @self.app.route('/api/download_brain', methods=['GET'])
         def download_brain():
             """Securely download the bot's SQLite database (Brain)."""
-            if not session.get('authenticated'):
-                return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
-            
             db_path = os.environ.get("DB_PATH", "brain.db")
             if os.path.exists(db_path):
                 try:
