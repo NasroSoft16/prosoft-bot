@@ -54,7 +54,17 @@ class StrategyOptimizer:
 
         # ── Time-Decay Forgiveness (Unfreeze Logic) ──────────────────────
         is_forgiven = False
+        
+        # PROACTIVE RECOVERY: If Market is Bullish, we reduce thresholds faster
+        market_health = 0
+        if bot_instance and hasattr(bot_instance, 'stats'):
+            market_health = bot_instance.stats.get('market_health', 0)
+            
         last_trade_time_str = df['exit_time'].iloc[0] if 'exit_time' in df.columns and not df.empty else None
+        
+        # If market is healthy (>65%), we can relax even if we haven't reached 24h idle
+        recovery_timer = 8.0 if market_health > 65 else 24.0
+        
         if last_trade_time_str:
             try:
                 from datetime import datetime
@@ -62,16 +72,25 @@ class StrategyOptimizer:
                 last_trade_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
                 hours_idle = (datetime.now() - last_trade_dt).total_seconds() / 3600
                 
-                if hours_idle > 24.0 and self.ai_confidence_threshold > 0.60:
-                    new_thresh = max(0.60, self.ai_confidence_threshold - 0.05)
+                if hours_idle > recovery_timer and self.ai_confidence_threshold > 0.55:
+                    decay_step = 0.05 if hours_idle > 24 else 0.03
+                    new_thresh = max(0.55, self.ai_confidence_threshold - decay_step)
                     self.ai_confidence_threshold = new_thresh
                     if bot_instance and hasattr(bot_instance, 'ai_confidence_threshold'):
                         bot_instance.ai_confidence_threshold = new_thresh
-                    app_logger.info(f"🧠 [OPTIMIZER] 🧊 Time-Decay: Bot idle for {hours_idle:.1f}h. Relaxed threshold → {new_thresh:.2f}")
+                    app_logger.info(f"🧠 [OPTIMIZER] 🧊 Recovery: Bot idle for {hours_idle:.1f}h. Relaxed threshold → {new_thresh:.2f}")
                     changes['time_decay_forgiveness'] = True
                     is_forgiven = True
             except Exception as e:
                 app_logger.warning(f"Time decay parse error: {e}")
+        elif df.empty and market_health > 70:
+            # Force reset if no history but market is booming
+            if self.ai_confidence_threshold > 0.75:
+                self.ai_confidence_threshold = 0.70
+                if bot_instance and hasattr(bot_instance, 'ai_confidence_threshold'):
+                    bot_instance.ai_confidence_threshold = 0.70
+                app_logger.info("🧠 [OPTIMIZER] 🚀 Market Boom Reset: No history found but market is 70%+. Resetting threshold to 0.70.")
+                is_forgiven = True
 
         # ── Rule 1: AI confidence threshold ──────────────────────────────
         if win_rate < 0.55 and len(df) >= 10 and not is_forgiven:
