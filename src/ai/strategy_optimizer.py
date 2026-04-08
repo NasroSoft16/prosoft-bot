@@ -152,19 +152,34 @@ class StrategyOptimizer:
                     )
                     changes['tp_multiplier'] = self.tp_multiplier
 
-        # ── Rule 3: Market health correlation ────────────────────────────
-        if not wins.empty and not losses.empty and 'market_health' in df.columns:
-            avg_health_wins   = wins['market_health'].mean()
-            avg_health_losses = losses['market_health'].mean()
-            if avg_health_losses > avg_health_wins + 10:
-                app_logger.info(
-                    f"🧠 [OPTIMIZER] Insight: losses occur at market health "
-                    f"{avg_health_losses:.0f}% vs wins at {avg_health_wins:.0f}%. "
-                    f"Consider raising market health entry gate."
-                )
-                changes['market_health_warning'] = True
-                if bot_instance and hasattr(bot_instance, 'min_market_health'):
-                    bot_instance.min_market_health = min(55, avg_health_wins + 5)
+        # ── Rule 3: Dynamic Market Health Adjustment ────────────────────────────
+        if bot_instance and hasattr(bot_instance, 'min_market_health'):
+            curr_limit = bot_instance.min_market_health
+            
+            # Part A: Defensive (Raise limit if losing in bad conditions)
+            if not wins.empty and not losses.empty and 'market_health' in df.columns:
+                avg_wins = wins['market_health'].mean()
+                avg_losses = losses['market_health'].mean()
+                if avg_losses > avg_wins + 10 and curr_limit < 52.0:
+                    new_limit = min(52.0, curr_limit + 2.0)
+                    bot_instance.min_market_health = new_limit
+                    app_logger.warning(f"🧠 [OPTIMIZER] 🛡️ Raised Market Gate: {curr_limit:.1f}% -> {new_limit:.1f}% (Protecting)")
+                    changes['market_gate_raised'] = new_limit
+
+            # Part B: Proactive Step-by-Step Easing (Smart Recovery)
+            if 'market_gate_raised' not in changes:
+                # 1. Strong Recovery (Market is healthy)
+                if market_health >= 45.0 and curr_limit > 42.0:
+                    new_limit = max(42.0, curr_limit - 1.5)
+                    bot_instance.min_market_health = new_limit
+                    app_logger.info(f"🧠 [OPTIMIZER] 📉 Easing Market Gate: {curr_limit:.1f}% -> {new_limit:.1f}% (Strong recovery)")
+                    changes['market_gate_lowered'] = new_limit
+                # 2. Gentle Bounce Support (Market is trying to push up)
+                elif 38.0 < market_health < 45.0 and curr_limit > 44.0:
+                    new_limit = max(44.0, curr_limit - 1.0)
+                    bot_instance.min_market_health = new_limit
+                    app_logger.info(f"🧠 [OPTIMIZER] 🌱 Soft Easing Market Gate: {curr_limit:.1f}% -> {new_limit:.1f}% (Encouraging bounce)")
+                    changes['market_gate_lowered'] = new_limit
 
         # ── Rule 4: Consecutive losses → reduce position sizing ───────────
         recent_10 = df.head(10)['profit_loss'].tolist()
