@@ -532,14 +532,20 @@ class TradingBot:
             # Bound the scale to prevent crazy math (Min 0.5x, Max 3.0x stretch)
             vol_scale = max(0.5, min(3.0, vol_scale))
 
-            # Tier 1: The Activation (0.75% profit) -> Unlock Fee Shield
-            if pnl_pct >= 0.0075:
-                # Protection: Lock in +0.25% immediately to walk away risk-free
-                fee_sl = entry_p * 1.0025
+            # Dynamic Tier-1 Activation Threshold (from 0.35% to 0.85% based on volatility)
+            activation_trigger = max(0.0035, min(0.0085, 0.005 * vol_scale))
+
+            # Tier 1: The Activation -> Unlock Fee Shield
+            if pnl_pct >= activation_trigger:
+                # Fee shield dynamic lock (~40% of the activation trigger, min 0.15% to cover fees)
+                shield_lock_pct = max(0.0015, activation_trigger * 0.4)
+                
+                # Protection: Lock in profit immediately to walk away risk-free
+                fee_sl = entry_p * (1 + shield_lock_pct)
                 if fee_sl > trade_sl:
                     trade['trailing_sl'] = fee_sl
                     trade_sl = fee_sl
-                    self.add_log(f"🛡️ [TIER-1 SHIELD] {trade_symbol}: Guaranteed +0.25% profit secured.")
+                    self.add_log(f"🛡️ [TIER-1 SHIELD] {trade_symbol}: Guaranteed +{shield_lock_pct*100:.2f}% profit secured (Activated @ +{activation_trigger*100:.2f}%).")
                 
                 # Base Tier 1 trail distance: (0.5% base * Coin Volatility)
                 t1_dist = 0.5 * vol_scale
