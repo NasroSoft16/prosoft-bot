@@ -523,7 +523,15 @@ class TradingBot:
             
             highest_peak = trade.get('highest_peak', entry_p)
             
-            # --- 1. Smart Multi-Tier Trailing Stop (v35: "The Quantum Net") ---
+            # --- 1. Smart Multi-Tier Trailing Stop (v36: "The Volatility Quantum Net") ---
+            # 🧠 DYNAMIC ADJUSTMENT: Fetch the coin's specific volatility (ATR)
+            indicators = trade.get('indicators', {})
+            # Default to 1% baseline volatility if ATR isn't stored in memory
+            atr = indicators.get('ATR', entry_p * 0.01) 
+            vol_scale = (atr / entry_p) * 100
+            # Bound the scale to prevent crazy math (Min 0.5x, Max 3.0x stretch)
+            vol_scale = max(0.5, min(3.0, vol_scale))
+
             # Tier 1: The Activation (0.75% profit) -> Unlock Fee Shield
             if pnl_pct >= 0.0075:
                 # Protection: Lock in +0.25% immediately to walk away risk-free
@@ -533,19 +541,22 @@ class TradingBot:
                     trade_sl = fee_sl
                     self.add_log(f"🛡️ [TIER-1 SHIELD] {trade_symbol}: Guaranteed +0.25% profit secured.")
                 
-                # Base Tier 1 trail distance: 0.5% (Allows price dropping from 0.75% safely to 0.25%)
-                trail_distance = 0.995 
-                tier_msg = "0.5% distance"
+                # Base Tier 1 trail distance: (0.5% base * Coin Volatility)
+                t1_dist = 0.5 * vol_scale
+                trail_distance = 1 - (t1_dist / 100.0) 
+                tier_msg = f"{t1_dist:.2f}% dynamic distance (ATR={vol_scale:.1f}x)"
 
                 # Tier 2: The Breathing Room (1.5% profit) -> Give it space to bounce and ride the wave
                 if pnl_pct >= 0.015:
-                    trail_distance = 0.992 # 0.8% distance (Wider net for healthy pullbacks)
-                    tier_msg = "0.8% distance (Mid-Pump)"
+                    t2_dist = 0.8 * vol_scale
+                    trail_distance = 1 - (t2_dist / 100.0)
+                    tier_msg = f"{t2_dist:.2f}% dynamic distance (Mid-Pump)"
                 
                 # Tier 3: The Parachute (3.5%+ profit) -> Explosions always dump. Fasten the seatbelt!
                 if pnl_pct >= 0.035:
-                    trail_distance = 0.996 # 0.4% distance (Extremely tight to parachute off the peak)
-                    tier_msg = "0.4% distance (Peak-Parachute)"
+                    t3_dist = 0.3 * vol_scale # Tighten the noose heavily at the peak!
+                    trail_distance = 1 - (t3_dist / 100.0)
+                    tier_msg = f"{t3_dist:.2f}% dynamic distance (Peak-Parachute)"
 
                 # Apply the dynamically calculated trail
                 dynamic_sl = highest_peak * trail_distance
