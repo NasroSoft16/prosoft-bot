@@ -231,6 +231,7 @@ class GeminiAI:
                 
                 if response_text:
                     self.usage_stats[idx]['limit_hit'] = False
+                    self.usage_stats[idx]['errors'] = 0  # CRITICAL UI FIX: Reset errors on success
                     self.usage_stats[idx]['last_success'] = time.time()
                     self._cache[prompt] = {'response': response_text, 'time': time.time()}
                     return response_text
