@@ -482,15 +482,14 @@ class TradingBot:
         for trade in list(self.active_trades):
             trade_symbol = trade.get('symbol', self.symbol)
             
-            # FAST PATH: Resolve price from bulk cache to avoid API bottlenecks
-            trade_price = self.stats.get('tickers', {}).get(trade_symbol, 0)
+            # REAL-TIME PATH: Open trades are sacred. Always demand fresh live ticker first!
+            trade_price = self.api.get_symbol_ticker(trade_symbol)
             
-            # Fallback only if cache is empty
-            if trade_price <= 0:
-                fetched_price = self.api.get_symbol_ticker(trade_symbol)
-                if fetched_price is None and trade_symbol == self.symbol:
-                    fetched_price = current_price
-                trade_price = fetched_price
+            # Fallback to cache ONLY if the live API request fails
+            if not trade_price or trade_price <= 0:
+                trade_price = self.stats.get('tickers', {}).get(trade_symbol, 0)
+                if trade_price <= 0 and trade_symbol == self.symbol:
+                    trade_price = current_price
             
             # Graceful skip if API is completely down
             if not trade_price or trade_price <= 0:
