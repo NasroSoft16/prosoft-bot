@@ -556,10 +556,20 @@ class TradingBot:
             if entry_time:
                 if isinstance(entry_time, str):
                     try:
-                        entry_time = datetime.fromisoformat(entry_time)
-                    except:
-                        # Fallback for older time formats
-                        entry_time = datetime.now()
+                        # Replace generic ISO parse with robust parsing
+                        raw_str = str(entry_time).strip()
+                        # If string is just HH:MM:SS
+                        if len(raw_str) == 8 and raw_str.count(':') == 2:
+                            dt = datetime.strptime(raw_str, "%H:%M:%S")
+                            entry_time = datetime.now().replace(hour=dt.hour, minute=dt.minute, second=dt.second)
+                        else:
+                            try:
+                                entry_time = datetime.fromisoformat(raw_str)
+                            except ValueError:
+                                entry_time = datetime.strptime(raw_str, "%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        # Absolute fallback sets time backward artificially to force timeout if parse fails
+                        entry_time = datetime.now() - timedelta(minutes=60)
                 
                 # Time Limits: 20m for Volatile, 45m for Standard
                 time_limit = 20 if is_volatile else 45
