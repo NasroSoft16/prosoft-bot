@@ -581,23 +581,32 @@ class TradingBot:
             # ── [NEW v15.0: Sudden Collapse Detection] ──
             # If we are in a loss (>0.5% loss), start checking for rapid collapse
             if pnl_pct <= -0.005:
-                # Fetch fresh 1m data for this specific trade symbol if it's not the main focus
-                target_df = df if trade_symbol == self.symbol else self.api.get_historical_klines(trade_symbol, '1m', limit=20)
-                if target_df is not None:
-                    # CRITICAL: Calculate indicators for non-focus symbols so RSI is available
-                    if trade_symbol != self.symbol:
-                        target_df = self.ta.calculate_indicators(target_df)
-                        
-                    is_collapsing, collapse_reason = await self._check_flash_crash(trade_symbol, target_df)
-                    if is_collapsing:
-                        self.add_log(f"🚨 [EMERGENCY EXIT] {trade_symbol}: {collapse_reason} | Saving balance.")
-                        await self._close_trade(trade, trade_price, reason=collapse_reason)
+                try:
+                    # Fetch fresh 1m data for this specific trade symbol if it's not the main focus
+                    target_df = df if trade_symbol == self.symbol else self.api.get_historical_klines(trade_symbol, '1m', limit=20)
+                    if target_df is not None:
+                        # CRITICAL: Calculate indicators for non-focus symbols so RSI is available
+                        if trade_symbol != self.symbol:
+                            # Use try-except here to prevent TA indicator calculation from crashing due to limited rows
+                            try:
+                                target_df = self.ta.calculate_indicators(target_df)
+                            except Exception as ta_e:
+                                # Fallback gracefully if indicators can't be calculated on 20 rows
+                                target_df = None
+                            
+                        if target_df is not None and not target_df.empty:
+                            is_collapsing, collapse_reason = await self._check_flash_crash(trade_symbol, target_df)
+                            if is_collapsing:
+                                self.add_log(f"🚨 [EMERGENCY EXIT] {trade_symbol}: {collapse_reason} | Saving balance.")
+                                await self._close_trade(trade, trade_price, reason=f"EMERGENCY_{collapse_reason}")
 
-                        # ── SYSTEMIC CRASH PROTECTION ──
-                        # If an emergency exit happens, block NEW entries globally for 15m
-                        self.market_crash_gate = time.time() + 900 
-                        self.add_log("🛑 [PULSE-GUARD] Systemic risk detected. Entry gate locked for 15m.")
-                        continue
+                                # ── SYSTEMIC CRASH PROTECTION ──
+                                # If an emergency exit happens, block NEW entries globally for 15m
+                                self.market_crash_gate = time.time() + 900 
+                                self.add_log("🛑 [PULSE-GUARD] Systemic risk detected. Entry gate locked for 15m.")
+                                continue
+                except Exception as crash_check_err:
+                    self.add_log(f"⚠️ [CRASH-CHECK SKIPPED] Latency error preventing collapse check: {crash_check_err}")
 
             # ── [PROSOFT GLOBAL GUARD: Hard 2% Limit] ──
             # Use 1.95% to allow for slippage so it stays under 2%
@@ -1806,7 +1815,7 @@ class TradingBot:
         
         self.add_log(f"TRADE CLOSED ({reason}): {trade['symbol']} @ {price} | PNL: ${pnl_absolute:.2f} ({pnl_pct:.2f}%)")
     
-        if self.execution_mode == 'auto' or "MANUAL" in reason or reason in ["SL", "TP", "TRAILING STOP"]:
+        if self.execution_mode == 'auto' or "MANUAL" in reason or reason in ["SL", "TP", "TRAILING STOP", "GLOBAL SAFETY (1.95%)"] or "SAFETY" in reason or "LIMIT" in reason or "EMERGENCY" in reason:
             try:
                 asset = trade['symbol'].replace('USDT', '')
                 self.add_log(f"🔄 EXIT PROTOCOL: Converting {asset} back to USDT...")
