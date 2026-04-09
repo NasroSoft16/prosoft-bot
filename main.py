@@ -605,7 +605,13 @@ class TradingBot:
             # Sync with Binance to ensure safety (Rate limited to 0.15% jumps to prevent API spam)
             if trade_sl > trade.get('sl', 0) * 1.0015:
                 trade['sl'] = trade_sl
-                await self._sync_remote_sl(trade)
+                sync_success = await self._sync_remote_sl(trade)
+                
+                # ── 🚨 OVERRIDE: Eject instantly if Binance rejected OCO due to latency dropdown
+                if sync_success is False and trade_price <= trade_sl:
+                    self.add_log(f"⚡ [MARKET SELL OVERRIDE] {trade_symbol}: OCO Rejected. Price crashed past SL during API latency. FORCING EXIT!")
+                    await self._close_trade(trade, trade_price, reason="MARKET_OVERRIDE_SL")
+                    continue
 
             # ── [NEW v15.0: Sudden Collapse Detection] ──
             # If we are in a loss (>0.5% loss), start checking for rapid collapse
@@ -856,7 +862,7 @@ class TradingBot:
 
     async def _sync_remote_sl(self, trade):
         """
-        Synchronizes the local SL/TP with Binance by replacing existing OCO/SL orders.
+        Synchronizes the local SL/TP with Binance. Returns True if successful, False if rejected.
         """
         try:
             symbol = trade['symbol']
@@ -871,15 +877,18 @@ class TradingBot:
                 except: pass
             
             # Place new OCO with updated SL and original/default TP
-            tp = trade.get('tp', trade['entry_price'] * 1.05)
+            tp = trade.get('tp', trade.get('entry_price', 0) * 1.05)
             sl = trade['sl']
             
             oco = self.order_manager.place_oco_order(symbol, qty, tp, sl)
             if oco:
                 trade['oco_id'] = oco.get('orderListId')
-                self.add_log(f"🔄 [REMOTE SYNC] {symbol}: Binance SL updated to {sl:.6f}")
+                # Optional: Silent sync to avoid console spam
+                return True
+            return False
         except Exception as e:
-            app_logger.warning(f"Remote SL Sync failed for {trade['symbol']}: {e}")
+            app_logger.warning(f"Remote SL Sync failed for {trade.get('symbol', 'Unknown')}: {e}")
+            return False
 
     async def _scalper_cycle(self, market_health):
         """
