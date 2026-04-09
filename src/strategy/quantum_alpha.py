@@ -69,11 +69,22 @@ class QuantumAlphaStrategy:
                 and cmf > -0.05 
                 and close > prev.get('close', 0)
             )
+            
+            # 3. Explosive Breakout (Momentum Pumps)
+            is_momentum_buy = (
+                close > ema_20
+                and cmf > 0.10      # Strong liquidity inflow confirming the pump
+                and 65 <= rsi <= 85 # Momentum surge zone (previously rejected!)
+                and close > prev.get('close', 0) * 1.002 # Meaningful upward tick
+            )
 
             signal_type = None
             confidence = 0.0
             
-            if is_quantum_buy:
+            if is_momentum_buy:
+                signal_type = "Quantum Rocket (Breakout)"
+                confidence = 0.85
+            elif is_quantum_buy:
                 signal_type = "Quantum Pulse (Trend)"
                 confidence = 0.88 if cmf > 0.15 else 0.82
             elif is_reversal_buy:

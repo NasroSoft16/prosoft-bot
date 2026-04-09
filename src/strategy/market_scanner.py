@@ -37,21 +37,21 @@ class MarketScanner:
             return {"dominance": 50, "is_risky": False}
 
     def get_top_pairs(self, limit=25):
-        """Fetches top volume pairs from Binance."""
+        """Fetches explosive momentum pairs from Binance (High Change + Solid Liquidity)."""
         try:
             tickers = self.api.client.get_ticker()
-            # Filter USDT pairs with positive volume AND ensure they are not in the blacklist
+            # Filter USDT pairs with minimum volume ($15M) to avoid slippage traps
             usdt_pairs = []
             for t in tickers:
                 sym = t['symbol']
-                if sym.endswith('USDT') and float(t['quoteVolume']) > 0:
-                    # Check if any blacklisted token is part of the symbol (e.g., USDCUSDT)
+                if sym.endswith('USDT') and float(t['quoteVolume']) > 15000000:
+                    # Check if any blacklisted token is part of the symbol
                     is_blacklisted = any(blocked in sym for blocked in self.blacklist)
                     if not is_blacklisted:
                         usdt_pairs.append(t)
                         
-            # Sort by volume
-            sorted_pairs = sorted(usdt_pairs, key=lambda x: float(x['quoteVolume']), reverse=True)
+            # Sort by 24h price percentage change to catch explosive momentum (Pumps)
+            sorted_pairs = sorted(usdt_pairs, key=lambda x: float(x.get('priceChangePercent', 0)), reverse=True)
             return [t['symbol'] for t in sorted_pairs[:limit]]
         except Exception as e:
             app_logger.error(f"Error fetching top pairs: {e}")

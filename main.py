@@ -523,30 +523,38 @@ class TradingBot:
             
             highest_peak = trade.get('highest_peak', entry_p)
             
-            # --- 1. Base Shadow Trailing (Starts at 0.1% profit) ---
-            if pnl_pct >= 0.001:
-                # Modest start: Trail at 0.5% distance until we hit the real profit threshold
-                adhesive_sl = highest_peak * 0.995
-                if adhesive_sl > trade_sl:
-                    trade['trailing_sl'] = adhesive_sl
-                    trade_sl = adhesive_sl
-
-            # --- 2. Universal Extreme Lock (User Requested: 0.3% trigger -> 0.2% trail) ---
-            if pnl_pct >= 0.003:
-                # Part A: Absolute Fee-Shield (Always lock at least +0.21% above entry to cover fees)
-                fee_sl = entry_p * 1.0021
+            # --- 1. Smart Multi-Tier Trailing Stop (v35: "The Quantum Net") ---
+            # Tier 1: The Activation (0.75% profit) -> Unlock Fee Shield
+            if pnl_pct >= 0.0075:
+                # Protection: Lock in +0.25% immediately to walk away risk-free
+                fee_sl = entry_p * 1.0025
                 if fee_sl > trade_sl:
                     trade['trailing_sl'] = fee_sl
                     trade_sl = fee_sl
-                    self.add_log(f"🛡️ [FEE-SHIELD] {trade_symbol}: Guaranteed +0.21% profit secured.")
+                    self.add_log(f"🛡️ [TIER-1 SHIELD] {trade_symbol}: Guaranteed +0.25% profit secured.")
+                
+                # Base Tier 1 trail distance: 0.5% (Allows price dropping from 0.75% safely to 0.25%)
+                trail_distance = 0.995 
+                tier_msg = "0.5% distance"
 
-                # Part B: Extreme Adhesive Tightener (Trail at exactly 0.2% distance from highest peak)
-                # This guarantees taking maximum profits whether it's a Meme coin or Standard
-                tight_sl = highest_peak * 0.998 
-                if tight_sl > trade_sl:
-                    trade['trailing_sl'] = tight_sl
-                    trade_sl = tight_sl
-                    self.add_log(f"⚡ [ADHESIVE-TIGHTENER] {trade_symbol}: Locked trail at 0.2% distance from peak")
+                # Tier 2: The Breathing Room (1.5% profit) -> Give it space to bounce and ride the wave
+                if pnl_pct >= 0.015:
+                    trail_distance = 0.992 # 0.8% distance (Wider net for healthy pullbacks)
+                    tier_msg = "0.8% distance (Mid-Pump)"
+                
+                # Tier 3: The Parachute (3.5%+ profit) -> Explosions always dump. Fasten the seatbelt!
+                if pnl_pct >= 0.035:
+                    trail_distance = 0.996 # 0.4% distance (Extremely tight to parachute off the peak)
+                    tier_msg = "0.4% distance (Peak-Parachute)"
+
+                # Apply the dynamically calculated trail
+                dynamic_sl = highest_peak * trail_distance
+                
+                # Only update if the new trail actually pushes the Stop Loss HIGHER
+                if dynamic_sl > trade_sl:
+                    trade['trailing_sl'] = dynamic_sl
+                    trade_sl = dynamic_sl
+                    self.add_log(f"⚡ [QUANTUM NET] {trade_symbol}: Trail updated to {tier_msg} off peak.")
             
             # --- TIME-PROTECT ENGINE (v26.0: Liquidity Preservation) ---
             # Don't let precious capital freeze in a stagnant market
