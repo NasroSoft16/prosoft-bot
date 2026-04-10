@@ -20,7 +20,7 @@ class GeminiAI:
         self.current_key_idx = 0
         self.models = {}
         # TRACKING: Using index-based stats to ensure isolation
-        self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
+        self.usage_stats = {i: {'requests': 0, 'success_hits': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
         self.model_name = 'gemini-1.5-flash'
         self.model = True  # Dashboard flag (True = AI available)
         self.lock = asyncio.Lock()  # Protect against parallel scatter
@@ -78,7 +78,7 @@ class GeminiAI:
         self.raw_keys = raw_keys
         self.api_keys = [k.strip() for k in self.raw_keys.split(',') if k.strip()]
         self.current_key_idx = 0
-        self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
+        self.usage_stats = {i: {'requests': 0, 'success_hits': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
         self._initialize_all()
 
     def get_active_key(self):
@@ -114,6 +114,7 @@ class GeminiAI:
                 'model': stats.get('active_model', self.model_name),
                 'status': status,
                 'requests': stats.get('requests', 0),
+                'success_hits': stats.get('success_hits', 0),
                 'errors': stats.get('errors', 0),
                 'limit_hit': stats.get('limit_hit', False),
                 'suspended': stats.get('suspended', False)
@@ -232,6 +233,7 @@ class GeminiAI:
                 if response_text:
                     self.usage_stats[idx]['limit_hit'] = False
                     self.usage_stats[idx]['errors'] = 0  # CRITICAL UI FIX: Reset errors on success
+                    self.usage_stats[idx]['success_hits'] += 1
                     self.usage_stats[idx]['last_success'] = time.time()
                     self._cache[prompt] = {'response': response_text, 'time': time.time()}
                     return response_text

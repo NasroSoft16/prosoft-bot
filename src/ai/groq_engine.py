@@ -15,7 +15,7 @@ class GroqAI:
         self.api_keys = [k.strip() for k in self.raw_keys.split(',') if k.strip()]
         self.current_key_idx = 0
         
-        self.usage_stats = {i: {'requests': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
+        self.usage_stats = {i: {'requests': 0, 'success_hits': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
         self.model_name = 'llama3-70b-8192'
         self.model = True
         self.lock = asyncio.Lock()
@@ -69,6 +69,7 @@ class GroqAI:
                 'id': i+1,
                 'status': status,
                 'requests': stats['requests'],
+                'success_hits': stats.get('success_hits', 0),
                 'errors': stats['errors']
             })
         return info
@@ -126,6 +127,7 @@ class GroqAI:
                         async with self.lock:
                             self.usage_stats[idx]['limit_hit'] = False
                             self.usage_stats[idx]['errors'] = 0  # CRITICAL UI FIX: Reset errors on success
+                            self.usage_stats[idx]['success_hits'] += 1
                             self._cache[prompt] = {'response': response_text, 'time': time.time()}
                         return response_text
                         

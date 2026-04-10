@@ -1628,7 +1628,7 @@
                             return `
                                 <div class="flex justify-between items-center text-[9px] border-b border-white/5 pb-1">
                                     <span class="text-slate-400 font-mono">Node ${i + 1}: <span class="text-slate-500 ml-1">Gemini AI</span></span>
-                                    <span class="font-bold ${statusColor}">${statusText} [${n.requests || 0}]</span>
+                                    <span class="font-bold ${statusColor}">${statusText} [${n.success_hits || 0}]</span>
                                 </div>
                             `;
                         }).join('');
@@ -1653,7 +1653,7 @@
                             return `
                                 <div class="flex justify-between items-center text-[9px] border-b border-white/5 pb-1">
                                     <span class="text-slate-400 font-mono">Node ${i + 1}: <span class="text-slate-500 ml-1">Llama 3.1</span></span>
-                                    <span class="font-bold ${statusColor}">${statusText} [${n.requests || 0}]</span>
+                                    <span class="font-bold ${statusColor}">${statusText} [${n.success_hits || 0}]</span>
                                 </div>
                             `;
                         }).join('');
