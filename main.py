@@ -474,22 +474,25 @@ class TradingBot:
 
         atr = float(df.iloc[-1].get('ATR', 0)) if df is not None else 0
 
-        # CRITICAL: Ultra-Fresh Ticker Refresh for Trailing Stops
-        try:
-            self.stats['tickers'] = self.api.get_all_tickers()
-        except: pass
-
+        # Removed destructive get_all_tickers bulk call. Only check specific active trades.
         for trade in list(self.active_trades):
             trade_symbol = trade.get('symbol', self.symbol)
             
-            # REAL-TIME PATH: Open trades are sacred. Always demand fresh live ticker first!
-            trade_price = self.api.get_symbol_ticker(trade_symbol)
+            # REAL-TIME PATH: Retry up to 3 times forcefully so we are NEVER blind.
+            trade_price = 0
+            for _ in range(3):
+                try:
+                    res = await asyncio.to_thread(self.api.get_symbol_ticker, trade_symbol)
+                    if res and res > 0:
+                        trade_price = res
+                        break
+                except:
+                    pass
+                await asyncio.sleep(0.5)
             
-            # Fallback to cache ONLY if the live API request fails
+            # Fallback ONLY as extreme last resort
             if not trade_price or trade_price <= 0:
-                trade_price = self.stats.get('tickers', {}).get(trade_symbol, 0)
-                if trade_price <= 0 and trade_symbol == self.symbol:
-                    trade_price = current_price
+                trade_price = self.stats.get('tickers', {}).get(trade_symbol, current_price)
             
             # Graceful skip if API is completely down
             if not trade_price or trade_price <= 0:
