@@ -537,34 +537,38 @@ class TradingBot:
             # Dynamic Tier-1 Activation Threshold (from 0.35% to 0.85% based on volatility)
             activation_trigger = max(0.0035, min(0.0085, 0.005 * vol_scale))
 
-            # Tier 1: The Activation -> Unlock Fee Shield
+            # Tier 1: The Activation -> Unlock Fee Shield (THE SHIELD)
             if pnl_pct >= activation_trigger:
-                # Fee shield dynamic lock (~40% of the activation trigger, min 0.15% to cover fees)
                 shield_lock_pct = max(0.0015, activation_trigger * 0.4)
                 
-                # Protection: Lock in profit immediately to walk away risk-free
+                # 🔴 HYPER-LOCK: Lock in guaranteed profit early
+                if is_volatile and pnl_pct >= 0.006:
+                    shield_lock_pct = max(shield_lock_pct, 0.002)
+                
+                # Apply Shield
                 fee_sl = entry_p * (1 + shield_lock_pct)
                 if fee_sl > trade_sl:
                     trade['trailing_sl'] = fee_sl
                     trade_sl = fee_sl
-                    self.add_log(f"🛡️ [TIER-1 SHIELD] {trade_symbol}: Guaranteed +{shield_lock_pct*100:.2f}% profit secured (Activated @ +{activation_trigger*100:.2f}%).")
+                    self.add_log(f"🛡️ [TIER-1 SHIELD] {trade_symbol}: Guaranteed +{shield_lock_pct*100:.2f}% profit secured (Activated @ +{pnl_pct*100:.2f}%).")
                 
-                # Base Tier 1 trail distance: (0.5% base * Coin Volatility)
-                t1_dist = 0.5 * vol_scale
+                # Tier 1 Base Trail (Climbing the hill)
+                t1_dist = 0.5 * vol_scale if not is_volatile else 0.40 # Modest oxygen
                 trail_distance = 1 - (t1_dist / 100.0) 
                 tier_msg = f"{t1_dist:.2f}% dynamic distance (ATR={vol_scale:.1f}x)"
 
-                # Tier 2: The Breathing Room (1.5% profit) -> Give it space to bounce and ride the wave
+                # Tier 2: The Elastic Band (1.5% to 3.5% profit) -> The oxygen zone
                 if pnl_pct >= 0.015:
-                    t2_dist = 0.8 * vol_scale
+                    # SMART ADJUSTMENT: Give the rocket room to swing without shaking us out!
+                    t2_dist = 0.8 * vol_scale if not is_volatile else 0.65 
                     trail_distance = 1 - (t2_dist / 100.0)
-                    tier_msg = f"{t2_dist:.2f}% dynamic distance (Mid-Pump)"
+                    tier_msg = f"{t2_dist:.2f}% dynamic distance (Elastic Breathing)"
                 
-                # Tier 3: The Parachute (3.5%+ profit) -> Explosions always dump. Fasten the seatbelt!
+                # Tier 3: The Peak Strangler (3.5%+ profit) -> Dump on their heads!
                 if pnl_pct >= 0.035:
-                    t3_dist = 0.3 * vol_scale # Tighten the noose heavily at the peak!
+                    t3_dist = 0.3 * vol_scale if not is_volatile else 0.12 # Absolute suffocation at the peak
                     trail_distance = 1 - (t3_dist / 100.0)
-                    tier_msg = f"{t3_dist:.2f}% dynamic distance (Peak-Parachute)"
+                    tier_msg = f"{t3_dist:.2f}% dynamic distance (Peak-Strangler)"
 
                 # Apply the dynamically calculated trail
                 dynamic_sl = highest_peak * trail_distance
