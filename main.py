@@ -555,20 +555,38 @@ class TradingBot:
             # Dynamic Tier-1 Activation Threshold (from 0.35% to 0.85% based on volatility)
             activation_trigger = max(0.0035, min(0.0085, 0.005 * vol_scale))
 
-            # Tier 1: The Activation -> Unlock Fee Shield (THE SHIELD)
+            # --- 🔴 GREEDY DYNAMIC LADDER (سلم الأرباح الجشع) ---
+            # This directly secures profits at hard-coded intervals before ATR logic applies
+            ladder_lock_pct = 0.0
+            if pnl_pct >= 0.003:   # Reach +0.30%
+                ladder_lock_pct = 0.0005  # Lock breakeven (+0.05%)
+            if pnl_pct >= 0.0045:  # Reach +0.45%
+                ladder_lock_pct = 0.0015  # Lock +0.15%
+            if pnl_pct >= 0.006:   # Reach +0.60%
+                ladder_lock_pct = 0.0030  # Lock +0.30% (User requested)
+            if pnl_pct >= 0.008:   # Reach +0.80%
+                ladder_lock_pct = 0.0050  # Lock +0.50%
+            if pnl_pct >= 0.010:   # Reach +1.00%
+                ladder_lock_pct = 0.0075  # Lock +0.75%
+            
+            # Apply Ladder Shield instantly if it provides a higher lock
+            if ladder_lock_pct > 0:
+                ladder_sl = entry_p * (1 + ladder_lock_pct)
+                if ladder_sl > trade_sl:
+                    trade['trailing_sl'] = ladder_sl
+                    trade_sl = ladder_sl
+                    self.add_log(f"🪜 [GREEDY LADDER] {trade_symbol}: Reached +{pnl_pct*100:.2f}%. Locked +{ladder_lock_pct*100:.2f}% profit!")
+
+            # Tier 1: The Activation -> Unlock ATR Fee Shield
             if pnl_pct >= activation_trigger:
                 shield_lock_pct = max(0.0015, activation_trigger * 0.4)
                 
-                # 🔴 HYPER-LOCK: Lock in guaranteed profit early
-                if is_volatile and pnl_pct >= 0.006:
-                    shield_lock_pct = max(shield_lock_pct, 0.002)
-                
-                # Apply Shield
+                # Apply Shield (fallback if ladder didn't catch it)
                 fee_sl = entry_p * (1 + shield_lock_pct)
                 if fee_sl > trade_sl:
                     trade['trailing_sl'] = fee_sl
                     trade_sl = fee_sl
-                    self.add_log(f"🛡️ [TIER-1 SHIELD] {trade_symbol}: Guaranteed +{shield_lock_pct*100:.2f}% profit secured (Activated @ +{pnl_pct*100:.2f}%).")
+                    self.add_log(f"🛡️ [TIER-1 SHIELD] {trade_symbol}: Guaranteed +{shield_lock_pct*100:.2f}% profit secured.")
                 
                 # Tier 1 Base Trail (Climbing the hill)
                 t1_dist = 0.5 * vol_scale if not is_volatile else 0.40 # Modest oxygen
