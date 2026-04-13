@@ -78,10 +78,24 @@ class QuantumAlphaStrategy:
                 and close > prev.get('close', 0) * 1.002 # Meaningful upward tick
             )
 
+            # 4. FLASH BREAKOUT OVERRIDE (The Sniper Injection)
+            # Bypasses CMF and EMA delays if the coin physically explodes vertically
+            price_jump_pct = (close / prev.get('close', close)) - 1
+            curr_vol = float(curr.get('volume', df.iloc[-1]['volume'] if 'volume' in df.columns else 1))
+            prev_vol = float(prev.get('volume', df.iloc[-2]['volume'] if 'volume' in df.columns and len(df)>1 else 1))
+            is_flash_breakout = (
+                price_jump_pct >= 0.012  # Price exploded > 1.2% in one candle
+                and curr_vol > prev_vol * 1.5 # Volume is surging
+                and rsi < 85 # Not hyper-exhausted
+            )
+
             signal_type = None
             confidence = 0.0
             
-            if is_momentum_buy:
+            if is_flash_breakout:
+                signal_type = "⚡ Flash Breakout (Sniper Override)"
+                confidence = 0.89  # Very high confidence due to vertical velocity
+            elif is_momentum_buy:
                 signal_type = "Quantum Rocket (Breakout)"
                 confidence = 0.85
             elif is_quantum_buy:
