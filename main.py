@@ -517,8 +517,26 @@ class TradingBot:
 
             # ── [PROSOFT SHIELD: Universal Trailing Profit Guard] ──
             # Determine if this is a "Meme/Rocket" or High-Volatility trade
-            is_volatile = 'Meme' in trade.get('strategy', '') or 'Rocket' in trade.get('strategy', '') or 'Scalp' in trade.get('strategy', '')
+            # FIX v2: Do NOT rely on 'strategy' tag alone (Auto-Sync trades never have it!)
+            # Instead, use DUAL DETECTION: strategy tag OR ATR-based volatility ratio
+            strategy_tag = trade.get('strategy', '')
+            strategy_is_volatile = any(k in strategy_tag for k in ['Meme', 'Rocket', 'Scalp', 'Sniper'])
+            # ATR-based: if the coin's natural swing is > 1.5% per candle it's treated as volatile
+            _raw_atr = df.iloc[-1].get('ATR', entry_p * 0.01) if df is not None else entry_p * 0.01
+            _atr_ratio = (float(_raw_atr) / entry_p) * 100 if entry_p > 0 else 1.0
+            atr_is_volatile = _atr_ratio > 1.5
+            is_volatile = strategy_is_volatile or atr_is_volatile
             
+            # ── [PROSOFT HARD KILL: Absolute -1.95% Emergency Eject] ──
+            # This runs FIRST before any trailing logic. No trade survives past -1.95% EVER.
+            if pnl_pct <= -0.0195:
+                self.add_log(
+                    f"🚨 [HARD KILL] {trade_symbol}: Absolute loss limit -1.95% breached "
+                    f"(PNL: {pnl_pct*100:.2f}%). FORCING EMERGENCY EXIT!"
+                )
+                await self._close_trade(trade, trade_price, reason="HARD_KILL_-1.95%")
+                continue
+
             # Track the highest price reached since entry to lock in every cent securely
             if trade_price > trade.get('highest_peak', 0):
                 trade['highest_peak'] = trade_price
