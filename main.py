@@ -1711,6 +1711,30 @@ class TradingBot:
                         current_price = float(df.iloc[-1]['close'])
                         await self._manage_open_trades(df, current_price)
                         
+                        # 1.5. 🐊 PROSOFT GHOST-NET: Trailing Buy (Bottom Hunter)
+                        if hasattr(self, 'trailing_buys_pool') and self.symbol in self.trailing_buys_pool:
+                            pool = self.trailing_buys_pool[self.symbol]
+                            curr_p = float(df.iloc[-1]['close'])
+                            
+                            # Track lowest dip to tighten the net
+                            if curr_p < pool['lowest_seen']:
+                                pool['lowest_seen'] = curr_p
+                            
+                            # 0.3% bounce from the lowest point = BUY
+                            trigger_price = pool['lowest_seen'] * (1 + pool['trail_distance'])
+                            # 0.6% non-stop vertical jump = FOMO BUY (don't miss the train)
+                            fomo_price = pool['activation_price'] * (1 + pool['fomo_distance'])
+                            
+                            if curr_p >= trigger_price or curr_p >= fomo_price:
+                                reason = "CAUGHT THE DIP 🐊" if curr_p < pool['activation_price'] else "FOMO BREAKOUT 🚀"
+                                self.add_log(f"💥 [GHOST-NET EXECUTED] {self.symbol}: {reason} @ {curr_p:.6f}")
+                                trade = await self._execute_entry(self.symbol, pool['signal'], pool['ai_conf'], pool['mkt_health'], fgi=pool['fgi_val'])
+                                if trade:
+                                    self.active_trades.append(trade)
+                                    self.healer.save_trade_state(self.active_trades)
+                                    self.stats['active_count'] = len(self.active_trades)
+                                del self.trailing_buys_pool[self.symbol]
+                        
                         # 2. Run Scalper Cycle
                         mkt_health = self.stats.get('market_health', 50)
                         await self._scalper_cycle(mkt_health)
@@ -1763,11 +1787,22 @@ class TradingBot:
                                 ai_conf = signal.get('confidence', self.ai.calculate_confidence(df.iloc[-1]))
                                 
                                 if ai_conf >= self.ai_confidence_threshold:
-                                    trade = await self._execute_entry(self.symbol, signal, ai_conf, mkt_health, fgi=fgi_val)
-                                    if trade:
-                                        self.active_trades.append(trade)
-                                        self.healer.save_trade_state(self.active_trades)
-                                        self.stats['active_count'] = len(self.active_trades)
+                                    if not hasattr(self, 'trailing_buys_pool'):
+                                        self.trailing_buys_pool = {}
+                                        
+                                    if self.symbol not in self.trailing_buys_pool:
+                                        current_p = float(df.iloc[-1]['close'])
+                                        self.trailing_buys_pool[self.symbol] = {
+                                            'lowest_seen': current_p,
+                                            'activation_price': current_p,
+                                            'signal': signal,
+                                            'ai_conf': ai_conf,
+                                            'mkt_health': mkt_health,
+                                            'fgi_val': fgi_val,
+                                            'trail_distance': 0.003, # 0.3% trailing distance to catch the bottom
+                                            'fomo_distance': 0.006,  # 0.6% pump without drop = FOMO buy
+                                        }
+                                        self.add_log(f"🎣 [TRAILING BUY] {self.symbol} Signal intercepted! Throwing reverse-net @ {current_p:.6f}. Waiting to catch the literal dip...")
 
                     # 7. Periodic position & report updates
                     if loop_count % 5 == 0:
