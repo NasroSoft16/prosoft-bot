@@ -1136,18 +1136,19 @@ class TradingBot:
         """
         🔥 INDEPENDENT PRECISION LOOP – Runs every 1 second regardless of main loop load.
         This is the heartbeat that manages SL/TP trailing with surgical precision.
+        
+        Uses the main loop's cached last_df for ATR/indicators (updated every ~40s).
+        Individual trade prices are fetched in real-time INSIDE _manage_open_trades
+        via get_symbol_ticker, so every trade gets its OWN live price every second!
+        This means it works intelligently for ALL coins simultaneously.
         """
         while True:
             try:
                 if self.active_trades:
-                    # Fetch latest kline data for the main symbol as context
-                    df = None
-                    try:
-                        df = await asyncio.to_thread(self.api.get_historical_klines, self.symbol, self.timeframe, 50)
-                        if df is not None and not df.empty:
-                            df = await asyncio.to_thread(self.ta.calculate_indicators, df)
-                    except:
-                        pass
+                    # ✅ Use cached df from main loop – no heavy API call needed every second!
+                    # ATR/indicators don't change second-by-second, main loop refreshes them every ~40s.
+                    # Individual PRICES are fetched per-trade INSIDE _manage_open_trades (real-time).
+                    df = getattr(self, 'last_df', None)
                     current_price = self.stats.get('price', 0)
                     await self._manage_open_trades(df, current_price)
             except Exception as e:
