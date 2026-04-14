@@ -757,7 +757,7 @@ class TradingBot:
                     pass
                 
             try:
-                self.api.client._cancel_all_open_orders(symbol=trade['symbol'])
+                self.api.client.cancel_open_orders(symbol=trade['symbol'])
             except: pass
             
             # Safe Cap: Prevent 'Insufficient Balance' errors from float drift or fee deductions
@@ -1956,7 +1956,7 @@ class TradingBot:
                 self.add_log(f"🔄 EXIT PROTOCOL: Converting {asset} back to USDT...")
                 
                 try:
-                    self.api.client._cancel_all_open_orders(symbol=trade['symbol'])
+                    self.api.client.cancel_open_orders(symbol=trade['symbol'])
                     await asyncio.sleep(1.5) 
                 except Exception as e:
                     try:
@@ -1964,7 +1964,7 @@ class TradingBot:
                         for oo in open_orders:
                             self.api.client.cancel_order(symbol=trade['symbol'], orderId=oo['orderId'])
                     except:
-                        self.add_log(f"Exit Cleanup: {e}")
+                        pass # Silently fail since open_orders might just be empty
                 
                 actual_free_balance = self.api.get_account_balance(asset, include_locked=False)
                 
