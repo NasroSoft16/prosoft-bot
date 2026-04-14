@@ -273,6 +273,20 @@ class TradingBot:
         Returns (allowed: bool, reason: str).
         All gates must pass before entering a trade.
         """
+        # ── Gate 0: Max Concurrent Trades Limit ──
+        # For micro-accounts (under $40), strictly allow ONLY 1 active trade.
+        balance = self.api.get_account_balance('USDT')
+        total_equity = self.stats.get('total_equity', balance)
+        
+        max_trades = 1
+        if total_equity >= 80:
+            max_trades = 3
+        elif total_equity >= 40:
+            max_trades = 2
+            
+        if len(self.active_trades) >= max_trades:
+            return False, f"Portfolio limits reached ({len(self.active_trades)}/{max_trades} active trades for ${total_equity:.2f} equity)"
+
         # ── Gate 1: Circuit Breaker ──
         if hasattr(self, 'circuit_breaker') and self.circuit_breaker.is_tripped:
             return False, f"Circuit Breaker TRIPPED: {self.circuit_breaker.trip_reason}"
