@@ -1425,18 +1425,21 @@ class TradingBot:
                                     
                                 self.add_log(f"Portfolio Sync: Equity verified at ${self.stats['total_equity']:,.2f}")
                                 
-                                self.pool_hunter.scan_for_pools()
-                                ai_lead = await self.sentiment_front.analyze_and_front_run()
-                                if ai_lead and self.execution_mode == 'auto' and not self.active_trades:
-                                    self.add_log(f"🧠 AI SENTIMENT FRONT-RUN: Switching to {ai_lead['symbol']} for early entry.")
-                                    self.switch_symbol(ai_lead['symbol'])
-                                    continue
-                                elif ai_lead:
-                                    await self.telegram.send_message(
-                                        f"🧠 *AI SENTIMENT FRONT-RUNNER / استباق الذكاء الاصطناعي* 🧠\n"
-                                        f"Lead / السبب: {ai_lead['reason']}\n"
-                                        f"Action / الإجراء: Monitoring {ai_lead['symbol']} for early entry.\n"
-                                    )
+                                # 🚨 PERFORMANCE FIX: Skip heavy API / AI Sentiment scans if we are in an active trade!
+                                # This ensures _manage_open_trades fires every second without getting blocked by Gemini/REST limits.
+                                if not self.active_trades:
+                                    self.pool_hunter.scan_for_pools()
+                                    ai_lead = await self.sentiment_front.analyze_and_front_run()
+                                    if ai_lead and self.execution_mode == 'auto':
+                                        self.add_log(f"🧠 AI SENTIMENT FRONT-RUN: Switching to {ai_lead['symbol']} for early entry.")
+                                        self.switch_symbol(ai_lead['symbol'])
+                                        continue
+                                    elif ai_lead:
+                                        await self.telegram.send_message(
+                                            f"🧠 *AI SENTIMENT FRONT-RUNNER / استباق الذكاء الاصطناعي* 🧠\n"
+                                            f"Lead / السبب: {ai_lead['reason']}\n"
+                                            f"Action / الإجراء: Monitoring {ai_lead['symbol']} for early entry.\n"
+                                        )
                             else:
                                 self.add_log("Portfolio Sync: Connection active, but no significant assets found in Spot Wallet.")
                         except Exception as e:
