@@ -752,7 +752,7 @@ class TradingBot:
             # --- [PROSOFT OCO CLEANUP] ---
             if 'oco_id' in trade:
                 try:
-                    self.api.client.cancel_order_list(symbol=trade['symbol'], orderListId=trade['oco_id'])
+                    self.api.client.cancel_open_orders(symbol=trade['symbol'])
                 except:
                     pass
                 
@@ -1132,8 +1132,33 @@ class TradingBot:
         self.add_log("--- SYSTEM STATUS: OPTIMAL | COMMENCING OPERATIONS ---")
         await asyncio.sleep(1)
 
+    async def _trade_watcher_loop(self):
+        """
+        🔥 INDEPENDENT PRECISION LOOP – Runs every 1 second regardless of main loop load.
+        This is the heartbeat that manages SL/TP trailing with surgical precision.
+        """
+        while True:
+            try:
+                if self.active_trades:
+                    # Fetch latest kline data for the main symbol as context
+                    df = None
+                    try:
+                        df = await asyncio.to_thread(self.api.get_historical_klines, self.symbol, self.timeframe, 50)
+                        if df is not None and not df.empty:
+                            df = await asyncio.to_thread(self.ta.calculate_indicators, df)
+                    except:
+                        pass
+                    current_price = self.stats.get('price', 0)
+                    await self._manage_open_trades(df, current_price)
+            except Exception as e:
+                app_logger.warning(f"[WATCHER] Heartbeat error: {e}")
+            await asyncio.sleep(1)  # 🔥 ALWAYS 1 second, independent of main loop
+
     async def run(self):
         await self.perform_diagnostics()
+        
+        # 🔥 Launch independent trade watcher on a 1-second heartbeat
+        asyncio.ensure_future(self._trade_watcher_loop())
         
         with Live(self.ui.layout, refresh_per_second=2, screen=True) as live:
             self.live_instance = live 
@@ -1742,9 +1767,9 @@ class TradingBot:
                     # 5 & 6. ENTRY CONDITIONS, SIGNAL EXECUTION & TRADE MANAGEMENT (UPGRADED v2.0)
                     # ══════════════════════════════════════════════════════════════════════════
                     if df is not None and not df.empty:
-                        # 1. Manage open trades every iteration
+                        # 1. Manage open trades now handled by independent _trade_watcher_loop
                         current_price = float(df.iloc[-1]['close'])
-                        await self._manage_open_trades(df, current_price)
+                        self.stats['price'] = current_price  # Keep price updated for watcher
                         
                         # 1.5. 🐊 PROSOFT GHOST-NET: Trailing Buy (Bottom Hunter)
                         if hasattr(self, 'trailing_buys_pool') and self.symbol in self.trailing_buys_pool:
@@ -1939,7 +1964,7 @@ class TradingBot:
         
         if 'oco_id' in trade:
             try:
-                self.api.client.cancel_order_list(symbol=trade['symbol'], orderListId=trade['oco_id'])
+                self.api.client.cancel_open_orders(symbol=trade['symbol'])
                 self.add_log(f"Cleanup: Pending OCO orders for {trade['symbol']} cancelled.")
             except Exception as e:
                 self.add_log(f"OCO Cancellation Error: {str(e)}") 
