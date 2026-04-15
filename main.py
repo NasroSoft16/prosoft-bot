@@ -763,8 +763,13 @@ class TradingBot:
             # Safe Cap: Prevent 'Insufficient Balance' errors from float drift or fee deductions
             sym = trade.get('symbol', '')
             asset_name = sym.replace('USDT', '') if sym.endswith('USDT') else ''
+            
+            # RACE CONDITION FIX: Wait 1.5s to let Binance unlock the balance after OCO cancel
+            await asyncio.sleep(1.5)
+            
             if asset_name:
-                real_bal = self.api.get_account_balance(asset_name)
+                # IMPORTANT: Include locked in case Binance is slow at unlocking, so we still know we have it
+                real_bal = self.api.get_account_balance(asset_name, include_locked=True)
                 # If Binance balance is exactly 0 or too small but we assumed we had qty, we cap it
                 # We add a small margin (e.g., 0.999) because get_account_balance might have un-synced fractions
                 if 0 <= real_bal < qty:
