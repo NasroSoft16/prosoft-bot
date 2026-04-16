@@ -569,6 +569,30 @@ class TradingBot:
             # Dynamic Tier-1 Activation Threshold (from 0.35% to 0.85% based on volatility)
             activation_trigger = max(0.0035, min(0.0085, 0.005 * vol_scale))
 
+            # ── 🚀 [ROCKET GUARD v2.0: Zero-Latency Meme SL] ──
+            # For meme/volatile trades, the fill price might already be near the top.
+            # DO NOT wait for +0.30% to activate the ladder. Apply an INSTANT tight SL.
+            if is_volatile:
+                rocket_hard_sl_pct = 0.0025  # 0.25% below fill = immediate eject for memes
+                rocket_hard_sl     = entry_p * (1 - rocket_hard_sl_pct)
+                
+                # If price is already falling from fill: eject NOW, don't wait for -1.95%
+                if trade_price <= rocket_hard_sl and trade_sl < rocket_hard_sl:
+                    self.add_log(
+                        f"🚨 [ROCKET GUARD] {trade_symbol}: Price dropped {(trade_price/entry_p-1)*100:.2f}% "
+                        f"from fill ${entry_p:.4f} → Current ${trade_price:.4f}. "
+                        f"Meme top-buy detected! Instant eject to save capital."
+                    )
+                    await self._close_trade(trade, trade_price, reason="ROCKET_GUARD_SL")
+                    continue
+
+                # If we are slightly in profit on a rocket, use tighter trailing (0.20% from peak)
+                if pnl_pct > 0 and highest_peak > entry_p:
+                    rocket_trail_sl = highest_peak * (1 - 0.0020)  # 0.20% trail for rockets
+                    if rocket_trail_sl > trade_sl:
+                        trade['trailing_sl'] = rocket_trail_sl
+                        trade_sl = rocket_trail_sl
+
             # --- 🔴 ELASTIC LADDER (السلم المطاطي) ---
             # Gives trades more oxygen to swing while protecting the baseline
             ladder_lock_pct = 0.0
