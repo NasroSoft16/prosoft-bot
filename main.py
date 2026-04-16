@@ -1920,14 +1920,35 @@ class TradingBot:
             order_res = None
         
         if order_res:
-            executed_qty = sum(float(fill['qty']) for fill in order_res.get('fills', [])) if 'fills' in order_res else qty
+            # ✅ FILL PRICE FIX: Use ACTUAL weighted average fill price from Binance,
+            # NOT the signal detection price. This prevents fake PnL and wrong SL/TP levels.
+            fills = order_res.get('fills', [])
+            if fills:
+                total_qty_filled  = sum(float(f['qty']) for f in fills)
+                total_cost_filled = sum(float(f['qty']) * float(f['price']) for f in fills)
+                actual_fill_price = total_cost_filled / total_qty_filled if total_qty_filled > 0 else price
+                executed_qty      = total_qty_filled
+            else:
+                actual_fill_price = price
+                executed_qty      = qty
+
+            # Recalculate SL & TP based on real fill price (not the signal price)
+            sl_pct = (price - sl) / price if price > 0 else 0.008   # preserve original SL %
+            tp_pct = (tp - price) / price if price > 0 else 0.025   # preserve original TP %
+            real_sl = actual_fill_price * (1 - sl_pct)
+            real_tp = actual_fill_price * (1 + tp_pct)
+
+            if abs(actual_fill_price - price) / price > 0.002:  # Log if slippage > 0.2%
+                self.add_log(f"⚠️ [SLIPPAGE ALERT] {symbol}: Signal={price:.6f} | Fill={actual_fill_price:.6f} | Drift={(actual_fill_price-price)/price*100:+.2f}%")
+
             trade_obj = {
                 'symbol': symbol,
                 'side': side,
-                'entry_price': price,
+                'entry_price': actual_fill_price,  # ✅ Real fill price
                 'qty': executed_qty,
-                'sl': sl,
-                'tp': tp,
+                'sl': real_sl,                     # ✅ SL based on real price
+                'tp': real_tp,                     # ✅ TP based on real price
+                'trailing_sl': real_sl,
                 'conf': conf,
                 'order_id': order_res.get('orderId', 'SIMULATED'),
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
