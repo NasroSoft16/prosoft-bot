@@ -1382,20 +1382,51 @@ class TradingBot:
 
                         rocket = self.rocket_sniper.detect_rocket(df, self.symbol)
                         if rocket and self.execution_mode == 'auto' and not self.active_trades:
+                            # ═══════════════════════════════════════════════════
+                            # 🔒 ROCKET SAFETY GATES (Fixed: was bypassing ALL gates!)
+                            # ═══════════════════════════════════════════════════
+                            
                             # Gate 00: Global Pulse Guard
                             if time.time() < self.market_crash_gate:
+                                self.add_log(f"⛔ [ROCKET BLOCKED] Pulse Guard active — systemic crash protection.")
                                 continue
 
-                            # Gate 0: Blacklist Check
+                            # Gate 1: Circuit Breaker
+                            if hasattr(self, 'circuit_breaker') and self.circuit_breaker.is_tripped:
+                                self.add_log(f"⛔ [ROCKET BLOCKED] Circuit Breaker tripped: {self.circuit_breaker.trip_reason}")
+                                continue
+
+                            # Gate 2: Risk Manager daily limits
+                            if not self.risk_manager.can_trade():
+                                self.add_log(f"⛔ [ROCKET BLOCKED] Daily risk limit reached.")
+                                continue
+
+                            # Gate 3: ✅ CRITICAL HEALTH GATE (was missing — caused 3 losses at health 24%!)
+                            current_health = self.stats.get('market_health', 50)
+                            rocket_min_health = max(self.min_market_health, 38)  # Rockets need AT LEAST 38% health
+                            if current_health < rocket_min_health:
+                                self.add_log(f"⛔ [ROCKET BLOCKED] Market health {current_health:.0f}% < {rocket_min_health:.0f}% minimum. Rocket aborted.")
+                                continue
+
+                            # Gate 4: Blacklist Check
                             if self.symbol in self.blacklisted_symbols:
                                 expiry = self.blacklisted_symbols[self.symbol]
                                 if time.time() < expiry:
+                                    self.add_log(f"⛔ [ROCKET BLOCKED] {self.symbol} is in isolation (recent loss).")
                                     continue
                                 else:
                                     del self.blacklisted_symbols[self.symbol]
                                     self._save_blacklist()
-                                    
-                            self.add_log(f"🚀 MEME ROCKET ENGAGED: Executing scalp on {self.symbol}")
+
+                            # Gate 5: MTF basic consensus (at least 50% buy signal for rockets)
+                            if hasattr(self, 'mtf'):
+                                mtf_sig = self.mtf.get_signal(self.symbol)
+                                if mtf_sig.get('direction') == 'SELL':
+                                    self.add_log(f"⛔ [ROCKET BLOCKED] MTF says SELL — rocket signal rejected.")
+                                    continue
+
+                            # ═══ ALL GATES PASSED → LAUNCH! ═══
+                            self.add_log(f"🚀 MEME ROCKET ENGAGED: Executing scalp on {self.symbol} (Health: {current_health:.0f}%)")
                             balance = self.api.get_account_balance('USDT')
                             # Safety cap: use 90% of balance if $20 is too much, but stay above $10.1
                             trade_amount = min(20.0, balance * 0.95)
