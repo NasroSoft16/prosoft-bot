@@ -177,8 +177,10 @@ class TradingBot:
         from src.strategy.listing_sniper import ListingSniper
         from src.strategy.yield_farmer import YieldFarmer
         from src.strategy.funding_arb import FundingRateArb
+        from src.strategy.flash_netter import FlashNetter
 
         self.farmer = YieldFarmer(self.api)
+        self.flash_netter = FlashNetter(self.api)
         self.sniper = ListingSniper(self.api, self.telegram)
         self.funding_arb = FundingRateArb(self.api)
         
@@ -1236,6 +1238,24 @@ class TradingBot:
                         # Only farms surplus above $13 war chest, and only for accounts > $50
                         await self.farmer.check_and_farm(threshold_usdt=50.0)
                         self.stats['yield_status'] = "FARMING" if self.farmer.is_farming else "IDLE"
+                    
+                    if loop_count % 18 == 0:
+                        # --- THE FLASH NETTER (Limit Deep Wicks Netting) ---
+                        available_usdt = self.stats.get('balance', 0.0)
+                        caught_trades = await self.flash_netter.manage_nets(available_usdt)
+                        if caught_trades:
+                            for trade in caught_trades:
+                                self.active_trades.append(trade)
+                                self.healer.save_trade_state(self.active_trades)
+                                self.stats['active_count'] = len(self.active_trades)
+                                await self.telegram.send_message(
+                                    f"🎣 *FLASH WICK CAUGHT / صيد الانزلاق السعري!*\n"
+                                    f"Asset: `{trade['symbol']}`\n"
+                                    f"Bottom Catch Price: ${trade['entry_price']:,.4f}\n"
+                                    f"Stop Loss Setup: ${trade['sl']:,.4f}\n"
+                                    f"Target: ${trade['tp']:,.4f} (+3% Scalp)\n"
+                                    f"🛡️ Protection ACTIVE"
+                                )
                     
                     if loop_count % 5 == 0:
                         self.update_accuracy_stats()
