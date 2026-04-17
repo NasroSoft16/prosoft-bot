@@ -1438,7 +1438,8 @@ class TradingBot:
                                 qty = trade_amount / rocket['entry_price']
                                 await self.execute_trade(self.symbol, 'BUY', qty, rocket['entry_price'], 
                                                          rocket['entry_price'] * (1 - rocket['emergency_sl']/100),
-                                                         rocket['entry_price'] * (1 + rocket['target_profit']/100), 0.99)
+                                                         rocket['entry_price'] * (1 + rocket['target_profit']/100), 0.99,
+                                                         strategy_name='EARLY_IGNITION')
                             else:
                                 self.add_log(f"⚠️ [MEME ROCKET] Balance too low (${balance:.2f}) for even a minimum trade.")
                         elif rocket:
@@ -1953,8 +1954,8 @@ class TradingBot:
         if hasattr(self, 'live_instance') and self.live_instance:
             self.live_instance.update(self.ui.update_ui(self.symbol, self.timeframe, self.stats, self.logs))
 
-    async def execute_trade(self, symbol, side, qty, price, sl, tp, conf):
-        self.add_log(f"CORE EXECUTION: {side} {symbol} @ {price}")
+    async def execute_trade(self, symbol, side, qty, price, sl, tp, conf, strategy_name='QUANTUM_ALPHA'):
+        self.add_log(f"CORE EXECUTION: {side} {symbol} @ {price} [{strategy_name}]")
         try:
             balance = self.api.get_account_balance('USDT')
             multiplier = self.stats.get('qty_multiplier', 1.0)
@@ -2008,6 +2009,7 @@ class TradingBot:
                 'tp': real_tp,                     # ✅ TP based on real price
                 'trailing_sl': real_sl,
                 'conf': conf,
+                'strategy': strategy_name,         # ✅ Record strategy name for DB
                 'order_id': order_res.get('orderId', 'SIMULATED'),
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }

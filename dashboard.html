@@ -1095,6 +1095,9 @@
                 <button id="tab-revenue"
                     class="py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all"
                     onclick="switchMemoryTab('revenue')">💰 Revenue Intelligence</button>
+                <button id="tab-meme-lab"
+                    class="py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all"
+                    onclick="switchMemoryTab('meme-lab')">🧪 Meme Lab Report</button>
             </div>
 
             <!-- Modal Body (Trade Memory) -->
@@ -1139,6 +1142,42 @@
                         </tr>
                     </thead>
                     <tbody id="revenue-table-body" class="divide-y divide-[#1f2937]">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Modal Body (Meme Lab) -->
+            <div id="view-meme-lab" class="p-6 flex-1 overflow-y-auto hidden">
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-black/40 border border-emerald-500/30 p-4 rounded-lg">
+                        <h4 class="text-[10px] uppercase text-emerald-400 font-bold mb-2">🚀 Early Ignition (v2.0)</h4>
+                        <div class="text-2xl font-mono text-white mb-1" id="meme-v2-winrate">--%</div>
+                        <div class="text-xs text-slate-400 flex justify-between">
+                            <span>Trades: <span id="meme-v2-total" class="text-white">0</span></span>
+                            <span>Avg PnL: <span id="meme-v2-pnl" class="text-emerald-400">0.0%</span></span>
+                        </div>
+                    </div>
+                    <div class="bg-black/40 border border-slate-700 p-4 rounded-lg">
+                        <h4 class="text-[10px] uppercase text-slate-400 font-bold mb-2">🐢 Old Strategies (v1.0)</h4>
+                        <div class="text-2xl font-mono text-white mb-1" id="meme-v1-winrate">--%</div>
+                        <div class="text-xs text-slate-400 flex justify-between">
+                            <span>Trades: <span id="meme-v1-total" class="text-white">0</span></span>
+                            <span>Avg PnL: <span id="meme-v1-pnl" class="text-slate-300">0.0%</span></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 class="text-[10px] uppercase text-purple-400 font-bold mb-3 border-b border-purple-900/30 pb-2">Last 5 Early Ignition Captures</h4>
+                <table class="w-full text-left text-[11px] text-slate-300 bg-black/20 rounded-lg overflow-hidden">
+                    <thead class="text-[9px] uppercase bg-purple-900/20 text-purple-300">
+                        <tr>
+                            <th class="px-4 py-2">Time</th>
+                            <th class="px-4 py-2">Asset</th>
+                            <th class="px-4 py-2 text-right">Result (PnL)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="meme-lab-body" class="divide-y divide-[#1f2937]">
                         <!-- Populated via JS -->
                     </tbody>
                 </table>
@@ -1408,19 +1447,33 @@
         function switchMemoryTab(tab) {
             const btnMem = document.getElementById('tab-memory');
             const btnRev = document.getElementById('tab-revenue');
+            const btnMeme = document.getElementById('tab-meme-lab');
+            
             const viewMem = document.getElementById('view-memory');
             const viewRev = document.getElementById('view-revenue');
+            const viewMeme = document.getElementById('view-meme-lab');
+            
+            const activeClass = "py-3 text-[10px] uppercase font-bold tracking-widest border-b-2 transition-all ";
+            const inactiveClass = "py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all";
+
+            // Reset all
+            btnMem.className = inactiveClass;
+            btnRev.className = inactiveClass;
+            btnMeme.className = inactiveClass;
+            viewMem.classList.add('hidden');
+            viewRev.classList.add('hidden');
+            viewMeme.classList.add('hidden');
 
             if (tab === 'memory') {
-                btnMem.className = "py-3 text-[10px] uppercase font-bold tracking-widest text-purple-400 border-b-2 border-purple-500 transition-all";
-                btnRev.className = "py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all";
+                btnMem.className = activeClass + "text-purple-400 border-purple-500";
                 viewMem.classList.remove('hidden');
-                viewRev.classList.add('hidden');
-            } else {
-                btnRev.className = "py-3 text-[10px] uppercase font-bold tracking-widest text-emerald-400 border-b-2 border-emerald-500 transition-all";
-                btnMem.className = "py-3 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-purple-300 border-b-2 border-transparent transition-all";
+            } else if (tab === 'revenue') {
+                btnRev.className = activeClass + "text-emerald-400 border-emerald-500";
                 viewRev.classList.remove('hidden');
-                viewMem.classList.add('hidden');
+            } else if (tab === 'meme-lab') {
+                btnMeme.className = activeClass + "text-emerald-400 border-emerald-500";
+                viewMeme.classList.remove('hidden');
+                updateMemeLab();
             }
         }
 
@@ -2014,6 +2067,48 @@
                     </tr>`;
                 }).join('');
             } catch (e) { }
+        }
+
+        async function updateMemeLab() {
+            try {
+                const res = await fetch(`${API_BASE}/meme_lab`);
+                const data = await res.json();
+                
+                if (data.status === "No data" || data.error) return;
+
+                // Update V2 cards
+                document.getElementById('meme-v2-winrate').innerText = `${data.v2.win_rate.toFixed(1)}%`;
+                document.getElementById('meme-v2-total').innerText = data.v2.total;
+                document.getElementById('meme-v2-pnl').innerText = `${data.v2.avg_pnl > 0 ? '+' : ''}${data.v2.avg_pnl.toFixed(2)}%`;
+                document.getElementById('meme-v2-pnl').className = data.v2.avg_pnl >= 0 ? "text-emerald-400" : "text-red-400";
+
+                // Update V1 cards
+                document.getElementById('meme-v1-winrate').innerText = `${data.v1.win_rate.toFixed(1)}%`;
+                document.getElementById('meme-v1-total').innerText = data.v1.total;
+                document.getElementById('meme-v1-pnl').innerText = `${data.v1.avg_pnl > 0 ? '+' : ''}${data.v1.avg_pnl.toFixed(2)}%`;
+                document.getElementById('meme-v1-pnl').className = data.v1.avg_pnl >= 0 ? "text-slate-300" : "text-red-400";
+
+                // Update Table
+                const tbody = document.getElementById('meme-lab-body');
+                if (data.last_5 && data.last_5.length > 0) {
+                    tbody.innerHTML = data.last_5.map(t => {
+                        const pnlColor = t.pnl >= 0 ? "text-emerald-400" : "text-red-400";
+                        const pnlSign = t.pnl > 0 ? "+" : "";
+                        return `
+                        <tr class="hover:bg-white/5 transition">
+                            <td class="px-4 py-2 font-mono text-slate-500">${t.time}</td>
+                            <td class="px-4 py-2 font-bold text-white">${t.symbol}</td>
+                            <td class="px-4 py-2 text-right font-mono font-bold ${pnlColor}">${pnlSign}${t.pnl.toFixed(2)}%</td>
+                        </tr>
+                        `;
+                    }).join('');
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-4 text-slate-500 italic">No Early Ignition captures yet. Scanning skies... 🛸</td></tr>`;
+                }
+
+            } catch (e) {
+                console.error("Meme Lab Fetch Error: ", e);
+            }
         }
 
         // Symbol Selector Logic

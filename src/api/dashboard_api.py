@@ -184,6 +184,15 @@ class DashboardAPI:
             history = self.bot.stats.get('ai_accuracy_history', [])
             return jsonify(history if isinstance(history, list) else [])
 
+        @self.app.route('/api/meme_lab', methods=['GET'])
+        def get_meme_lab():
+            """Fetch Meme Lab early ignition analytics."""
+            if hasattr(self.bot, 'memory'):
+                report = self.bot.memory.get_meme_lab_report()
+            else:
+                report = {"status": "Memory not initialized"}
+            return jsonify(report)
+
         @self.app.route('/api/omega', methods=['POST'])
         def trigger_omega():
             """Execute Protocol Omega Kill Switch."""

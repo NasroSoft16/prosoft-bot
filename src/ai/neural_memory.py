@@ -217,6 +217,62 @@ class NeuralMemory:
         except Exception:
             return "System optimal."
 
+    # ── Meme Lab Analytics ────────────────────────────────────────────────────────
+    
+    def get_meme_lab_report(self):
+        """
+        Fetches detailed analytics comparing EARLY_IGNITION vs previous methods.
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            # Fetch all trades to compute lab stats
+            df = pd.read_sql_query("SELECT symbol, profit_loss, entry_price, strategy_used, exit_time FROM trade_memory ORDER BY id DESC", conn)
+            conn.close()
+            
+            if df.empty:
+                return {"status": "No data"}
+            
+            # v2: EARLY_IGNITION
+            df_v2 = df[df['strategy_used'] == 'EARLY_IGNITION']
+            v2_total = len(df_v2)
+            v2_wins = len(df_v2[df_v2['profit_loss'] > 0])
+            v2_winrate = (v2_wins / v2_total * 100) if v2_total > 0 else 0.0
+            v2_avg = df_v2['profit_loss'].mean() if v2_total > 0 else 0.0
+            
+            # v1: anything else (quantum alpha, empty, etc) treated as general benchmark
+            df_v1 = df[df['strategy_used'] != 'EARLY_IGNITION']
+            v1_total = len(df_v1)
+            v1_wins = len(df_v1[df_v1['profit_loss'] > 0])
+            v1_winrate = (v1_wins / v1_total * 100) if v1_total > 0 else 0.0
+            v1_avg = df_v1['profit_loss'].mean() if v1_total > 0 else 0.0
+
+            # Last 5 Early Ignition trades
+            last_5 = df_v2.head(5).to_dict('records')
+
+            return {
+                "v2": {
+                    "total": v2_total,
+                    "win_rate": v2_winrate,
+                    "avg_pnl": float(v2_avg) if not pd.isna(v2_avg) else 0.0
+                },
+                "v1": {
+                    "total": v1_total,
+                    "win_rate": v1_winrate,
+                    "avg_pnl": float(v1_avg) if not pd.isna(v1_avg) else 0.0
+                },
+                "last_5": [
+                    {
+                        "symbol": t['symbol'], 
+                        "pnl": float(t['profit_loss']) if not pd.isna(t['profit_loss']) else 0.0,
+                        "time": t['exit_time']
+                    } 
+                    for t in last_5
+                ]
+            }
+        except Exception as e:
+            app_logger.error(f"Meme Lab Report Error: {e}")
+            return {"error": str(e)}
+
     # ── Stats ─────────────────────────────────────────────────────────────
 
     def get_recent_memories(self, limit=10):
