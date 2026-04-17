@@ -1232,7 +1232,9 @@ class TradingBot:
                         self.stats['yield_status'] = "FARMING" if self.farmer.is_farming else "IDLE"
                     
                     if not self.active_trades and loop_count % 15 == 0:
-                        await self.farmer.check_and_farm(threshold_usdt=25.0)
+                        # v2.0: YieldFarmer now has built-in war chest + cooldown guards
+                        # Only farms surplus above $13 war chest, and only for accounts > $50
+                        await self.farmer.check_and_farm(threshold_usdt=50.0)
                         self.stats['yield_status'] = "FARMING" if self.farmer.is_farming else "IDLE"
                     
                     if loop_count % 5 == 0:
@@ -1505,7 +1507,8 @@ class TradingBot:
 
                             if self.stats['total_equity'] > 0:
                                 if not self.active_trades and self.execution_mode == 'auto':
-                                    await self.farmer.check_and_farm(threshold_usdt=25.0)
+                                    # v2.0: War chest guard built into YieldFarmer — safe to call
+                                    await self.farmer.check_and_farm(threshold_usdt=50.0)
                                     if self.stats['balance'] > 50:
                                         await self.pool_hunter.auto_stake_for_farming(amount_usdt=20.0)
                                     
