@@ -1919,6 +1919,9 @@ class TradingBot:
                                         self.stats['macro_context'] = macro_data
                                         self.stats['last_macro_sweep'] = now
                                         self.add_log(f"🌍 [MACRO] JIT Result: {macro_data.get('macro_bias')} | DXY: {macro_data.get('dxy_pressure')}")
+                                    else:
+                                        # Quota hit or API fail -> set a 5-min cooldown to avoid infinite loop spam
+                                        self.stats['last_macro_sweep'] = now - 600  # 900 - 600 = 300s (5m timeout)
                                 
                                 # Re-validate with fresh macro context
                                 if self.stats.get('macro_context'):
