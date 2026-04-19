@@ -16,14 +16,14 @@ class GroqAI:
         self.current_key_idx = 0
         
         self.usage_stats = {i: {'requests': 0, 'success_hits': 0, 'errors': 0, 'limit_hit': False, 'last_success': 0, 'session_reqs': 0} for i in range(len(self.api_keys))}
-        self.model_name = 'llama3-70b-8192'
+        self.model_name = 'llama3-8b-8192' # More stable and widely available
         self.model = True
         self.lock = asyncio.Lock()
         
         self.fallback_models = [
-            'llama3-70b-8192',
             'llama3-8b-8192',
-            'mixtral-8x7b-32768'
+            'mixtral-8x7b-32768',
+            'llama-3.1-8b-instant'
         ]
         
         self._http_session = None
@@ -139,6 +139,18 @@ class GroqAI:
                         tries += 1
                         continue
                         
+                    elif resp.status == 400: # Potential model deprecation / Bad request
+                        async with self.lock:
+                                # Try to switch to a fallback model if one fails
+                                current_f_idx = self.fallback_models.index(self.model_name) if self.model_name in self.fallback_models else -1
+                                next_f_idx = (current_f_idx + 1) % len(self.fallback_models)
+                                old_model = self.model_name
+                                self.model_name = self.fallback_models[next_f_idx]
+                                app_logger.warning(f"⚠️ [GROQ CLUSTER] Model {old_model} failed (400). PIVOTING to {self.model_name}")
+                                self.usage_stats[idx]['errors'] += 1
+                        tries += 1
+                        continue
+
                     else:
                         async with self.lock:
                             self.usage_stats[idx]['errors'] += 1
