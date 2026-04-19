@@ -97,7 +97,12 @@ class MultiTimeframeAnalyzer:
             base += 0.15   # خسارة مستمرة → حذر شديد (0.65)
 
         # ── المحور 2: Drought (فترة الجفاف) ────────────────────────────────
-        hours_since_trade = (time.time() - self.last_trade_time) / 3600
+        # إذا لم يتداول البوت من قبل (last_trade_time=0)، نعتبره بدأ للتو لا جفافاً
+        if self.last_trade_time == 0:
+            hours_since_trade = 0.0
+        else:
+            hours_since_trade = min((time.time() - self.last_trade_time) / 3600, DROUGHT_HOURS_MAX + 1)
+
         if hours_since_trade > DROUGHT_HOURS_MAX:
             # 36+ ساعة بدون صفقة → تخفيف اضطراري قوي
             drought_bonus = -0.15

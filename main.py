@@ -147,7 +147,7 @@ class TradingBot:
             'session_pnl': 0.0,
             'consecutive_losses': 0,
             'consecutive_wins': 0,
-            'last_trade_time': 0.0,
+            'last_trade_time': time.time(),  # Start fresh - drought counts from bot launch
             'trades_count': 0,
             'closed_trades': 0,  # Separate count for optimization trigger
             'active_count': int(0),
