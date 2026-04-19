@@ -1162,6 +1162,7 @@ class TradingBot:
         self.voice.alert_bot_started()
         self.voice.say("System diagnostics complete. Artificial Intelligence Core is online and trading operations have commenced.")
 
+        self.update_accuracy_stats()
         self.add_log("--- SYSTEM STATUS: OPTIMAL | COMMENCING OPERATIONS ---")
         await asyncio.sleep(1)
 
@@ -2387,6 +2388,10 @@ class TradingBot:
             if memories:
                 wins = len([m for m in memories if m['profit_loss'] > 0])
                 acc = (wins / len(memories)) * 100
+                
+                # CRITICAL FIX: Update the main stat used by engines
+                self.stats['ai_accuracy'] = round(acc, 2)
+                
                 if not isinstance(self.stats['ai_accuracy_history'], list):
                     self.stats['ai_accuracy_history'] = []
                     
