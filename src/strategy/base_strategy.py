@@ -58,12 +58,32 @@ class BaseStrategy:
 
     # ── Entry signal ─────────────────────────────────────────────────────
 
-    def check_entry_signal(self, df, symbol: str = '', macro_context: dict = None):
+    def check_entry_signal(self, df, symbol: str = '', macro_context: dict = None, performance_context: dict = None):
         """
-        PROSOFT Elite Adaptive Entry — NEW v33.0 "Macro Interceptor".
+        PROSOFT Elite Adaptive Entry — NEW v33.1 "Pulse Exit Control".
         Returns BUY signal with entry, SL, TP, and reasoning OR WAIT.
         """
         try:
+            # ── [MASTER ADAPTIVE EXIT CONTROL] ──
+            # Default multipliers
+            tp_mult = getattr(self, 'atr_multiplier_tp', 5.5)
+            sl_mult = getattr(self, 'atr_multiplier_sl', 2.0)
+
+            if performance_context:
+                win_rate = performance_context.get('win_rate', 0.50)
+                streak = performance_context.get('consecutive_wins', 0)
+                losses = performance_context.get('consecutive_losses', 0)
+
+                # Reward Phase: Stretch targets during winning streaks
+                if win_rate >= 0.70 or streak >= 3:
+                    tp_mult += 0.7  # Target 6.2x ATR
+                    sl_mult += 0.2  # Allow standard breathing room
+                
+                # Shield Phase: Tighten targets during drawdowns
+                if win_rate < 0.45 or losses >= 2:
+                    tp_mult -= 0.5  # Settle for 5.0x ATR to exit safely
+                    sl_mult -= 0.3  # Tighten SL to 1.7x ATR to cut bleed
+                    
             # ── [MACRO INTERCEPTOR: CORPORATE-GRADE SHIELD] ──
             if macro_context:
                 bias = macro_context.get('macro_bias', 'NEUTRAL')
@@ -153,11 +173,11 @@ class BaseStrategy:
                 if macd_hist < 0:       reasons.append("MACD negative")
                 return {'signal': 'WAIT', 'reason': ', '.join(reasons) or 'No pattern'}
 
-            app_logger.info(f"🎯 PROSOFT SIGNAL: {signal_type} | RSI={rsi:.1f}")
+            app_logger.info(f"🎯 PROSOFT SIGNAL: {signal_type} | RSI={rsi:.1f} | Adaptive TP/SL: {tp_mult:.1f}x / {sl_mult:.1f}x")
 
-            # ── Adaptive SL multiplier ──
-            sl_mult = self.atr_multiplier_sl * 1.3 if signal_type == "Knife Catch" else self.atr_multiplier_sl
-            tp_mult = self.atr_multiplier_tp
+            # ── Dynamic SL multiplier assignment ──
+            final_sl_mult = sl_mult * 1.3 if signal_type == "Knife Catch" else sl_mult
+            final_tp_mult = tp_mult
 
             if atr <= 0:
                 return {'signal': 'WAIT', 'reason': 'ATR=0 (no volatility data)'}
@@ -169,14 +189,14 @@ class BaseStrategy:
             price_percentage_limit = close * 0.014 # 1.4% Hard Expert Cap
             
             # The Stop Loss is the closer of the two (Safety First)
-            sl_distance = min(dynamic_sl_dist, price_percentage_limit)
+            sl_distance = min(atr * final_sl_mult, price_percentage_limit)
             stop_loss = close - sl_distance
-            take_profit = close + (atr * tp_mult)
+            take_profit = close + (atr * final_tp_mult)
 
-            # Sanity: TP/SL ratio must be > 1.5
+            # Sanity: TP/SL ratio must be > 1.2 (Adjusted for adaptive logic)
             risk   = close - stop_loss
             reward = take_profit - close
-            if risk <= 0 or (reward / risk) < 1.5:
+            if risk <= 0 or (reward / risk) < 1.2:
                 return {'signal': 'WAIT', 'reason': f'Poor R/R ratio ({reward/risk:.2f})'}
 
             return {

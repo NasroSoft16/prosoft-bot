@@ -1950,7 +1950,18 @@ class TradingBot:
                             
                             if signal['signal'] == 'WAIT':
                                 # Fallback to standard strategy with Macro Context
-                                signal = self.strategy.check_entry_signal(df, symbol=self.symbol, macro_context=m_context)
+                                # 🧠 Prepare Pulse Context for Adaptive Exits
+                                perf_context = {
+                                    'win_rate': self.stats.get('ai_accuracy', 50) / 100.0,
+                                    'consecutive_wins': int(self.stats.get('consecutive_wins', 0)),
+                                    'consecutive_losses': int(self.stats.get('consecutive_losses', 0))
+                                }
+                                signal = self.strategy.check_entry_signal(
+                                    df, 
+                                    symbol=self.symbol, 
+                                    macro_context=m_context,
+                                    performance_context=perf_context
+                                )
                             
                             if signal['signal'] == 'BUY':
                                 # --- NEW v36.0: JUST-IN-TIME MACRO TRIGGER ---
