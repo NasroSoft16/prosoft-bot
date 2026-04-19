@@ -1275,6 +1275,19 @@ class TradingBot:
                             last_trade_time=_last_t,
                             fgi=_fgi
                         )
+                        
+                        # 🧠 MASTER ADAPTIVE PULSE (MAP): AI Confidence Gate
+                        # Adjust AI entry requirements based on live Win Rate (acc)
+                        acc_val = self.stats.get('ai_accuracy', 50)
+                        if acc_val >= 75: 
+                            self.ai_confidence_threshold = 0.48   # Elite: High trust
+                        elif acc_val >= 60:
+                            self.ai_confidence_threshold = 0.58   # Standard: Balanced
+                        elif acc_val < 45:
+                            self.ai_confidence_threshold = 0.82   # Defensive: Shield active
+                        
+                        # Update dashboard stats for transparency
+                        self.stats['ai_confidence_threshold'] = self.ai_confidence_threshold
 
                     new_asset = self.sniper.scan_for_new_listings()
                     if new_asset:
@@ -1439,11 +1452,26 @@ class TradingBot:
                                 self.add_log(f"⛔ [ROCKET BLOCKED] Daily risk limit reached.")
                                 continue
 
-                            # Gate 3: ✅ CRITICAL HEALTH GATE (was missing — caused 3 losses at health 24%!)
+                            # ⏳ Gate 3: ADAPTIVE MARKET HEALTH GATE
                             current_health = self.stats.get('market_health', 50)
-                            rocket_min_health = max(self.min_market_health, 38)  # Rockets need AT LEAST 38% health
-                            if current_health < rocket_min_health:
-                                self.add_log(f"⛔ [ROCKET BLOCKED] Market health {current_health:.0f}% < {rocket_min_health:.0f}% minimum. Rocket aborted.")
+                            
+                            # Calculate Adaptive Health requirement
+                            # Base: 45% (Conservative)
+                            base_health_req = 45.0
+                            
+                            # Loosen if performing well
+                            if self.stats.get('ai_accuracy', 50) >= 65: base_health_req -= 5
+                            if int(self.stats.get('consecutive_wins', 0)) >= 2: base_health_req -= 5
+                            
+                            # Harden if performing poorly
+                            if int(self.stats.get('consecutive_losses', 0)) >= 1: base_health_req += 5
+                            if int(self.stats.get('consecutive_losses', 0)) >= 3: base_health_req += 10
+                            
+                            # Clamp within safe limits [35% - 60%]
+                            adaptive_min_health = max(35.0, min(60.0, base_health_req))
+                            
+                            if current_health < adaptive_min_health:
+                                self.add_log(f"🛡️ [ADAPTIVE GATE] Entry Blocked: Health {current_health:.1f}% < Req {adaptive_min_health:.1f}% (Protection Active)")
                                 continue
 
                             # Gate 4: Blacklist Check

@@ -160,12 +160,22 @@ class DashboardAPI:
 
             threshold_data = {}
             if hasattr(self.bot, 'ai_confidence_threshold'):
-                threshold_data['ai_conf_threshold'] = f"{self.bot.ai_confidence_threshold*100:.1f}%"
+                val = self.bot.ai_confidence_threshold
+                mode = "Balanced"
+                if val <= 0.50: mode = "Elite"
+                elif val >= 0.80: mode = "Shield"
+                threshold_data['ai_conf_threshold'] = f"{val*100:.1f}% ({mode})"
+            
             if hasattr(self.bot, 'mtf') and hasattr(self.bot.mtf, 'threshold'):
-                threshold_data['mtf_threshold'] = f"{self.bot.mtf.threshold*100:.1f}%"
+                # Fetch name if analyzer supports it
+                mode_name = ""
+                if hasattr(self.bot.mtf, '_get_mode_name'):
+                    mode_name = f" ({self.bot.mtf._get_mode_name(self.bot.mtf.threshold)})"
+                threshold_data['mtf_threshold'] = f"{self.bot.mtf.threshold*100:.1f}%{mode_name}"
+                
             if hasattr(self.bot, 'strategy'):
-                threshold_data['tp_multiplier'] = getattr(self.bot.strategy, 'atr_multiplier_tp', 0)
-                threshold_data['sl_multiplier'] = getattr(self.bot.strategy, 'atr_multiplier_sl', 0)
+                threshold_data['tp_multiplier'] = f"{getattr(self.bot.strategy, 'atr_multiplier_tp', 0)}x"
+                threshold_data['sl_multiplier'] = f"{getattr(self.bot.strategy, 'atr_multiplier_sl', 0)}x"
 
             return jsonify({
                 'bot_stats': self.bot.stats,
