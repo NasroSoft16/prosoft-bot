@@ -146,6 +146,8 @@ class TradingBot:
             'daily_pnl_pct': 0.0,
             'session_pnl': 0.0,
             'consecutive_losses': 0,
+            'consecutive_wins': 0,
+            'last_trade_time': 0.0,
             'trades_count': 0,
             'closed_trades': 0,  # Separate count for optimization trigger
             'active_count': int(0),
@@ -1259,6 +1261,19 @@ class TradingBot:
                     
                     if loop_count % 5 == 0:
                         self.update_accuracy_stats()
+                        # 🧠 Feed Adaptive MTF Engine with live performance data
+                        _win_rate = self.stats.get('ai_accuracy', 0.50) / 100.0
+                        _c_wins   = int(self.stats.get('consecutive_wins', 0))
+                        _c_loss   = int(self.stats.get('consecutive_losses', 0))
+                        _last_t   = float(self.stats.get('last_trade_time', 0))
+                        _fgi      = int(self.stats.get('fear_greed_index', 50))
+                        self.mtf.update_performance(
+                            win_rate=_win_rate,
+                            consecutive_wins=_c_wins,
+                            consecutive_losses=_c_loss,
+                            last_trade_time=_last_t,
+                            fgi=_fgi
+                        )
 
                     new_asset = self.sniper.scan_for_new_listings()
                     if new_asset:
@@ -2187,6 +2202,7 @@ class TradingBot:
         
         if pnl_absolute < 0:
             self.stats['consecutive_losses'] = int(self.stats.get('consecutive_losses', 0)) + 1
+            self.stats['consecutive_wins'] = 0   # reset win streak on loss
             # UNIFIED FIX: Trigger cooldown on manual/dashboard exits too
             expiry = time.time() + 300
             self.blacklisted_symbols[trade['symbol']] = expiry
@@ -2194,6 +2210,8 @@ class TradingBot:
             self.add_log(f"❄️ [COOL-DOWN] Applied 5m rest to {trade['symbol']} after loss.")
         else:
             self.stats['consecutive_losses'] = 0
+            self.stats['consecutive_wins'] = int(self.stats.get('consecutive_wins', 0)) + 1
+            self.stats['last_trade_time'] = time.time()  # 🧠 feed drought tracker
             
         ai_lesson = "Strategy performance within expected parameters. (Node Latency: AI Insight Deferred)"
         try:

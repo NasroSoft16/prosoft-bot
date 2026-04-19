@@ -1,11 +1,18 @@
 """
-multi_timeframe.py — PROSOFT MTF Gate (MANDATORY entry filter)
-==============================================================
-يحلل 4 أطر زمنية بالتوازي ويتطلب توافق ≥55% قبل أي دخول.
-يُستخدم كـ GATE إجبارية في main.py قبل كل إشارة شراء.
+multi_timeframe.py — PROSOFT Adaptive MTF Gate v2.0
+====================================================
+🧠 INTELLIGENT DYNAMIC THRESHOLD ENGINE
+بدلاً من حد ثابت (55%)، يتكيف المحرك ذاتياً بناءً على:
+  1. نسبة الربح الحالية (Win Rate) → كلما ربحنا أكثر، انفتحنا أكثر
+  2. فترة الجفاف (Drought) → إذا مرت 24 ساعة بدون صفقة، نخفف الشرط
+  3. حالة السوق (FGI) → السوق الخائف يستحق حداً أقل صرامة للفرص النادرة
+  4. عدد الصفقات الأخيرة → إذا كسبنا 3 متتالية نكون أجرأ، وإذا خسرنا 2 نتراجع
+
+هذا يجعل البوت 'يتنفس' مع السوق بدلاً من الجمود الكامل.
 """
 
 import os
+import time
 from src.utils.logger import app_logger
 
 # ── Weights (shorter = noisier, less weight) ──────────────────────────────────
@@ -16,22 +23,147 @@ TIMEFRAMES = {
     '1h':  2,
 }
 
-CONSENSUS_THRESHOLD = float(os.getenv('MTF_CONSENSUS_THRESHOLD', '0.55'))
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Adaptive Threshold Boundaries ────────────────────────────────────────────
+THRESHOLD_AGGRESSIVE = 0.30   # نفتح بـ 30% إجماع فقط (للصفقات الجيدة جداً)
+THRESHOLD_NORMAL     = 0.50   # الحد الطبيعي الجديد (أقل من 0.55 السابق)
+THRESHOLD_CAUTIOUS   = 0.65   # حد الحذر (بعد خسائر متتالية)
+THRESHOLD_LOCKDOWN   = 0.80   # حد الإغلاق شبه الكامل (for very bad streaks)
+
+# ── Drought Settings ─────────────────────────────────────────────────────────
+DROUGHT_HOURS_TRIGGER = 12     # ساعات الجفاف قبل تخفيف الحد
+DROUGHT_HOURS_MAX     = 36     # ساعات الجفاف لأقصى تخفيف
 
 
 class MultiTimeframeAnalyzer:
     """
-    Mandatory entry gate. Call `get_signal()` before every trade entry.
-    Returns decision=BUY only when weighted consensus ≥ CONSENSUS_THRESHOLD.
+    Adaptive MTF Gate — يتكيف مع السوق ذاتياً.
+
+    UPDATE CYCLE (يجب استدعاؤه من main.py):
+        mtf.update_performance(win_rate, consecutive_wins, consecutive_losses,
+                               last_trade_time, fgi)
     """
 
     def __init__(self, api, ta):
         self.api = api
         self.ta  = ta
-        self.threshold = float(os.getenv('MTF_CONSENSUS_THRESHOLD', '0.55'))
 
-    # ── Private ───────────────────────────────────────────────────────────────
+        # State (يتم تحديثها من main.py)
+        self.win_rate            = 0.50   # نسبة الربح (0.0 → 1.0)
+        self.consecutive_wins    = 0      # عدد الانتصارات المتتالية
+        self.consecutive_losses  = 0      # عدد الخسائر المتتالية
+        self.last_trade_time     = 0      # timestamp آخر صفقة
+        self.current_fgi         = 50     # مؤشر الخوف والطمع
+        self.threshold           = THRESHOLD_NORMAL  # الحد الحالي الفعلي
+        self._last_adapt_log     = 0      # منع تكرار اللوج
+
+    # ── External State Feed ───────────────────────────────────────────────────
+
+    def update_performance(self, win_rate: float, consecutive_wins: int,
+                           consecutive_losses: int, last_trade_time: float,
+                           fgi: int = 50):
+        """
+        يحدَّث من main.py في كل دورة لاتخاذ قرار الحد الديناميكي.
+        """
+        self.win_rate           = win_rate
+        self.consecutive_wins   = consecutive_wins
+        self.consecutive_losses = consecutive_losses
+        self.last_trade_time    = last_trade_time
+        self.current_fgi        = fgi
+        # إعادة حساب الحد بعد كل تحديث
+        self.threshold = self._calculate_dynamic_threshold()
+
+    def _calculate_dynamic_threshold(self) -> float:
+        """
+        🧠 قلب المحرك الذكي — يحسب الحد المثالي بناءً على 4 محاور:
+
+        المحور 1: نسبة الربح (Win Rate)
+        المحور 2: فترة الجفاف (Drought)
+        المحور 3: التسلسل (Streak)
+        المحور 4: حالة السوق (FGI)
+        """
+        base = THRESHOLD_NORMAL  # نبدأ من 0.50
+
+        # ── المحور 1: Win Rate ──────────────────────────────────────────────
+        # كلما ارتفع معدل الربح، كلما تساهلنا في قبول الفرص
+        if self.win_rate >= 0.70:
+            base -= 0.12   # ربح عالٍ جداً → أجرأ (0.38)
+        elif self.win_rate >= 0.60:
+            base -= 0.07   # ربح جيد → انفتاح (0.43)
+        elif self.win_rate >= 0.50:
+            base -= 0.02   # ربح معتدل → تعديل طفيف (0.48)
+        elif self.win_rate >= 0.40:
+            base += 0.05   # ربح ضعيف → تشديد (0.55)
+        else:
+            base += 0.15   # خسارة مستمرة → حذر شديد (0.65)
+
+        # ── المحور 2: Drought (فترة الجفاف) ────────────────────────────────
+        hours_since_trade = (time.time() - self.last_trade_time) / 3600
+        if hours_since_trade > DROUGHT_HOURS_MAX:
+            # 36+ ساعة بدون صفقة → تخفيف اضطراري قوي
+            drought_bonus = -0.15
+            app_logger.info(f"🏜️ [MTF] Extreme drought ({hours_since_trade:.1f}h). Emergency threshold loosening.")
+        elif hours_since_trade > DROUGHT_HOURS_TRIGGER:
+            # 12-36 ساعة → تخفيف تدريجي
+            ratio = (hours_since_trade - DROUGHT_HOURS_TRIGGER) / (DROUGHT_HOURS_MAX - DROUGHT_HOURS_TRIGGER)
+            drought_bonus = -0.10 * ratio
+        else:
+            drought_bonus = 0.0
+        base += drought_bonus
+
+        # ── المحور 3: Consecutive Streak ────────────────────────────────────
+        if self.consecutive_wins >= 3:
+            base -= 0.05   # 3 انتصارات متتالية → ثقة متزايدة
+        elif self.consecutive_wins >= 5:
+            base -= 0.08   # 5+ انتصارات → العرّاب في تجواله! 🍷
+
+        if self.consecutive_losses >= 3:
+            base += 0.08   # 3 خسائر متتالية → توقف وتقييم
+        elif self.consecutive_losses >= 5:
+            base = THRESHOLD_LOCKDOWN  # 5+ خسائر → حالة طوارئ كاملة
+            app_logger.warning("🚨 [MTF] 5+ consecutive losses detected. LOCKDOWN threshold activated!")
+
+        # ── المحور 4: FGI (مؤشر الخوف والطمع) ─────────────────────────────
+        if self.current_fgi <= 20:
+            # رعب شديد → فرص ذهبية نادرة، خفف الحد!
+            base -= 0.08
+        elif self.current_fgi <= 35:
+            # خوف عادي → تخفيف طفيف للبحث عن فرص
+            base -= 0.04
+        elif self.current_fgi >= 75:
+            # طمع مفرط → خطر الشراء في القمة، شدد!
+            base += 0.08
+
+        # ── الحدود القصوى (حماية ضد التطرف) ───────────────────────────────
+        final = round(min(THRESHOLD_LOCKDOWN, max(THRESHOLD_AGGRESSIVE, base)), 3)
+
+        # سجّل التغيير إذا كان مختلفاً عن الحد الحالي
+        if abs(final - self.threshold) > 0.01 or (time.time() - self._last_adapt_log) > 300:
+            mode = self._get_mode_name(final)
+            app_logger.info(
+                f"🧠 [MTF ADAPTIVE] Threshold → {final:.2f} ({mode}) | "
+                f"WinRate={self.win_rate:.0%} | "
+                f"Drought={hours_since_trade:.1f}h | "
+                f"Streak=+{self.consecutive_wins}/-{self.consecutive_losses} | "
+                f"FGI={self.current_fgi}"
+            )
+            self._last_adapt_log = time.time()
+
+        return final
+
+    def _get_mode_name(self, threshold: float) -> str:
+        """اسم بشري للحد الحالي."""
+        if threshold <= 0.35:
+            return "🟢 AGGRESSIVE"
+        elif threshold <= 0.45:
+            return "🔵 OPEN"
+        elif threshold <= 0.55:
+            return "🟡 NORMAL"
+        elif threshold <= 0.65:
+            return "🟠 CAUTIOUS"
+        else:
+            return "🔴 LOCKDOWN"
+
+    # ── Private Analysis ──────────────────────────────────────────────────────
 
     def _analyze_one(self, symbol: str, timeframe: str) -> dict:
         try:
@@ -49,17 +181,16 @@ class MultiTimeframeAnalyzer:
             macd_hist = float(curr.get('MACD_HIST', 0.0))
             close     = float(curr['close'])
 
-            # ── Signal classification ────────────────────────────────────
             signal = 'NEUTRAL'
 
             if rsi < 38 and ema_fast >= ema_slow and macd_hist > 0:
-                signal = 'BUY'      # oversold + bullish trend
+                signal = 'BUY'
             elif rsi > 70 and ema_fast < ema_slow and macd_hist < 0:
-                signal = 'SELL'     # overbought + bearish trend
+                signal = 'SELL'
             elif 42 <= rsi <= 72 and close > ema_fast > ema_slow and macd_hist > 0:
-                signal = 'BUY'      # trend-ride zone (more aggressive)
+                signal = 'BUY'
             elif 38 <= rsi < 42 and macd_hist > 0 and close > ema_fast:
-                signal = 'BUY'      # recovering from dip
+                signal = 'BUY'
 
             return {
                 'timeframe': timeframe,
@@ -81,20 +212,13 @@ class MultiTimeframeAnalyzer:
 
     def get_signal(self, symbol: str) -> dict:
         """
-        Analyse all timeframes and return weighted consensus.
-
-        Returns
-        -------
-        {
-            decision   : 'BUY' | 'SELL' | 'HOLD'
-            confidence : float 0–100
-            buy_score  : float 0–100
-            sell_score : float 0–100
-            details    : {timeframe: analysis_dict}
-            veto       : bool  (True = do NOT enter trade)
-        }
+        Analyse all timeframes using the CURRENT dynamic threshold.
+        The threshold auto-adapts based on last update_performance() call.
         """
-        app_logger.info(f"[MTF] Scanning {symbol} across {len(TIMEFRAMES)} timeframes...")
+        app_logger.info(
+            f"[MTF] Scanning {symbol} across {len(TIMEFRAMES)} timeframes "
+            f"[Threshold: {self.threshold:.2f} | {self._get_mode_name(self.threshold)}]"
+        )
 
         details     = {}
         buy_weight  = 0
@@ -123,16 +247,16 @@ class MultiTimeframeAnalyzer:
         elif sell_ratio >= self.threshold:
             decision   = 'SELL'
             confidence = sell_score
-            veto       = True   # no long entry when trend is down
+            veto       = True
         else:
             decision   = 'HOLD'
             confidence = max(buy_score, sell_score)
-            veto       = True   # mixed signals = no trade
+            veto       = True
 
         log_parts = [f"{tf}:{d['signal']}({d['rsi']:.0f})" for tf, d in details.items()]
         app_logger.info(
-            f"[MTF] {symbol} → {decision} ({confidence:.0f}%) | "
-            + " | ".join(log_parts)
+            f"[MTF] {symbol} → {decision} ({confidence:.0f}%) "
+            f"[need≥{self.threshold:.0%}] | " + " | ".join(log_parts)
         )
 
         return {
@@ -142,15 +266,13 @@ class MultiTimeframeAnalyzer:
             'sell_score': round(sell_score, 1),
             'details':    details,
             'veto':       veto,
+            'threshold':  self.threshold,
         }
 
     def is_entry_allowed(self, symbol: str) -> tuple:
         """
         Convenience gate for main.py:
             allowed, reason = mtf.is_entry_allowed('BTCUSDT')
-            if not allowed: return
-
-        Returns (True, '') or (False, reason_string).
         """
         if os.getenv('MTF_ENABLED', 'true').lower() == 'false':
             return True, "MTF DISABLED by .env bypass"
@@ -159,9 +281,13 @@ class MultiTimeframeAnalyzer:
 
         if result['veto']:
             reason = (
-                f"MTF VETO: {result['decision']} "
-                f"(buy={result['buy_score']:.0f}% sell={result['sell_score']:.0f}%)"
+                f"MTF VETO [{self._get_mode_name(self.threshold)}]: "
+                f"{result['decision']} "
+                f"(buy={result['buy_score']:.0f}% need≥{self.threshold:.0%})"
             )
             return False, reason
 
-        return True, f"MTF OK: {result['confidence']:.0f}% consensus BUY"
+        return True, (
+            f"MTF OK [{self._get_mode_name(self.threshold)}]: "
+            f"{result['confidence']:.0f}% consensus BUY ✅"
+        )
