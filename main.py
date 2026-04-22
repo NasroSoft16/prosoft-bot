@@ -1245,7 +1245,7 @@ class TradingBot:
                     if loop_count % 18 == 0:
                         # --- THE FLASH NETTER (Limit Deep Wicks Netting) ---
                         available_usdt = self.stats.get('balance', 0.0)
-                        caught_trades = await self.flash_netter.manage_nets(available_usdt)
+                        caught_trades = [] # await self.flash_netter.manage_nets(available_usdt)
                         if caught_trades:
                             for trade in caught_trades:
                                 self.active_trades.append(trade)
