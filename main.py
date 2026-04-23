@@ -1276,15 +1276,29 @@ class TradingBot:
                             fgi=_fgi
                         )
                         
-                        # 🧠 MASTER ADAPTIVE PULSE (MAP): AI Confidence Gate (Scalping Mode)
-                        # Adjust AI entry requirements based on live Win Rate (acc)
-                        acc_val = self.stats.get('ai_accuracy', 50)
-                        if acc_val >= 60: 
-                            self.ai_confidence_threshold = 0.45   # Elite: High trust
-                        elif acc_val >= 40:
-                            self.ai_confidence_threshold = 0.55   # Standard: Balanced
-                        elif acc_val < 40:
-                            self.ai_confidence_threshold = 0.68   # Defensive: Shield active (Reduced from 0.82 to allow recovery trades)
+                        # 🧠 MASTER ADAPTIVE PULSE (MAP) - FULLY DYNAMIC & SMART EQUATION
+                        acc_val = float(self.stats.get('ai_accuracy', 50.0))
+                        fgi = float(self.stats.get('fear_greed_index', 50.0))
+                        
+                        # 1. Base Threshold (Strict start)
+                        base_threshold = 0.70
+                        
+                        # 2. Performance Factor (High accuracy reduces threshold by up to 0.15)
+                        perf_factor = (acc_val / 100.0) * 0.15
+                        
+                        # 3. Market Sentiment Factor (Greedy/Bullish market reduces it by up to 0.10)
+                        sentiment_factor = (fgi / 100.0) * 0.10
+                        
+                        # 4. Drought Relief (If it hasn't traded in 24h, lower by up to 0.05 to force entry)
+                        last_trade_time = float(self.stats.get('last_trade_time', time.time()))
+                        hours_since = (time.time() - last_trade_time) / 3600.0
+                        drought_relief = min(0.05, (hours_since / 24.0) * 0.05)
+                        
+                        # The Master Equation
+                        dynamic_threshold = base_threshold - perf_factor - sentiment_factor - drought_relief
+                        
+                        # Safety bounds: Never go below 40% (Reckless) and never above 75% (Frozen)
+                        self.ai_confidence_threshold = max(0.40, min(0.75, round(dynamic_threshold, 2)))
                         
                         # Update dashboard stats for transparency
                         self.stats['ai_confidence_threshold'] = self.ai_confidence_threshold
