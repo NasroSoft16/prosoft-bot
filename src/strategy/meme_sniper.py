@@ -86,14 +86,14 @@ class MemeRocketSniper:
                 f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | RSI: {rsi:.0f} | "
                 f"Rocket is LOADING - Entering NOW before launch!"
             )
-            # Tight SL since we're catching early momentum (0.35% is tight for fast memes)
+            # Tight SL since we're catching early momentum (0.85% gives enough breathing room against noise)
             # TP is set to 1.5x the current move since it has more room to run
             projected_tp_pct = max(1.5, curr_price_change * 2.5)
             return {
                 'signal': 'EARLY_IGNITION',
                 'entry_price': curr_close,
                 'target_profit': min(projected_tp_pct, 4.0),  # Cap at 4% TP
-                'emergency_sl': 0.35,   # 0.35% SL - tight because we're entering early
+                'emergency_sl': 0.85,   # Increased from 0.35% to prevent noise knockouts
             }
 
         # ── 🔥 SECONDARY: MOMENTUM CONTINUATION (2nd leg up) ──
@@ -113,7 +113,7 @@ class MemeRocketSniper:
                 'signal': 'SECOND_LEG',
                 'entry_price': curr_close,
                 'target_profit': 2.0,   # More modest TP for 2nd leg
-                'emergency_sl': 0.40,   # Slightly wider for 2nd leg volatility
+                'emergency_sl': 0.95,   # Slightly wider for 2nd leg volatility (increased from 0.40%)
             }
 
         return None

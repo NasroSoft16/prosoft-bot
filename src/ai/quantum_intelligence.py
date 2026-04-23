@@ -61,13 +61,15 @@ class QuantumIntelligence:
                          f"Recent Closes: {df['close'].tail(5).tolist()}. "
                          "Return 0-100 score for market safety. Return ONLY the integer.")
                 
-                # A. Try Gemini (Primary for Context/Sentiment)
-                ai_score = await self.gemini.ask(prompt)
+                # A. Try Groq (Primary for Lightning-Speed Context/Sentiment)
+                ai_score = None
+                if self.groq and self.groq.api_keys:
+                    ai_score = await self.groq.ask(prompt)
                 
-                # B. FAILOVER TO GROQ (Primary Lightning Fallback)
-                if not ai_score and self.groq and self.groq.api_keys:
-                    app_logger.info("⚡ [INTELLIGENCE] Gemini Exhausted. Flipping to Groq Lightning-AI...")
-                    ai_score = await self.groq.ask(f"Analyze this crypto technical data and rate safety 0-100: {prompt}")
+                # B. FAILOVER TO GEMINI (Fallback)
+                if not ai_score and self.gemini and hasattr(self.gemini, 'api_keys') and self.gemini.api_keys:
+                    app_logger.info("⚡ [INTELLIGENCE] Groq Exhausted. Flipping to Gemini...")
+                    ai_score = await self.gemini.ask(f"Analyze this crypto technical data and rate safety 0-100: {prompt}")
                 
                 try: 
                     import re
