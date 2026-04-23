@@ -1276,15 +1276,15 @@ class TradingBot:
                             fgi=_fgi
                         )
                         
-                        # 🧠 MASTER ADAPTIVE PULSE (MAP): AI Confidence Gate
+                        # 🧠 MASTER ADAPTIVE PULSE (MAP): AI Confidence Gate (Scalping Mode)
                         # Adjust AI entry requirements based on live Win Rate (acc)
                         acc_val = self.stats.get('ai_accuracy', 50)
-                        if acc_val >= 75: 
-                            self.ai_confidence_threshold = 0.48   # Elite: High trust
-                        elif acc_val >= 60:
-                            self.ai_confidence_threshold = 0.58   # Standard: Balanced
-                        elif acc_val < 45:
-                            self.ai_confidence_threshold = 0.82   # Defensive: Shield active
+                        if acc_val >= 60: 
+                            self.ai_confidence_threshold = 0.45   # Elite: High trust
+                        elif acc_val >= 40:
+                            self.ai_confidence_threshold = 0.55   # Standard: Balanced
+                        elif acc_val < 40:
+                            self.ai_confidence_threshold = 0.68   # Defensive: Shield active (Reduced from 0.82 to allow recovery trades)
                         
                         # Update dashboard stats for transparency
                         self.stats['ai_confidence_threshold'] = self.ai_confidence_threshold

@@ -121,16 +121,16 @@ class QuantumAlphaStrategy:
             sl_distance = min(atr * sl_mult, close * max_p_cap)
             stop_loss = close - sl_distance
             
-            # TP = Risk * 2.5 (Reward/Risk focus)
+            # TP = Risk * 1.5 (Scalping focus: quicker exits for higher win rate)
             risk = close - stop_loss
-            take_profit = close + (risk * 2.5)
+            take_profit = close + (risk * 1.5)
 
             return {
                 'signal': 'BUY',
                 'entry_price': close,
                 'stop_loss': stop_loss,
                 'take_profit': take_profit,
-                'rr_ratio': round(risk * 2.5 / risk, 2) if risk > 0 else 0,
+                'rr_ratio': round(risk * 1.5 / risk, 2) if risk > 0 else 0,
                 'confidence': confidence,
                 'strategy': self.name,
                 'indicators': {
