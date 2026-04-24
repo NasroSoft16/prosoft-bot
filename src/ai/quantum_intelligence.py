@@ -48,9 +48,9 @@ class QuantumIntelligence:
             tech_health = max(10, min(95, tech_health)) 
             
             # 🛡️ SOVEREIGN BYPASS (Rate Limit Defender)
-            # If technicals literally scream "crash", skip feeding APIs to confirm it.
-            if tech_health < 40 and not skip_ai:
-                app_logger.warning(f"🛡️ [SOVEREIGN BYPASS] Technical health critically low ({tech_health:.1f}%). Bypassing AI to save quota.")
+            # If technicals are not definitively strong, skip feeding APIs to save quota.
+            if tech_health < 55 and not skip_ai:
+                app_logger.warning(f"🛡️ [SOVEREIGN BYPASS] Technical health not optimal ({tech_health:.1f}%). Bypassing AI to save quota.")
                 return tech_health
             
             # 2. AI ENHANCEMENT (The High-Resolution Layer)
