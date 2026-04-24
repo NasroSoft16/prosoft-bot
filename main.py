@@ -2293,6 +2293,17 @@ class TradingBot:
             balance = self.api.get_account_balance('USDT')
             multiplier = self.stats.get('qty_multiplier', 1.0)
             
+            # --- 🧠 PROSOFT DYNAMIC KELLY SIZING (AI Confidence & Win Rate) ---
+            # Automatically scales up when winning, scales down during losing streaks.
+            win_rate = self.stats.get('ai_accuracy', 50)
+            health = self.stats.get('market_health', 50)
+            if win_rate >= 65 and health >= 55 and conf >= 0.85:
+                multiplier *= 1.8  # Aggressive sizing on absolute confidence
+                self.add_log(f"🧠 [KELLY SIZING] Aggressive mode activated! WinRate: {win_rate}%. Scaling up.")
+            elif win_rate <= 45 or health <= 40:
+                multiplier *= 0.5  # Defensive sizing
+                self.add_log(f"🛡️ [KELLY SIZING] Defensive mode. WinRate: {win_rate}%. Scaling down.")
+
             # 12.8 PROSOFT: Smart Sizing for Small Accounts
             target_usd = qty * price * multiplier
             safe_usd = min(target_usd, balance * 0.95)
@@ -2329,6 +2340,22 @@ class TradingBot:
             tp_pct = (tp - price) / price if price > 0 else 0.025   # preserve original TP %
             real_sl = actual_fill_price * (1 - sl_pct)
             real_tp = actual_fill_price * (1 + tp_pct)
+
+            # --- 🛡️ PROSOFT MICROSTRUCTURE STOP LOSS ---
+            # Instead of a blind percentage, anchor SL strictly beneath the nearest institutional buy wall
+            if hasattr(self, 'order_flow') and getattr(self.order_flow, 'last_analysis', None) and self.order_flow.last_analysis.get('symbol') == symbol:
+                walls = self.order_flow.last_analysis.get('buy_walls', [])
+                if side == 'BUY' and walls:
+                    for wall in walls:
+                        wall_p = float(wall['price'])
+                        # If wall is below entry and within 2% distance
+                        if wall_p < actual_fill_price and (actual_fill_price - wall_p) / actual_fill_price < 0.02:
+                            micro_sl = wall_p * 0.999 # 1 tick beneath the wall
+                            # Use it if it's tighter/smarter than default SL, but allow at least 0.3% breathing room
+                            if micro_sl > real_sl and (actual_fill_price - micro_sl) / actual_fill_price >= 0.003:
+                                real_sl = micro_sl
+                                self.add_log(f"🧱 [MICROSTRUCTURE SL] Anchoring SL below institutional buy wall @ {wall_p:.4f} -> Real SL: {real_sl:.4f}")
+                                break
 
             if abs(actual_fill_price - price) / price > 0.002:  # Log if slippage > 0.2%
                 self.add_log(f"⚠️ [SLIPPAGE ALERT] {symbol}: Signal={price:.6f} | Fill={actual_fill_price:.6f} | Drift={(actual_fill_price-price)/price*100:+.2f}%")

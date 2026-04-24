@@ -33,6 +33,12 @@ class OrderFlowAnalyzer:
             # Value between -1.0 (all sellers) and 1.0 (all buyers)
             net_imbalance = (total_bid_vol - total_ask_vol) / (total_bid_vol + total_ask_vol) if (total_bid_vol + total_ask_vol) > 0 else 0
             
+            # --- PROSOFT DELTA DECAY (Velocity of Imbalance) ---
+            delta_velocity = 0.0
+            if hasattr(self, 'previous_imbalance') and self.previous_imbalance is not None:
+                delta_velocity = net_imbalance - self.previous_imbalance
+            self.previous_imbalance = net_imbalance
+
             # Map -1.0..1.0 to 0..100%
             pressure = (net_imbalance + 1) / 2 * 100
             
@@ -55,12 +61,13 @@ class OrderFlowAnalyzer:
                 if gap_pct > 0.04:  # Gap > 0.04%
                     voids.append({'from': asks[i-1][0], 'to': asks[i][0], 'gap_pct': round(gap_pct, 4)})
             
-            # Determine bias with tighter thresholds
-            if net_imbalance > 0.2: bias = "STRONG_BUY"
-            elif net_imbalance > 0.05: bias = "BUY"
-            elif net_imbalance < -0.2: bias = "STRONG_SELL"
-            elif net_imbalance < -0.05: bias = "SELL"
+            # Determine bias with tighter thresholds and Delta Decay
+            if net_imbalance > 0.20 or delta_velocity > 0.35: bias = "STRONG_BUY"
+            elif net_imbalance > 0.05 or delta_velocity > 0.15: bias = "BUY"
+            elif net_imbalance < -0.20 or delta_velocity < -0.35: bias = "STRONG_SELL"
+            elif net_imbalance < -0.05 or delta_velocity < -0.15: bias = "SELL"
             else: bias = "NEUTRAL"
+
             
             self.last_analysis = {
                 'symbol': symbol,
