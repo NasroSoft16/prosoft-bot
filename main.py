@@ -1726,6 +1726,12 @@ class TradingBot:
                                 f"Action / الإجراء: Manual scalp recommended. / ينصح بالسكالب اليدوي."
                             )
 
+                    else:
+                        self.add_log("Data Warning: Insufficient data for analysis. Waiting...")
+                        if not self.active_trades:
+                            await asyncio.sleep(self.interval_sec)
+                            continue
+
                     # ══════════════════════════════════════════════════════
                     # 🚀 [MULTI-SYMBOL ROCKET SCANNER] — كل ~20 ثانية
                     # يفحص أفضل 30 عملة في السوق بحثاً عن EARLY_IGNITION
@@ -1736,11 +1742,6 @@ class TradingBot:
                             and df is not None):
                         await self._multi_rocket_scan()
 
-                    else:
-                        self.add_log("Data Warning: Insufficient data for analysis. Waiting...")
-                        if not self.active_trades:
-                            await asyncio.sleep(self.interval_sec)
-                            continue
 
                     if loop_count % 5 == 0:
                         try:
