@@ -2493,10 +2493,10 @@ class TradingBot:
                 review_prompt = (
                     f"Institutional Review: Trade on {trade['symbol']} ({trade['side']}) closed for ${pnl_absolute:.2f} ({pnl_pct:.2f}%). "
                     f"Market Health: {self.stats['market_health']}%. Reason: {reason}. "
-                    "As a Senior Strategist, provide a deep bilingual (AR/EN) neural lesson about this outcome. "
-                    "Explain the 'why' behind this result. Keep it professional."
+                    "Provide a very short, impactful, bilingual (AR/EN) neural lesson (MAX 2 sentences per language). "
+                    "Do NOT use markdown, brackets, or special characters. Be concise and professional."
                 )
-                result = await asyncio.wait_for(self.gemini.ask(review_prompt), timeout=15.0)
+                result = await asyncio.wait_for(self.gemini.ask(review_prompt), timeout=25.0)
                 if result:
                     ai_lesson = result
                 self.stats['ai_cluster'] = self.gemini.get_quota_info()
