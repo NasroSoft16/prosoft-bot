@@ -537,6 +537,28 @@ class TradingBot:
             
             pnl_pct = (trade_price / entry_p - 1) if entry_p > 0 else 0
 
+            # ── [PROSOFT HARD BLACKLIST: Stablecoins & Gold] ──
+            # Instantly close any stuck trades on assets that don't have crypto volatility
+            if any(x in trade_symbol for x in ["PAXG", "USDC", "FDUSD", "TUSD"]):
+                self.add_log(f"⚠️ [ASSET FILTER] {trade_symbol} is a low-volatility asset (Gold/Stablecoin). Forcing exit to free capital.")
+                await self._close_trade(trade, trade_price, reason="BLACKLISTED_ASSET_EJECT")
+                continue
+
+            # ── [PROSOFT TIME STOP: 45-Minute Momentum Guard] ──
+            # Scalping relies on immediate momentum. If a trade is stuck for >45m without breaking out, kill it.
+            trade_time_str = trade.get('timestamp')
+            if trade_time_str:
+                from datetime import datetime as dt
+                try:
+                    trade_time = dt.strptime(trade_time_str, "%Y-%m-%d %H:%M:%S")
+                    minutes_open = (dt.now() - trade_time).total_seconds() / 60
+                    if minutes_open > 45 and pnl_pct < 0.002: # If not at least 0.2% in profit after 45m
+                        self.add_log(f"⏰ [TIME STOP] {trade_symbol}: Open for {minutes_open:.0f}m with no momentum. Ejecting to free capital.")
+                        await self._close_trade(trade, trade_price, reason="TIME_STOP_45M")
+                        continue
+                except: pass
+
+
             # ── [PROSOFT SHIELD: Universal Trailing Profit Guard] ──
             # Determine if this is a "Meme/Rocket" or High-Volatility trade
             # FIX v2: Do NOT rely on 'strategy' tag alone (Auto-Sync trades never have it!)

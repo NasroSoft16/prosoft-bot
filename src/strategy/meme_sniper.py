@@ -74,11 +74,11 @@ class MemeRocketSniper:
 
         # ── 🚀 EARLY IGNITION DETECTION (The New Logic) ──
         # Condition 1: Volume is surging but price hasn't moved much yet
-        volume_surging  = vol_ratio >= 2.5          # 250%+ volume - rocket fuel loading
-        early_move      = 0.30 <= curr_price_change <= 1.20  # Small move = still early
-        rsi_safe        = rsi < 78                  # Not already overbought
-        body_ok         = body_strength >= 0.50     # Strong bullish body
-        momentum_ok     = prev_is_green             # Previous candle was also green
+        volume_surging  = vol_ratio >= 1.6          # 160%+ volume - rocket fuel loading
+        early_move      = 0.20 <= curr_price_change <= 1.80  # Wider net to catch slightly faster ignitions
+        rsi_safe        = rsi < 82                  # Allowed slightly higher RSI for meme coins
+        body_ok         = body_strength >= 0.40     # Bullish body (less strict)
+        momentum_ok     = prev_close >= prev_open * 0.999 # Allow previous candle to be flat or slightly red
         
         if volume_surging and early_move and rsi_safe and body_ok and momentum_ok:
             app_logger.critical(
