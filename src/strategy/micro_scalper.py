@@ -86,6 +86,21 @@ class MicroScalper:
             atr       = float(curr.get('ATR',     0))
             macd_hist = float(curr.get('MACD_HIST', 0))
 
+            # ── Extra fields for Wick Trap (Condition 5) ──
+            curr_open    = float(curr.get('open',        close))
+            curr_high    = float(curr.get('high',        close))
+            curr_low     = float(curr.get('low',         close))
+            curr_vol     = float(curr.get('volume',      0))
+            vol_sma      = float(curr.get('VOLUME_SMA',  max(curr_vol, 1)))
+
+            # Pre-compute candle geometry
+            candle_range = curr_high - curr_low
+            lower_wick   = close - curr_low
+            candle_body  = abs(close - curr_open)
+            wick_ratio   = (lower_wick   / candle_range) if candle_range > 0 else 0
+            body_ratio   = (candle_body  / candle_range) if candle_range > 0 else 0
+            vol_surge_wt = curr_vol > vol_sma * 1.8    if vol_sma > 0 else False
+
             reason = None
             conf   = 0.0
 
@@ -114,6 +129,16 @@ class MicroScalper:
                   and rsi > 50):
                 reason = "Squeeze Break"
                 conf   = 0.76
+
+            # ── Condition 5: Long Lower Wick Rejection (Wick Trap) ──
+            # ذيل سفلي طويل + إغلاق قوي + حجم = رفض السعر المنخفض → ارتداد سريع
+            elif (wick_ratio   >= 0.55              # الذيل > 55% من النطاق الكلي
+                  and body_ratio  <= 0.30              # جسم صغير = رفض قوي
+                  and close > (curr_low + candle_range * 0.50)  # إغلاق فوق المنتصف
+                  and vol_surge_wt                    # حجم تداول يؤكد الرفض
+                  and rsi < 62):                      # ليس في منطقة الإرهاق
+                reason = "Wick Trap"
+                conf   = 0.80
 
             if not reason:
                 return None

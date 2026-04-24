@@ -31,11 +31,11 @@ class GeminiAI:
         
         # Ordered fallback: newest → oldest, all confirmed working with REST v1beta
         self.fallback_models = [
-            'gemini-1.5-flash-latest',  # Super stable & fast
-            'gemini-1.5-flash',         # Standard
-            'gemini-1.5-flash-8b',      # Lightweight / High-Quota
+            'gemini-2.5-flash',         # Latest 2.5 Flash
+            'gemini-2.0-flash',         # Latest 2.0 Flash
             'gemini-1.5-pro',           # Professional High-Quality
-            'gemini-pro',               # Legacy stable
+            'gemini-1.5-flash',         # Standard reliable
+            'gemini-1.5-flash-8b',      # Lightweight
         ]
         
         self._http_session = None  # Reusable aiohttp session
@@ -296,6 +296,8 @@ class GeminiAI:
         except Exception as e:
             app_logger.warning(f"Macro Parse Error: {e}")
             return None
+
+    def analyze_image(self, question, image_bytes):
         """Visual analysis protocol — Synchronous REST for image analysis."""
         import base64
         import requests

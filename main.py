@@ -98,6 +98,8 @@ from src.strategy.multi_timeframe          import MultiTimeframeAnalyzer
 from src.ai.fear_greed_integration         import FearGreedIntegration
 from src.strategy.micro_scalper            import MicroScalper
 from src.strategy.quantum_alpha              import QuantumAlphaStrategy
+from src.strategy.squeeze_scanner            import VolatilitySqueezeScanner
+from src.strategy.divergence_scanner         import RSIDivergenceScanner
 
 load_dotenv()
 
@@ -202,7 +204,9 @@ class TradingBot:
         self.heatmap = LiquidityHeatmap(self.api)              
         self.memory = NeuralMemory()
         self.micro_scalper = MicroScalper(self.api)
-        self.quantum_alpha = QuantumAlphaStrategy()
+        self.quantum_alpha      = QuantumAlphaStrategy()
+        self.squeeze_scanner    = VolatilitySqueezeScanner(self.api, self.ta)
+        self.divergence_scanner = RSIDivergenceScanner(self.api)
         
         # --- NEW MODULES (v12.0) ---
         self.shield = ManipulationShield()        # درع التلاعب
@@ -1189,6 +1193,200 @@ class TradingBot:
                 app_logger.warning(f"[WATCHER] Heartbeat error: {e}")
             await asyncio.sleep(1)  # 🔥 ALWAYS 1 second, independent of main loop
 
+    async def _multi_rocket_scan(self):
+        """
+        🚀 MULTI-SYMBOL ROCKET SCANNER
+        يمسح أفضل 30 عملة بحثاً عن إشارة EARLY_IGNITION.
+        يُطلق أول صاروخ مؤكد فوراً بدلاً من انتظار العملة الرئيسية فقط.
+        يعمل كل ~20 ثانية (loop_count % 4) بالتوازي مع الحلقة الرئيسية.
+        """
+        try:
+            top_symbols = self.market_scanner.get_top_pairs(limit=30)
+
+            for sym in top_symbols:
+                # تجاوز العملة الرئيسية (المحرك الأساسي يفحصها)
+                if sym == self.symbol:
+                    continue
+
+                # بوابة العزل والحظر
+                if sym in self.blacklisted_symbols:
+                    expiry = self.blacklisted_symbols[sym]
+                    if time.time() < expiry:
+                        continue
+                    else:
+                        del self.blacklisted_symbols[sym]
+                        self._save_blacklist()
+
+                # بوابة Circuit Breaker
+                if hasattr(self, 'circuit_breaker') and self.circuit_breaker.is_tripped:
+                    return
+
+                # بوابة الصفقات المتزامنة (صاروخ واحد كافٍ)
+                if len(self.active_trades) >= 1:
+                    return
+
+                # بوابة Crash Gate
+                if time.time() < self.market_crash_gate:
+                    return
+
+                # جلب البيانات
+                try:
+                    df_sym = self.api.get_historical_klines(sym, '5m', limit=60)
+                    if df_sym is None or df_sym.empty:
+                        continue
+                    df_sym = self.ta.calculate_indicators(df_sym)
+                except Exception:
+                    continue
+
+                rocket = self.rocket_sniper.detect_rocket(df_sym, sym)
+                if not rocket:
+                    continue
+
+                # بوابة صحة السوق
+                current_health = self.stats.get('market_health', 50)
+                if current_health < 40:
+                    continue
+
+                # فحص الذاكرة العصبية
+                veto, _ = self.memory.should_veto_trade(sym, current_health)
+                if veto:
+                    continue
+
+                if not self.risk_manager.can_trade():
+                    return
+
+                # ══ جميع البوابات اجتيزت → إطلاق الصاروخ! ══
+                self.add_log(
+                    f"🚀 [MULTI-ROCKET] {sym} ignition via sector scan! "
+                    f"TP=+{rocket['target_profit']:.1f}% | SL=-{rocket['emergency_sl']:.2f}%"
+                )
+                balance      = self.api.get_account_balance('USDT')
+                trade_amount = min(20.0, balance * 0.95)
+                if trade_amount < 10.1:
+                    trade_amount = balance * 0.99
+
+                if trade_amount >= 10.0:
+                    qty = trade_amount / rocket['entry_price']
+                    await self.execute_trade(
+                        sym, 'BUY', qty,
+                        rocket['entry_price'],
+                        rocket['entry_price'] * (1 - rocket['emergency_sl'] / 100),
+                        rocket['entry_price'] * (1 + rocket['target_profit'] / 100),
+                        0.97,
+                        strategy_name='MULTI_ROCKET_IGNITION',
+                    )
+                    self.switch_symbol(sym)
+                    break  # صاروخ واحد في كل دورة فحص
+
+        except Exception as e:
+            app_logger.error(f"[MULTI-ROCKET SCAN] Error: {e}")
+
+    async def _squeeze_divergence_hunt(self):
+        """
+        💥 SQUEEZE + DIVERGENCE HUNTER
+        يمسح أفضل 30 عملة بحثاً عن:
+          1. Squeeze Breakout  (5m)  — انفجار ما بعد ضغط البولينجر باند
+          2. Bullish Divergence (15m) — تباعد صاعد بين السعر والـ RSI
+        يُنفّذ أقوى إشارة عبر _execute_entry ثم يُرسل تنبيه تيليغرام.
+        """
+        try:
+            # حوافز الخروج المبكر (توفير الموارد)
+            if len(self.active_trades) >= 1:
+                return
+            if hasattr(self, 'circuit_breaker') and self.circuit_breaker.is_tripped:
+                return
+            if not self.risk_manager.can_trade():
+                return
+            if time.time() < self.market_crash_gate:
+                return
+
+            current_health = self.stats.get('market_health', 50)
+            if current_health < 42:
+                return
+
+            top_symbols = self.market_scanner.get_top_pairs(limit=30)
+
+            # فلترة العملات المحجوبة
+            candidates = [
+                s for s in top_symbols
+                if not (
+                    s in self.blacklisted_symbols
+                    and time.time() < self.blacklisted_symbols[s]
+                )
+            ]
+
+            # ── 1. مسح Squeeze Breakout (5m) ──
+            squeeze_hits = self.squeeze_scanner.scan(
+                candidates,
+                self.api.get_historical_klines,
+                self.ta.calculate_indicators,
+            )
+
+            # ── 2. مسح RSI Divergence (15m) ──
+            div_hits = self.divergence_scanner.scan(
+                candidates,
+                self.api.get_historical_klines,
+                self.ta.calculate_indicators,
+            )
+
+            # دمج النتائج وترتيب تنازلي حسب الثقة
+            all_hits = sorted(
+                squeeze_hits + div_hits,
+                key=lambda x: x.get('confidence', 0),
+                reverse=True,
+            )
+
+            if not all_hits:
+                return
+
+            best = all_hits[0]
+            sym  = best.get('symbol', '')
+            if not sym:
+                return
+
+            # فحص الذاكرة العصبية
+            veto, _ = self.memory.should_veto_trade(sym, current_health)
+            if veto:
+                return
+
+            strat = best.get('strategy', 'SCANNER').upper()
+            self.add_log(
+                f"💥 [{strat}] {sym} | "
+                f"Conf={best['confidence']:.0%} | "
+                f"Entry={best['entry_price']:.6f} | "
+                f"TP={best['take_profit']:.6f}"
+            )
+
+            # إشعار تيليغرام
+            try:
+                await self.telegram.send_message(
+                    f"💥 *{strat} SIGNAL*\n"
+                    f"Asset: `{sym}`\n"
+                    f"Entry: ${best['entry_price']:,.6f}\n"
+                    f"TP: ${best['take_profit']:,.6f} | SL: ${best['stop_loss']:,.6f}\n"
+                    f"R/R: {best.get('rr_ratio', 0):.2f} | Conf: {best['confidence']:.0%}"
+                )
+            except Exception:
+                pass
+
+            # تنفيذ الصفقة عبر المحرك الموحد
+            trade = await self._execute_entry(
+                symbol        = sym,
+                signal        = best,
+                ai_conf       = best['confidence'],
+                market_health = current_health,
+                fgi           = self.stats.get('fear_greed_index', 50),
+            )
+
+            if trade:
+                self.active_trades.append(trade)
+                self.healer.save_trade_state(self.active_trades)
+                self.stats['active_count'] = len(self.active_trades)
+                self.switch_symbol(sym)
+
+        except Exception as e:
+            app_logger.error(f"[SQUEEZE/DIV HUNT] Error: {e}")
+
     async def run(self):
         await self.perform_diagnostics()
         
@@ -1527,6 +1725,17 @@ class TradingBot:
                                 f"Status / الحالة: EXPLOSIVE VOLUME! / سيولة انفجارية\n"
                                 f"Action / الإجراء: Manual scalp recommended. / ينصح بالسكالب اليدوي."
                             )
+
+                    # ══════════════════════════════════════════════════════
+                    # 🚀 [MULTI-SYMBOL ROCKET SCANNER] — كل ~20 ثانية
+                    # يفحص أفضل 30 عملة في السوق بحثاً عن EARLY_IGNITION
+                    # ══════════════════════════════════════════════════════
+                    if (not self.active_trades
+                            and self.execution_mode == 'auto'
+                            and loop_count % 4 == 0
+                            and df is not None):
+                        await self._multi_rocket_scan()
+
                     else:
                         self.add_log("Data Warning: Insufficient data for analysis. Waiting...")
                         if not self.active_trades:
@@ -1623,7 +1832,7 @@ class TradingBot:
                                 current_scanner_score = current_eval['score'] if current_eval else 40
                                 best_candidate = scan_results[0]
                                 
-                                if best_candidate['score'] > current_scanner_score + 5 and best_candidate['symbol'] != self.symbol:
+                                if best_candidate['score'] > current_scanner_score + 15 and best_candidate['symbol'] != self.symbol:
                                     self.add_log(f"🧠 AI STRATEGIC PIVOT: {best_candidate['symbol']} (Score: {best_candidate['score']}) outperforms {self.symbol} (Score: {current_scanner_score})")
                                     try:
                                         msg = (f"🔄 *STRATEGIC ROTATION / تدوير استراتيجي* 🔄\n\n"
@@ -1636,6 +1845,15 @@ class TradingBot:
                                     continue 
                         except Exception as e:
                             self.add_log(f"Auto-Rotation Protocol Latency: {e}")
+
+                    # ══════════════════════════════════════════════════════
+                    # 💥 [SQUEEZE + DIVERGENCE HUNTER] — كل ~30 ثانية
+                    # يصطاد انفجارات البولينجر والتباعد الصاعد عبر السوق
+                    # ══════════════════════════════════════════════════════
+                    if (not self.active_trades
+                            and self.execution_mode == 'auto'
+                            and loop_count % 6 == 0):
+                        await self._squeeze_divergence_hunt()
 
                     if loop_count % 25 == 0:
                         try:
