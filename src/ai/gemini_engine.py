@@ -29,13 +29,13 @@ class GeminiAI:
         self._cache = {}  # 🧠 NEURAL CACHE TO PROTECT API LIMITS
 
         
-        # Ordered fallback: newest → oldest, all confirmed working with REST v1beta
+        # Ordered fallback: prioritize FLASH (15 RPM) over PRO (2 RPM)
         self.fallback_models = [
+            'gemini-1.5-flash',         # Standard reliable (15 RPM - best for free tier)
             'gemini-2.5-flash',         # Latest 2.5 Flash
             'gemini-2.0-flash',         # Latest 2.0 Flash
-            'gemini-1.5-pro',           # Professional High-Quality
-            'gemini-1.5-flash',         # Standard reliable
             'gemini-1.5-flash-8b',      # Lightweight
+            'gemini-1.5-pro',           # Professional High-Quality (Only 2 RPM!)
         ]
         
         self._http_session = None  # Reusable aiohttp session
@@ -230,7 +230,8 @@ class GeminiAI:
                     except ModelNotFoundError:
                         continue  # Try next model
                     except QuotaExceededError:
-                        raise  # Propagate to outer handler for key rotation
+                        app_logger.warning(f"⚠️ Model {m_name} quota exceeded. Trying next fallback...")
+                        continue  # CRITICAL FIX: Try next model (e.g. Flash) before discarding key
                 
                 if response_text:
                     self.usage_stats[idx]['limit_hit'] = False
@@ -240,19 +241,13 @@ class GeminiAI:
                     self._cache[prompt] = {'response': response_text, 'time': time.time()}
                     return response_text
                 
-                # All models failed for this key, rotate
-                async with self.lock: self.rotate_key(force=True)
-                tries += 1
-
-            except QuotaExceededError:
-                await asyncio.sleep(1.0) # 🛡️ THROTTLING DEFENSE: Cool down before shifting
+                # All models failed for this key (either 404 or 429 for ALL of them)
                 async with self.lock:
-                    app_logger.warning(f"⚠️ [AI CLUSTER] Node {self.current_key_idx + 1} Quota Limit. Shifting...")
-                    self.usage_stats[self.current_key_idx]['limit_hit'] = True
-                    self.usage_stats[self.current_key_idx]['last_hit_time'] = time.time()
+                    self.usage_stats[idx]['limit_hit'] = True
+                    self.usage_stats[idx]['last_hit_time'] = time.time()
                     self.rotate_key(force=True)
                 tries += 1
-                
+
             except Exception as e:
                 err_str = str(e)
                 async with self.lock:
