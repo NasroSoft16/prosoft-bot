@@ -1837,7 +1837,7 @@ class TradingBot:
                                 self.add_log(f"⛔ [ROCKET BLOCKED] Daily risk limit reached.")
                                 continue
 
-                            # ⏳ Gate 3: ADAPTIVE MARKET HEALTH GATE
+                            # ⏳ Gate 3: ADAPTIVE MARKET HEALTH GATE (Bypassed for Rockets)
                             current_health = self.stats.get('market_health', 50)
                             
                             # Calculate Adaptive Health requirement
@@ -1856,8 +1856,8 @@ class TradingBot:
                             adaptive_min_health = max(35.0, min(60.0, base_health_req))
                             
                             if current_health < adaptive_min_health:
-                                self.add_log(f"🛡️ [ADAPTIVE GATE] Entry Blocked: Health {current_health:.1f}% < Req {adaptive_min_health:.1f}% (Protection Active)")
-                                continue
+                                self.add_log(f"⚡ [ROCKET BYPASS] Health {current_health:.1f}% < Req {adaptive_min_health:.1f}%. BUT this is an explosive rocket. BYPASSING HEALTH GATE!")
+                                # WE DO NOT CONTINUE. We allow the rocket to bypass health.
 
                             # Gate 4: Blacklist Check
                             if self.symbol in self.blacklisted_symbols:
