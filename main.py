@@ -1855,6 +1855,12 @@ class TradingBot:
                             # Clamp within safe limits [35% - 60%]
                             adaptive_min_health = max(35.0, min(60.0, base_health_req))
                             
+                            # 🛡️ [HARD FLOOR] Absolute panic protection — NO bypass allowed when market is in free-fall
+                            HARD_FLOOR_HEALTH = 28.0  # Below this = market panic → all rockets are fake traps
+                            if current_health < HARD_FLOOR_HEALTH:
+                                self.add_log(f"🛑 [HARD FLOOR] Market health {current_health:.1f}% < PANIC FLOOR {HARD_FLOOR_HEALTH:.0f}%. Rocket signal on {self.symbol} is a FALSE TRAP. Entry BLOCKED!")
+                                continue
+
                             if current_health < adaptive_min_health:
                                 self.add_log(f"⚡ [ROCKET BYPASS] Health {current_health:.1f}% < Req {adaptive_min_health:.1f}%. BUT this is an explosive rocket. BYPASSING HEALTH GATE!")
                                 # WE DO NOT CONTINUE. We allow the rocket to bypass health.
@@ -2440,6 +2446,19 @@ class TradingBot:
 
     async def execute_trade(self, symbol, side, qty, price, sl, tp, conf, strategy_name='QUANTUM_ALPHA'):
         self.add_log(f"CORE EXECUTION: {side} {symbol} @ {price} [{strategy_name}]")
+        
+        # 🛡️ [LAST-RESORT HARD FLOOR] — Blocks ALL BUY entries during market panic.
+        # Even if a rocket signal bypassed the main loop gate, it stops here.
+        if side == 'BUY':
+            current_health = self.stats.get('market_health', 50)
+            ABSOLUTE_PANIC_FLOOR = 28.0
+            if current_health < ABSOLUTE_PANIC_FLOOR:
+                self.add_log(
+                    f"🛑 [ABSOLUTE PANIC BLOCK] Market Health {current_health:.1f}% is in FREEFALL. "
+                    f"ALL entries blocked. Capital protected. Strategy: {strategy_name}"
+                )
+                return False
+        
         try:
             balance = self.api.get_account_balance('USDT')
             multiplier = self.stats.get('qty_multiplier', 1.0)
