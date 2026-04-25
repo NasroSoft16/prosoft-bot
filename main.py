@@ -295,6 +295,24 @@ class TradingBot:
         if len(self.active_trades) >= max_trades:
             return False, f"Portfolio limits reached ({len(self.active_trades)}/{max_trades} active trades for ${total_equity:.2f} equity)"
 
+        # ── Gate 0.1: Anti-Duplicate Lock ──
+        # Prevent opening another trade for a symbol that is already active
+        for t in self.active_trades:
+            if t.get('symbol') == symbol:
+                return False, f"Anti-Duplicate Lock: Already holding active trade for {symbol}"
+
+        # ── Gate 0.2: Micro-Price Shield ──
+        # Prevent trading coins with extremely small prices (e.g., 0.000004) where spread eats the profit
+        try:
+            current_price = float(df.iloc[-1]['close']) if df is not None and not df.empty else None
+            if current_price is None:
+                current_price = float(self.api.get_symbol_ticker(symbol))
+                
+            if current_price < 0.0005:  # Blocks anything below $0.0005
+                return False, f"Micro-Price Shield: Price {current_price:.6f} is too small (Slippage/Spread trap)"
+        except Exception:
+            pass
+
         # ── Gate 1: Circuit Breaker ──
         if hasattr(self, 'circuit_breaker') and self.circuit_breaker.is_tripped:
             return False, f"Circuit Breaker TRIPPED: {self.circuit_breaker.trip_reason}"
@@ -690,6 +708,54 @@ class TradingBot:
                     trade['trailing_sl'] = ladder_sl
                     trade_sl = ladder_sl
                     self.add_log(f"🪜 [ELASTIC LADDER] {trade_symbol}: Reached +{pnl_pct*100:.2f}%. Locked +{ladder_lock_pct*100:.2f}% profit!")
+
+            # ── 🎯 [SCALP RATCHET v1.0 — Profit Time-Lock] ──
+            # Problem it solves: Trade hits +0.40% then reverses → exits at +0.06% (net LOSS after fees)
+            # Solution: Every 3 minutes after +0.40% is hit, SL ratchets UP by 0.08%
+            # Like winding a clock — each tick locks more profit permanently
+            if pnl_pct >= 0.004:  # Activated only after crossing +0.40%
+                if not trade.get('scalp_ratchet_active'):
+                    # First activation — mark it and set base lock
+                    trade['scalp_ratchet_active'] = True
+                    trade['scalp_ratchet_last_tick'] = datetime.now().isoformat()
+                    trade['scalp_ratchet_level'] = 0.0020  # Base lock: +0.20% (above fees)
+                    ratchet_sl = entry_p * 1.0020
+                    if ratchet_sl > trade_sl:
+                        trade['trailing_sl'] = ratchet_sl
+                        trade_sl = ratchet_sl
+                    self.add_log(
+                        f"🎯 [SCALP RATCHET] {trade_symbol}: ACTIVATED at +{pnl_pct*100:.2f}%! "
+                        f"SL locked to +0.20% — ticking every 3m."
+                    )
+                else:
+                    # Ratchet is running — check if 3 minutes passed since last tick
+                    try:
+                        last_tick_str = trade.get('scalp_ratchet_last_tick', '')
+                        last_tick = datetime.fromisoformat(last_tick_str)
+                        minutes_since_tick = (datetime.now() - last_tick).total_seconds() / 60
+
+                        if minutes_since_tick >= 3.0:
+                            # ⏰ Tick! Move SL up by 0.08% (one ratchet click)
+                            current_level = trade.get('scalp_ratchet_level', 0.0020)
+                            new_level = current_level + 0.0008  # +0.08% per tick
+
+                            # Safety cap: never lock more than current profit - 0.10% buffer
+                            max_safe_level = pnl_pct - 0.001
+                            new_level = min(new_level, max_safe_level)
+
+                            ratchet_sl = entry_p * (1 + new_level)
+                            if ratchet_sl > trade_sl:
+                                trade['trailing_sl'] = ratchet_sl
+                                trade_sl = ratchet_sl
+                                trade['scalp_ratchet_level'] = new_level
+                                trade['scalp_ratchet_last_tick'] = datetime.now().isoformat()
+                                self.add_log(
+                                    f"🎯 [SCALP RATCHET] {trade_symbol}: Tick! "
+                                    f"SL → +{new_level*100:.2f}% | "
+                                    f"Current profit: +{pnl_pct*100:.2f}%"
+                                )
+                    except Exception as ratchet_err:
+                        pass  # Silent fail — never block the main loop
 
             # Tier 1: The Activation -> Unlock ATR Fee Shield
             if pnl_pct >= activation_trigger:
@@ -1313,18 +1379,14 @@ class TradingBot:
                 if not rocket:
                     continue
 
-                # بوابة صحة السوق
+                # ── UNIVERSAL HEALTH GATE (Prosoft Fix) ──
+                # Ensure MemeRocket doesn't bypass Anti-Duplicate, Name Shield, or Health limits
                 current_health = self.stats.get('market_health', 50)
-                if current_health < 40:
+                fgi = self.stats.get('fear_greed_index', 50)
+                allowed, reason = await self._check_entry_conditions(sym, df_sym, current_health, fgi)
+                if not allowed:
+                    app_logger.debug(f"[MULTI-ROCKET GATE] Skipped {sym}: {reason}")
                     continue
-
-                # فحص الذاكرة العصبية
-                veto, _ = self.memory.should_veto_trade(sym, current_health)
-                if veto:
-                    continue
-
-                if not self.risk_manager.can_trade():
-                    return
 
                 # ══ جميع البوابات اجتيزت → إطلاق الصاروخ! ══
                 self.add_log(
@@ -1415,9 +1477,12 @@ class TradingBot:
             if not sym:
                 return
 
-            # فحص الذاكرة العصبية
-            veto, _ = self.memory.should_veto_trade(sym, current_health)
-            if veto:
+            # ── UNIVERSAL HEALTH GATE (Prosoft Fix) ──
+            fgi = self.stats.get('fear_greed_index', 50)
+            df_sym = self.api.get_historical_klines(sym, '5m', limit=20)  # Need minimal df for checks
+            allowed, reason = await self._check_entry_conditions(sym, df_sym, current_health, fgi)
+            if not allowed:
+                app_logger.debug(f"[SQUEEZE/DIV GATE] Skipped {sym}: {reason}")
                 return
 
             strat = best.get('strategy', 'SCANNER').upper()
