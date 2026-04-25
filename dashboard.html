@@ -532,6 +532,19 @@
                 </div>
             </div>
 
+            <!-- V-SHAPE HUNTER NETS -->
+            <div class="prime-panel h-[280px] flex flex-col border-magenta-500/30" style="border-color: rgba(236, 72, 153, 0.3);">
+                <div class="panel-header"
+                    data-hint-en="Virtual limit orders tracking sudden market flash crashes to catch massive bounce potentials."
+                    data-hint-ar="طلبات شراء وهمية تتتبع الانهيارات المفاجئة في السوق لاصطياد الارتدادات الضخمة.">
+                    <span data-en="V-Shape Hunter Nets" data-ar="شباك صيد الانهيارات">V-Shape Hunter Nets</span>
+                    <div id="vshape-count-badge" class="px-1.5 py-0.5 bg-pink-600 text-white text-[9px] font-bold rounded">0</div>
+                </div>
+                <div id="vshape-list" class="space-y-2 flex-1 overflow-y-auto pr-1">
+                    <p class="text-[10px] text-slate-500 text-center mt-4 italic" data-en="Scanning liquidity for optimal crash zones..." data-ar="جاري مسح السيولة لمناطق السقوط... ">Scanning liquidity for optimal crash zones...</p>
+                </div>
+            </div>
+
             <!-- AI SUGGESTIONS -->
             <div class="prime-panel h-[340px] flex flex-col">
                 <div class="panel-header"
@@ -1744,6 +1757,38 @@
                                         <button onclick="pruneTrack('${t.symbol}')" class="text-[8px] bg-white/5 px-1.5 py-0.5 rounded hover:bg-white/10 text-slate-400" title="Remove from Tracker">PRUNE</button>
                                         <button onclick="closeActiveTrade('${t.symbol}')" class="text-[8px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded hover:bg-red-500/40 font-bold">CLOSE</button>
                                     </div>
+                                </div>
+                            </div>
+                            `;
+                        });
+                    }
+                }
+                
+                // 8b. Update V-Shape Hunter Nets
+                const vshapeList = document.getElementById('vshape-list');
+                const vshapeCountBadge = document.getElementById('vshape-count-badge');
+                if (s.virtual_nets && vshapeList) {
+                    const nets = Object.entries(s.virtual_nets).map(([sym, net]) => {
+                        const currentPrices = s.tickers || {};
+                        const curr = currentPrices[sym] || 0;
+                        const dist = curr > 0 ? ((curr - net.target_price) / curr * 100) : 999;
+                        return { sym, target: net.target_price, dist };
+                    }).sort((a, b) => a.dist - b.dist);
+                    
+                    vshapeCountBadge.innerText = nets.length;
+                    
+                    if (nets.length === 0) {
+                        vshapeList.innerHTML = `<p class="text-[10px] text-slate-500 text-center mt-4 italic" data-en="Scanning liquidity for optimal crash zones..." data-ar="جاري مسح السيولة لمناطق السقوط... ">Scanning liquidity for optimal crash zones...</p>`;
+                    } else {
+                        renderList('vshape-list', nets.slice(0, 5), net => {
+                            return `
+                            <div class="bg-[#1f2937]/30 p-2 rounded border border-white/5 hover:border-pink-500/20 transition group">
+                                <div class="flex justify-between items-start mb-1">
+                                    <span class="text-[11px] font-black text-white">${net.sym.replace('USDT', '')}</span>
+                                    <span class="text-[10px] font-mono text-yellow-400 font-bold">${net.dist.toFixed(1)}% Away</span>
+                                </div>
+                                <div class="text-[9px] text-slate-500 font-mono">
+                                    Net Target: <span class="text-pink-400 font-bold">$${net.target.toFixed(net.target < 1 ? 5 : 2)}</span>
                                 </div>
                             </div>
                             `;
