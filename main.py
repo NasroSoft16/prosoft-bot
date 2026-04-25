@@ -182,9 +182,11 @@ class TradingBot:
         from src.strategy.yield_farmer import YieldFarmer
         from src.strategy.funding_arb import FundingRateArb
         from src.strategy.flash_netter import FlashNetter
+        from src.strategy.v_shape_hunter import VShapeHunter
 
         self.farmer = YieldFarmer(self.api)
         self.flash_netter = FlashNetter(self.api)
+        self.v_shape_hunter = VShapeHunter()
         self.sniper = ListingSniper(self.api, self.telegram)
         self.funding_arb = FundingRateArb(self.api)
         
@@ -1544,6 +1546,38 @@ class TradingBot:
                         self.stats['tickers'] = all_tickers
                         if self.symbol in all_tickers:
                             self.stats['price'] = all_tickers[self.symbol]
+                            
+                        # ── 🕸️ V-SHAPE HUNTER (Virtual Limit Orders) ──
+                        if hasattr(self, 'v_shape_hunter'):
+                            dynamic_v_shape = []
+                            # Sync top coins for V-Shape every 1 hour (3600 seconds)
+                            if time.time() - self.stats.get('last_v_shape_sync', 0) > 3600:
+                                try:
+                                    dynamic_v_shape = self.market_scanner.get_top_pairs(limit=15)
+                                    self.stats['last_v_shape_sync'] = time.time()
+                                    app_logger.info(f"🕸️ [V-SHAPE] Synced dynamic hunting pool: {len(dynamic_v_shape)} top liquidity pairs.")
+                                except Exception as sync_e:
+                                    app_logger.debug(f"[V-SHAPE] Sync skip: {sync_e}")
+                            
+                            self.v_shape_hunter.update_nets(all_tickers, dynamic_v_shape)
+                            
+                            # Check if any net caught a flash crash!
+                            v_shape_signals = self.v_shape_hunter.check_triggers(all_tickers)
+                            for sig in v_shape_signals:
+                                # Immediately bypass the normal checks and execute!
+                                trade = await self.execute_trade(
+                                    symbol=sig['symbol'],
+                                    side='BUY',
+                                    qty=15.0 / sig['entry_price'],  # $15 target size for V-shape
+                                    price=sig['entry_price'],
+                                    sl=sig['stop_loss'],
+                                    tp=sig['take_profit'],
+                                    conf=sig['confidence'],
+                                    strategy_name=sig['strategy']
+                                )
+                                if trade:
+                                    self.active_trades.append(trade)
+                                    self.stats['active_count'] = len(self.active_trades)
                     
                     self._force_ui_update()
                     await self._check_daily_report()
