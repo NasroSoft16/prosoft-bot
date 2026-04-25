@@ -299,6 +299,48 @@ class TradingBot:
         if hasattr(self, 'circuit_breaker') and self.circuit_breaker.is_tripped:
             return False, f"Circuit Breaker TRIPPED: {self.circuit_breaker.trip_reason}"
 
+        # ── Gate 0.5: Symbol Name Integrity Filter (Pump & Dump Shield) ──
+        # Block tokens whose names contain non-ASCII characters (Chinese, Arabic, etc.)
+        # These are classic Pump & Dump traps with fake Binance-branded names.
+        # EXCEPTION: Allow if there's a GENUINE price explosion (> 8% move + strong buy pressure)
+        try:
+            symbol_name = symbol.replace('USDT', '').replace('BTC', '').replace('ETH', '')
+            has_non_ascii = not symbol_name.isascii() or not symbol_name.isalnum()
+            if has_non_ascii:
+                # Check for genuine explosion before blocking
+                explosion_detected = False
+                try:
+                    ticker = self.api.client.get_ticker(symbol=symbol)
+                    price_change_pct = abs(float(ticker.get('priceChangePercent', 0)))
+                    quote_volume = float(ticker.get('quoteVolume', 0))
+                    
+                    # Explosion criteria: > 8% move AND > $500K volume AND Order Flow supports it
+                    of = self.order_flow.analyze_order_book(symbol) if hasattr(self, 'order_flow') else None
+                    of_bias = of.get('bias', 'NEUTRAL') if of else 'NEUTRAL'
+                    of_pressure = of.get('pressure_score', 50) if of else 50
+                    
+                    if (price_change_pct > 8.0 
+                            and quote_volume > 500_000
+                            and of_bias in ('BUY', 'STRONG_BUY')
+                            and of_pressure > 60):
+                        explosion_detected = True
+                        app_logger.warning(
+                            f"💥 [EXPLOSION OVERRIDE] {symbol} has non-ASCII name BUT shows "
+                            f"genuine +{price_change_pct:.1f}% explosion with {of_bias} flow. ALLOWING."
+                        )
+                except Exception:
+                    pass
+                    
+                if not explosion_detected:
+                    app_logger.warning(
+                        f"🚫 [NAME SHIELD] {symbol} blocked — contains non-ASCII/suspicious characters. "
+                        f"Likely Pump & Dump trap."
+                    )
+                    return False, f"NAME SHIELD: {symbol} has suspicious non-ASCII name (P&D trap filter)"
+        except Exception as name_err:
+            app_logger.debug(f"[NAME SHIELD] Check skipped: {name_err}")
+
+
         # ── Gate 2: Risk Manager daily limits ──
         if not self.risk_manager.can_trade():
             return False, "Daily loss limit / consecutive losses"
@@ -553,9 +595,13 @@ class TradingBot:
                     trade_time = dt.strptime(trade_time_str, "%Y-%m-%d %H:%M:%S")
                     minutes_open = (dt.now() - trade_time).total_seconds() / 60
                     if minutes_open > 45 and pnl_pct < 0.002: # If not at least 0.2% in profit after 45m
-                        self.add_log(f"⏰ [TIME STOP] {trade_symbol}: Open for {minutes_open:.0f}m with no momentum. Ejecting to free capital.")
-                        await self._close_trade(trade, trade_price, reason="TIME_STOP_45M")
-                        continue
+                        # ── Fee Guard: Give 10 extra minutes if in profit but below fee threshold ──
+                        if pnl_pct > 0 and minutes_open < 55:
+                            self.add_log(f"⏳ [FEE GUARD] {trade_symbol}: In profit (+{pnl_pct*100:.2f}%) but below fee threshold. Extending 10m grace period.")
+                        else:
+                            self.add_log(f"⏰ [TIME STOP] {trade_symbol}: Open for {minutes_open:.0f}m with no momentum. Ejecting to free capital.")
+                            await self._close_trade(trade, trade_price, reason="TIME_STOP_45M")
+                            continue
                 except: pass
 
 
@@ -713,10 +759,13 @@ class TradingBot:
                 is_stagnant = False # Safety: if no time info, don't kill the trade yet
             
             if is_stagnant and pnl_pct < 0.001:
-                self.add_log(f"⏳ [TIME-EXIT] {trade_symbol}: Closing stagnant trade after {time_limit}m to free capital.")
-                # FIX: Use the correct internal method _close_trade
-                await self._close_trade(trade, trade_price, reason="TIME_LIMIT_REACHED")
-                continue
+                # ── Fee Guard: If trade is slightly positive but below fee threshold, wait 10 more minutes ──
+                if pnl_pct > 0 and (datetime.now() - entry_time) < timedelta(minutes=time_limit + 10):
+                    self.add_log(f"⏳ [FEE GUARD] {trade_symbol}: Positive but below 0.1% fee threshold. Holding {time_limit + 10 - int((datetime.now() - entry_time).total_seconds() / 60)}m more.")
+                else:
+                    self.add_log(f"⏳ [TIME-EXIT] {trade_symbol}: Closing stagnant trade after {time_limit}m to free capital.")
+                    await self._close_trade(trade, trade_price, reason="TIME_LIMIT_REACHED")
+                    continue
 
             # Sync with Binance to ensure safety (Rate limited to 0.15% jumps to prevent API spam)
             if trade_sl > trade.get('sl', 0) * 1.0015:
