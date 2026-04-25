@@ -276,7 +276,7 @@ class TradingBot:
     # ═══════════════════════════════════════════════════════════════════════════════
     #  UPGRADE PATCH FUNCTIONS (v2.0)
     # ═══════════════════════════════════════════════════════════════════════════════
-    async def _check_entry_conditions(self, symbol, df, market_health, fgi=50):
+    async def _check_entry_conditions(self, symbol, df, market_health, fgi=50, is_rocket_signal=False):
         """
         Returns (allowed: bool, reason: str).
         All gates must pass before entering a trade.
@@ -364,7 +364,7 @@ class TradingBot:
             return False, "Daily loss limit / consecutive losses"
 
         # ── Gate 3: Minimum market health ──
-        if market_health < self.min_market_health:
+        if market_health < self.min_market_health and not is_rocket_signal:
             return False, f"Market health too low ({market_health:.0f}% < {self.min_market_health:.0f}%)"
 
         # ── Gate 4: Manipulation Shield ──
@@ -383,7 +383,7 @@ class TradingBot:
             return False, f"ORDER FLOW VETO: Real selling pressure detected ({pressure:.0f}%). MTF ignored."
 
         # ── Gate 5: MTF Consensus ──
-        if hasattr(self, 'mtf'):
+        if hasattr(self, 'mtf') and not is_rocket_signal:
             allowed, mtf_reason = self.mtf.is_entry_allowed(symbol)
             if not allowed:
                 return False, mtf_reason
@@ -1383,7 +1383,9 @@ class TradingBot:
                 # Ensure MemeRocket doesn't bypass Anti-Duplicate, Name Shield, or Health limits
                 current_health = self.stats.get('market_health', 50)
                 fgi = self.stats.get('fear_greed_index', 50)
-                allowed, reason = await self._check_entry_conditions(sym, df_sym, current_health, fgi)
+                allowed, reason = await self._check_entry_conditions(
+                    sym, df_sym, current_health, fgi, is_rocket_signal=True
+                )
                 if not allowed:
                     app_logger.debug(f"[MULTI-ROCKET GATE] Skipped {sym}: {reason}")
                     continue
