@@ -17,7 +17,7 @@ class StrategyOptimizer:
             os.makedirs(db_dir, exist_ok=True)
 
         # Live parameters that get updated by the optimizer
-        self.ai_confidence_threshold = float(os.getenv('AI_CONFIDENCE_THRESHOLD', 0.55))
+        self.ai_confidence_threshold = float(os.getenv('AI_CONFIDENCE_THRESHOLD', 0.82))
         self.mtf_consensus_threshold = float(os.getenv('MTF_CONSENSUS_THRESHOLD', 0.55))
         self.tp_multiplier           = float(os.getenv('ATR_TP_MULTIPLIER',       5.0))
         self.sl_multiplier           = float(os.getenv('ATR_SL_MULTIPLIER',       2.2))
@@ -72,9 +72,9 @@ class StrategyOptimizer:
                 last_trade_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
                 hours_idle = (datetime.now() - last_trade_dt).total_seconds() / 3600
                 
-                if hours_idle > recovery_timer and self.ai_confidence_threshold > 0.55:
+                if hours_idle > recovery_timer and self.ai_confidence_threshold > 0.80:
                     decay_step = 0.05 if hours_idle > 24 else 0.03
-                    new_thresh = max(0.55, self.ai_confidence_threshold - decay_step)
+                    new_thresh = max(0.80, self.ai_confidence_threshold - decay_step)
                     self.ai_confidence_threshold = new_thresh
                     if bot_instance and hasattr(bot_instance, 'ai_confidence_threshold'):
                         bot_instance.ai_confidence_threshold = new_thresh
@@ -85,34 +85,38 @@ class StrategyOptimizer:
                 app_logger.warning(f"Time decay parse error: {e}")
         elif df.empty and market_health > 70:
             # Force reset if no history but market is booming
-            if self.ai_confidence_threshold > 0.75:
-                self.ai_confidence_threshold = 0.70
+            if self.ai_confidence_threshold > 0.88:
+                self.ai_confidence_threshold = 0.82
                 if bot_instance and hasattr(bot_instance, 'ai_confidence_threshold'):
-                    bot_instance.ai_confidence_threshold = 0.70
-                app_logger.info("🧠 [OPTIMIZER] 🚀 Market Boom Reset: No history found but market is 70%+. Resetting threshold to 0.70.")
+                    bot_instance.ai_confidence_threshold = 0.82
+                app_logger.info("🧠 [OPTIMIZER] 🚀 Market Boom Reset: No history found but market is 70%+. Resetting threshold to 0.82.")
                 is_forgiven = True
 
-        # ── Rule 1: AI confidence threshold ──────────────────────────────
-        if win_rate < 0.55 and len(df) >= 10 and not is_forgiven:
-            new_thresh = min(0.82, self.ai_confidence_threshold + 0.04)
-            self.ai_confidence_threshold = new_thresh
+        # ── Smart Confidence Adjustment (Wave Rider vs Sniper) ───────────────
+        if market_health > 75:
+            target_thresh = 0.75 # Entering the wave mode
+        elif market_health < 40:
+            target_thresh = 0.88 # Sniper escape mode
+        else:
+            target_thresh = 0.82 # Baseline
+            
+        if not is_forgiven:
+            # Adjust smoothly towards target based on win_rate
+            if win_rate < 0.50:
+                target_thresh = min(0.95, target_thresh + 0.05) # Tighten if losing
+            elif win_rate > 0.70:
+                target_thresh = max(0.65, target_thresh - 0.05) # Relax if winning
+                
+            # Apply smooth transition
+            if self.ai_confidence_threshold < target_thresh:
+                self.ai_confidence_threshold = min(target_thresh, self.ai_confidence_threshold + 0.02)
+            elif self.ai_confidence_threshold > target_thresh:
+                self.ai_confidence_threshold = max(target_thresh, self.ai_confidence_threshold - 0.02)
+                
             if bot_instance and hasattr(bot_instance, 'ai_confidence_threshold'):
-                bot_instance.ai_confidence_threshold = new_thresh
-            app_logger.warning(
-                f"🧠 [OPTIMIZER] ✅ APPLIED: confidence threshold → {new_thresh:.2f}"
-            )
-            changes['confidence_threshold'] = new_thresh
-
-        elif win_rate > 0.72 and self.ai_confidence_threshold > 0.50:
-            # Good win rate — can relax threshold slightly for more trades
-            new_thresh = max(0.50, self.ai_confidence_threshold - 0.02)
-            self.ai_confidence_threshold = new_thresh
-            if bot_instance and hasattr(bot_instance, 'ai_confidence_threshold'):
-                bot_instance.ai_confidence_threshold = new_thresh
-            app_logger.info(
-                f"🧠 [OPTIMIZER] ✅ APPLIED: relaxing threshold → {new_thresh:.2f}"
-            )
-            changes['confidence_threshold'] = new_thresh
+                bot_instance.ai_confidence_threshold = self.ai_confidence_threshold
+            app_logger.info(f"🧠 [OPTIMIZER] 🌊 Dynamic AI Threshold → {self.ai_confidence_threshold:.2f} (Target: {target_thresh:.2f})")
+            changes['confidence_threshold'] = self.ai_confidence_threshold
 
         # ── Rule 1b: MTF Consensus threshold ────────────────────────────
         if win_rate < 0.45 and len(df) >= 10:
@@ -200,6 +204,41 @@ class StrategyOptimizer:
                 f"Position size reduced by 25%."
             )
             changes['position_size_reduced'] = True
+
+        # ── Rule 5: Dynamic Cool-down (Penalty Box) ───────────────
+        if bot_instance:
+            if not hasattr(bot_instance, 'penalty_box'):
+                bot_instance.penalty_box = {} # token: timestamp
+                
+            from datetime import datetime
+            current_time = datetime.now().timestamp()
+            
+            # Release tokens from penalty box if time > 4 hours (14400 seconds)
+            released = []
+            for token, penalty_time in list(bot_instance.penalty_box.items()):
+                if current_time - penalty_time > 14400:
+                    del bot_instance.penalty_box[token]
+                    if hasattr(bot_instance, 'blacklist') and token in bot_instance.blacklist:
+                        bot_instance.blacklist.remove(token)
+                    released.append(token)
+            if released:
+                app_logger.info(f"🧠 [OPTIMIZER] 🔓 Cool-down Expired: {released} released back to trading.")
+                
+            # Punish toxic assets
+            recent_trades = df.head(15)
+            for symbol in recent_trades['symbol'].unique():
+                symbol_trades = recent_trades[recent_trades['symbol'] == symbol]
+                if len(symbol_trades) >= 2:
+                    if (symbol_trades.head(2)['profit_loss'] <= 0).all():
+                        token = symbol.replace('USDT', '')
+                        if token not in bot_instance.penalty_box:
+                            bot_instance.penalty_box[token] = current_time
+                            if hasattr(bot_instance, 'blacklist') and token not in bot_instance.blacklist:
+                                bot_instance.blacklist.append(token)
+                            app_logger.warning(
+                                f"🧠 [OPTIMIZER] 🚫 Penalty Box: {token} suspended for 4 hours due to erratic behavior."
+                            )
+                            changes['penalty_box_added'] = token
 
         return {
             "win_rate":   win_rate,

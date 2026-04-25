@@ -13,8 +13,8 @@ class MicroScalper:
     def __init__(self, api_client, min_volume_usdt=300_000):
         self.api                = api_client
         self.min_volume_usdt    = min_volume_usdt
-        self.profit_target_pct  = 0.006   # 0.6%
-        self.stop_loss_pct      = 0.003   # 0.3%
+        self.profit_target_pct  = 0.007   # 0.7%
+        self.stop_loss_pct      = 0.0015  # 0.15%
         self.min_trade_amount   = 11.0    # Binance minimum
 
         # Stats for self-tuning
@@ -145,8 +145,19 @@ class MicroScalper:
 
             # Dynamic TP/SL using ATR if available
             if atr > 0:
-                tp_price = close * (1 + self.profit_target_pct) + atr * 0.5
-                sl_price = close * (1 - self.stop_loss_pct)     - atr * 0.3
+                # Volatility scaling: Snatch profit when volatility expands
+                volatility_pct = atr / close
+                
+                # Dynamic TP scales directly with volatility (Min 0.5%, Max 1.5%)
+                dynamic_tp_pct = max(0.005, min(0.015, volatility_pct * 1.8))
+                
+                # Dynamic SL breathes with volatility but stays tight (Min 0.15%, Max 0.4%)
+                dynamic_sl_pct = max(0.0015, min(0.004, volatility_pct * 0.8))
+                
+                tp_price = close * (1 + dynamic_tp_pct)
+                sl_price = close * (1 - dynamic_sl_pct)
+                
+                app_logger.info(f"🌊 [WAVE RIDER] Dynamic Scalp - TP: {dynamic_tp_pct*100:.2f}% | SL: {dynamic_sl_pct*100:.2f}%")
             else:
                 tp_price = close * (1 + self.profit_target_pct)
                 sl_price = close * (1 - self.stop_loss_pct)

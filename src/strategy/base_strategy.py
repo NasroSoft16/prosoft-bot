@@ -20,7 +20,7 @@ class BaseStrategy:
         self.rsi_min            = rsi_min
         self.rsi_max            = rsi_max
         self.volume_multiplier  = volume_multiplier
-        self.atr_multiplier_sl  = atr_multiplier_sl
+        self.atr_multiplier_sl  = atr_multiplier_sl if atr_multiplier_sl != 2.0 else 1.5
         self.atr_multiplier_tp  = atr_multiplier_tp
 
     # ── Trailing stop ─────────────────────────────────────────────────────
@@ -39,13 +39,27 @@ class BaseStrategy:
     def update_trailing_stop(self, active_trade: dict, current_price: float, atr: float):
         """
         Safely advance the trailing stop for an open LONG trade.
-        Returns updated trade dict.
+        Includes Smart Breakeven Lock for scalping protection.
         """
         if not active_trade:
             return active_trade
 
-        new_sl = self.calculate_trailing_stop(current_price, atr, side='LONG')
+        entry_price = active_trade.get('entry_price', active_trade.get('entry', 0))
         old_sl = active_trade.get('trailing_sl', active_trade.get('sl', 0))
+
+        # ── Smart Breakeven (Risk-Free Lock) ──
+        # If profit hits +0.4%, immediately lock Stop Loss at Entry + 0.15% (covers Binance fees)
+        if entry_price > 0:
+            profit_pct = (current_price - entry_price) / entry_price
+            if profit_pct >= 0.004: 
+                breakeven_sl = entry_price * 1.0015 
+                if breakeven_sl > old_sl:
+                    active_trade['trailing_sl'] = breakeven_sl
+                    active_trade['sl'] = breakeven_sl
+                    app_logger.info(f"🛡️ [RISK-FREE] Breakeven Lock! SL moved to {breakeven_sl:.6f} (Securing Entry + Fees).")
+                    return active_trade
+
+        new_sl = self.calculate_trailing_stop(current_price, atr, side='LONG')
 
         if new_sl > old_sl:
             active_trade['trailing_sl'] = new_sl
@@ -67,7 +81,7 @@ class BaseStrategy:
             # ── [MASTER ADAPTIVE EXIT CONTROL] ──
             # Default multipliers
             tp_mult = getattr(self, 'atr_multiplier_tp', 5.5)
-            sl_mult = getattr(self, 'atr_multiplier_sl', 2.0)
+            sl_mult = getattr(self, 'atr_multiplier_sl', 1.5)
 
             if performance_context:
                 win_rate = performance_context.get('win_rate', 0.50)
@@ -184,9 +198,18 @@ class BaseStrategy:
 
             # --- EXPERT ADAPTIVE STOP LOSS (v24.0) ---
             # Instead of a static percentage, we calculate based on Volatility (ATR)
-            # Use 1.5x ATR for standard volatility, but cap at 1.4% for account safety
-            dynamic_sl_dist = atr * 1.6 
-            price_percentage_limit = close * 0.014 # 1.4% Hard Expert Cap
+            dynamic_sl_dist = atr * 1.5 
+            
+            # Smart Cap based on Performance context
+            smart_cap_pct = 0.008 # Baseline 0.8%
+            if performance_context:
+                win_rate = performance_context.get('win_rate', 0.5)
+                if win_rate < 0.45:
+                    smart_cap_pct = 0.005 # Tighten cap to 0.5% when losing
+                elif win_rate > 0.65:
+                    smart_cap_pct = 0.012 # Relax cap to 1.2% when winning
+                    
+            price_percentage_limit = close * smart_cap_pct
             
             # The Stop Loss is the closer of the two (Safety First)
             sl_distance = min(atr * final_sl_mult, price_percentage_limit)
