@@ -22,13 +22,18 @@ class UIHandler:
         )
         self.layout["body"].split_row(
             Layout(name="intel", ratio=1),
-            Layout(name="pnl", ratio=1),
+            Layout(name="middle_column", ratio=1),
             Layout(name="log", ratio=2)
+        )
+        self.layout["middle_column"].split_column(
+            Layout(name="pnl", ratio=1),
+            Layout(name="vshape", ratio=1)
         )
         # Initialization
         self.layout["header"].update(Panel("BOOTING PROSOFT QUANTUM CORE...", style="bold white on blue"))
         self.layout["intel"].update(Panel("Neural link pending...", title="🧠 Market Intel"))
         self.layout["pnl"].update(Panel("Syncing Ledger...", title="💰 Portfolio Status"))
+        self.layout["vshape"].update(Panel("Deploying Nets...", title="🕸️ V-Shape Hunter"))
         self.layout["log"].update(Panel("Initializing Gateways...", title="📡 Action Stream"))
         self.layout["footer"].update(Panel("Ready.", style="dim"))
 
@@ -73,6 +78,36 @@ class UIHandler:
         
         return Panel(table, title="💰 Sovereign Ledger", border_style="green")
 
+    def generate_vshape_panel(self, bot_stats):
+        virtual_nets = bot_stats.get('virtual_nets', {})
+        current_prices = bot_stats.get('tickers', {})
+        
+        if not virtual_nets:
+            return Panel("[dim]Scanning liquidity for optimal crash zones...[/dim]", title="🕸️ V-Shape Hunter", border_style="magenta")
+            
+        table = Table(box=box.SIMPLE, expand=True, show_header=True)
+        table.add_column("Asset", style="cyan")
+        table.add_column("Target", style="red")
+        table.add_column("Dist.", style="yellow")
+        
+        # Sort by closest to target
+        sorted_nets = []
+        for sym, net in virtual_nets.items():
+            curr = current_prices.get(sym, 0)
+            if curr > 0:
+                dist = (curr - net['target_price']) / curr * 100
+            else:
+                dist = 999
+            sorted_nets.append((sym, net['target_price'], dist))
+            
+        sorted_nets.sort(key=lambda x: x[2])
+        
+        # Display top 4 closest
+        for sym, target, dist in sorted_nets[:4]:
+            table.add_row(sym.replace('USDT', ''), f"${target:,.4f}", f"{dist:.1f}%")
+            
+        return Panel(table, title=f"🕸️ Active Nets ({len(virtual_nets)})", border_style="magenta")
+
     def generate_log_panel(self, logs):
         # Keep only the last 15 logs to prevent overcrowding
         log_text = "\n".join(logs[-15:])
@@ -86,6 +121,7 @@ class UIHandler:
         self.layout["header"].update(self.generate_header(symbol, timeframe))
         self.layout["intel"].update(self.generate_intel_panel(bot_stats))
         self.layout["pnl"].update(self.generate_pnl_panel(bot_stats))
+        self.layout["vshape"].update(self.generate_vshape_panel(bot_stats))
         self.layout["log"].update(self.generate_log_panel(logs))
         self.layout["footer"].update(self.generate_footer())
         return self.layout

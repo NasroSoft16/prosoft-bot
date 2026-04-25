@@ -1560,6 +1560,7 @@ class TradingBot:
                                     app_logger.debug(f"[V-SHAPE] Sync skip: {sync_e}")
                             
                             self.v_shape_hunter.update_nets(all_tickers, dynamic_v_shape)
+                            self.stats['virtual_nets'] = self.v_shape_hunter.virtual_nets
                             
                             # Check if any net caught a flash crash!
                             v_shape_signals = self.v_shape_hunter.check_triggers(all_tickers)
