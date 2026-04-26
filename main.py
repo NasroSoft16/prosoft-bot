@@ -932,15 +932,12 @@ class TradingBot:
             order = None
             
             # --- [PROSOFT OCO CLEANUP] ---
-            if 'oco_id' in trade:
-                try:
-                    self.api.client.cancel_open_orders(symbol=trade['symbol'])
-                except:
-                    pass
-                
             try:
-                self.api.client.cancel_open_orders(symbol=trade['symbol'])
-            except: pass
+                open_orders = self.api.client.get_open_orders(symbol=trade['symbol'])
+                for oo in open_orders:
+                    self.api.client.cancel_order(symbol=trade['symbol'], orderId=oo['orderId'])
+            except Exception as _e:
+                pass
             
             # Safe Cap: Prevent 'Insufficient Balance' errors from float drift or fee deductions
             sym = trade.get('symbol', '')
@@ -2588,12 +2585,14 @@ class TradingBot:
             self.add_log(f"Close Trade Error: No active trade found for {symbol}")
             return
         
-        if 'oco_id' in trade:
-            try:
-                self.api.client.cancel_open_orders(symbol=trade['symbol'])
-                self.add_log(f"Cleanup: Pending OCO orders for {trade['symbol']} cancelled.")
-            except Exception as e:
-                self.add_log(f"OCO Cancellation Error: {str(e)}") 
+        try:
+            open_orders = self.api.client.get_open_orders(symbol=trade['symbol'])
+            for oo in open_orders:
+                self.api.client.cancel_order(symbol=trade['symbol'], orderId=oo['orderId'])
+            if open_orders:
+                self.add_log(f"Cleanup: Pending orders for {trade['symbol']} cancelled.")
+        except Exception as e:
+            self.add_log(f"Order Cancellation Error: {str(e)}") 
 
         # ── Unified PnL Calculation ──
         entry_p = trade.get('entry_price', price)
@@ -2610,15 +2609,12 @@ class TradingBot:
                 self.add_log(f"🔄 EXIT PROTOCOL: Converting {asset} back to USDT...")
                 
                 try:
-                    self.api.client.cancel_open_orders(symbol=trade['symbol'])
+                    open_orders = self.api.client.get_open_orders(symbol=trade['symbol'])
+                    for oo in open_orders:
+                        self.api.client.cancel_order(symbol=trade['symbol'], orderId=oo['orderId'])
                     await asyncio.sleep(1.5) 
                 except Exception as e:
-                    try:
-                        open_orders = self.api.client.get_open_orders(symbol=trade['symbol'])
-                        for oo in open_orders:
-                            self.api.client.cancel_order(symbol=trade['symbol'], orderId=oo['orderId'])
-                    except:
-                        pass # Silently fail since open_orders might just be empty
+                    pass # Silently fail since open_orders might just be empty
                 
                 actual_free_balance = self.api.get_account_balance(asset, include_locked=False)
                 
