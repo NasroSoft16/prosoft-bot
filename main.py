@@ -719,11 +719,11 @@ class TradingBot:
                     net_after_fees = (ladder_lock_pct - BINANCE_FEE_ROUNDTRIP) * 100
                     self.add_log(f"🪜 [ELASTIC LADDER] {trade_symbol}: Reached +{pnl_pct*100:.2f}%. Locked +{ladder_lock_pct*100:.2f}% (Net after fees: +{net_after_fees:.2f}%)")
 
-            # ── 🎯 [SCALP RATCHET v1.1 — Profit Time-Lock] ──
-            # Problem it solves: Trade hits +0.25% then reverses → exits at -0.90% SL.
-            # Solution: If trade touches +0.20%, INSTANTLY lock SL at +0.16% (covers 0.15% fees).
-            # Then every 3 minutes, SL ratchets UP. Like winding a clock.
-            if pnl_pct >= 0.0020:  # Activated EARLY after crossing +0.20%
+            # ── 🎯 [SCALP RATCHET v1.2 — Profit Time-Lock] ──
+            # Breathing Room Math: Activate @ +0.30%, Lock @ +0.16%. Buffer = 0.14%
+            # Gives the coin room to breathe and fluctuate without exiting prematurely.
+            # Then every 3 minutes, SL ratchets UP by +0.05%. Like winding a clock.
+            if pnl_pct >= 0.0030:  # Activated when reaching +0.30%
                 if not trade.get('scalp_ratchet_active'):
                     # First activation — mark it and set base lock
                     # Base lock MUST be above round-trip fee (0.15%) to guarantee no loss
@@ -735,7 +735,7 @@ class TradingBot:
                         trade['trailing_sl'] = ratchet_sl
                         trade_sl = ratchet_sl
                     self.add_log(
-                        f"🎯 [SCALP RATCHET] {trade_symbol}: EARLY ACTIVATION at +{pnl_pct*100:.2f}%! "
+                        f"🎯 [SCALP RATCHET] {trade_symbol}: ACTIVATION at +{pnl_pct*100:.2f}%! "
                         f"SL locked to +0.16% (Break-even + Fees) — ticking every 3m."
                     )
                 else:
@@ -746,12 +746,12 @@ class TradingBot:
                         minutes_since_tick = (datetime.now() - last_tick).total_seconds() / 60
 
                         if minutes_since_tick >= 3.0:
-                            # ⏰ Tick! Move SL up by 0.08% (one ratchet click)
-                            current_level = trade.get('scalp_ratchet_level', 0.0020)
-                            new_level = current_level + 0.0008  # +0.08% per tick
+                            # ⏰ Tick! Move SL up by 0.05% (one ratchet click)
+                            current_level = trade.get('scalp_ratchet_level', 0.0016)
+                            new_level = current_level + 0.0005  # +0.05% per tick
 
-                            # Safety cap: never lock more than current profit - 0.10% buffer
-                            max_safe_level = pnl_pct - 0.001
+                            # Safety cap: never lock more than current profit - 0.14% buffer
+                            max_safe_level = pnl_pct - 0.0014
                             new_level = min(new_level, max_safe_level)
 
                             ratchet_sl = entry_p * (1 + new_level)
@@ -767,6 +767,7 @@ class TradingBot:
                                 )
                     except Exception as ratchet_err:
                         pass  # Silent fail — never block the main loop
+
 
             # Tier 1: The Activation -> Unlock ATR Fee Shield
             if pnl_pct >= activation_trigger:
