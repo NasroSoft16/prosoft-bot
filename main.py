@@ -719,24 +719,24 @@ class TradingBot:
                     net_after_fees = (ladder_lock_pct - BINANCE_FEE_ROUNDTRIP) * 100
                     self.add_log(f"🪜 [ELASTIC LADDER] {trade_symbol}: Reached +{pnl_pct*100:.2f}%. Locked +{ladder_lock_pct*100:.2f}% (Net after fees: +{net_after_fees:.2f}%)")
 
-            # ── 🎯 [SCALP RATCHET v1.0 — Profit Time-Lock] ──
-            # Problem it solves: Trade hits +0.40% then reverses → exits at +0.06% (net LOSS after fees)
-            # Solution: Every 3 minutes after +0.40% is hit, SL ratchets UP by 0.08%
-            # Like winding a clock — each tick locks more profit permanently
-            if pnl_pct >= 0.004:  # Activated only after crossing +0.40%
+            # ── 🎯 [SCALP RATCHET v1.1 — Profit Time-Lock] ──
+            # Problem it solves: Trade hits +0.25% then reverses → exits at -0.90% SL.
+            # Solution: If trade touches +0.20%, INSTANTLY lock SL at +0.16% (covers 0.15% fees).
+            # Then every 3 minutes, SL ratchets UP. Like winding a clock.
+            if pnl_pct >= 0.0020:  # Activated EARLY after crossing +0.20%
                 if not trade.get('scalp_ratchet_active'):
                     # First activation — mark it and set base lock
-                    # Base lock MUST be above round-trip fee (0.15%) to guarantee real profit
+                    # Base lock MUST be above round-trip fee (0.15%) to guarantee no loss
                     trade['scalp_ratchet_active'] = True
                     trade['scalp_ratchet_last_tick'] = datetime.now().isoformat()
-                    trade['scalp_ratchet_level'] = 0.0025  # Base lock: +0.25% (nets +0.10% after 0.15% fees)
-                    ratchet_sl = entry_p * 1.0025
+                    trade['scalp_ratchet_level'] = 0.0016  # Base lock: +0.16% (nets +0.01% after 0.15% fees)
+                    ratchet_sl = entry_p * 1.0016
                     if ratchet_sl > trade_sl:
                         trade['trailing_sl'] = ratchet_sl
                         trade_sl = ratchet_sl
                     self.add_log(
-                        f"🎯 [SCALP RATCHET] {trade_symbol}: ACTIVATED at +{pnl_pct*100:.2f}%! "
-                        f"SL locked to +0.25% (nets +0.10% after fees) — ticking every 3m."
+                        f"🎯 [SCALP RATCHET] {trade_symbol}: EARLY ACTIVATION at +{pnl_pct*100:.2f}%! "
+                        f"SL locked to +0.16% (Break-even + Fees) — ticking every 3m."
                     )
                 else:
                     # Ratchet is running — check if 3 minutes passed since last tick
