@@ -89,7 +89,7 @@ class VShapeHunter:
                     'entry_price': current_price,
                     'take_profit': current_price * 1.05,  # +5% quick bounce target
                     'stop_loss': current_price * 0.96,    # -4% absolute disaster stop
-                    'confidence': 99.0,                   # Maximum confidence for extreme fear buying
+                    'confidence': 0.99,                   # Maximum confidence for extreme fear buying
                     'rr_ratio': 1.25
                 }
                 triggered_signals.append(signal)

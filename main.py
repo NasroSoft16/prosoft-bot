@@ -696,10 +696,14 @@ class TradingBot:
                 ladder_lock_pct = 0.0005  # Lock breakeven (+0.05%) - Pure protection
             if pnl_pct >= 0.006:   # Reach +0.60%
                 ladder_lock_pct = 0.0025  # Lock +0.25%
+            if pnl_pct >= 0.0085:  # Reach +0.85% (NEW AGGRESSIVE TIER)
+                ladder_lock_pct = 0.0050  # Lock +0.50%
             if pnl_pct >= 0.010:   # Reach +1.00%
-                ladder_lock_pct = 0.0060  # Lock +0.60%
+                ladder_lock_pct = 0.0070  # Lock +0.70%
+            if pnl_pct >= 0.012:   # Reach +1.20% (NEW AGGRESSIVE TIER)
+                ladder_lock_pct = 0.0090  # Lock +0.90%
             if pnl_pct >= 0.015:   # Reach +1.50%
-                ladder_lock_pct = 0.0100  # Lock +1.00%
+                ladder_lock_pct = 0.0110  # Lock +1.10%
             if pnl_pct >= 0.020:   # Reach +2.00%
                 ladder_lock_pct = 0.0150  # Lock +1.50%
             
@@ -774,6 +778,12 @@ class TradingBot:
                 t1_dist = 0.5 * vol_scale if not is_volatile else 0.40 # Modest oxygen
                 trail_distance = 1 - (t1_dist / 100.0) 
                 tier_msg = f"{t1_dist:.2f}% dynamic distance (ATR={vol_scale:.1f}x)"
+
+                # Tier 1.5: The Chokehold (0.85% to 1.5% profit) -> Aggressive lock for oscillating coins
+                if pnl_pct >= 0.0085 and pnl_pct < 0.015:
+                    t15_dist = 0.35 * vol_scale if not is_volatile else 0.25
+                    trail_distance = 1 - (t15_dist / 100.0)
+                    tier_msg = f"{t15_dist:.2f}% dynamic distance (Chokehold)"
 
                 # Tier 2: The Elastic Band (1.5% to 3.5% profit) -> The oxygen zone
                 if pnl_pct >= 0.015:
@@ -1566,7 +1576,7 @@ class TradingBot:
                             v_shape_signals = self.v_shape_hunter.check_triggers(all_tickers)
                             for sig in v_shape_signals:
                                 # Immediately bypass the normal checks and execute!
-                                trade = await self.execute_trade(
+                                await self.execute_trade(
                                     symbol=sig['symbol'],
                                     side='BUY',
                                     qty=15.0 / sig['entry_price'],  # $15 target size for V-shape
@@ -1576,9 +1586,7 @@ class TradingBot:
                                     conf=sig['confidence'],
                                     strategy_name=sig['strategy']
                                 )
-                                if trade:
-                                    self.active_trades.append(trade)
-                                    self.stats['active_count'] = len(self.active_trades)
+                                self.stats['active_count'] = len(self.active_trades)
                     
                     self._force_ui_update()
                     await self._check_daily_report()
@@ -2696,7 +2704,7 @@ class TradingBot:
             self.stats['consecutive_losses'] = int(self.stats.get('consecutive_losses', 0)) + 1
             self.stats['consecutive_wins'] = 0   # reset win streak on loss
             # UNIFIED FIX: Trigger cooldown on manual/dashboard exits too
-            expiry = time.time() + 300
+            expiry = time.time() + 300  # 5 minutes for losses
             self.blacklisted_symbols[trade['symbol']] = expiry
             self._save_blacklist()
             self.add_log(f"❄️ [COOL-DOWN] Applied 5m rest to {trade['symbol']} after loss.")
@@ -2704,6 +2712,12 @@ class TradingBot:
             self.stats['consecutive_losses'] = 0
             self.stats['consecutive_wins'] = int(self.stats.get('consecutive_wins', 0)) + 1
             self.stats['last_trade_time'] = time.time()  # 🧠 feed drought tracker
+            
+            # 🛡️ ANTI-GREED SHIELD (NEW): Rest a winning coin for 2 minutes to prevent FOMO re-entry at the top!
+            expiry = time.time() + 120
+            self.blacklisted_symbols[trade['symbol']] = expiry
+            self._save_blacklist()
+            self.add_log(f"🛡️ [ANTI-GREED] Applied 2m cooldown to {trade['symbol']} to prevent FOMO re-entry.")
             
         ai_lesson = "Strategy performance within expected parameters. (Node Latency: AI Insight Deferred)"
         try:
