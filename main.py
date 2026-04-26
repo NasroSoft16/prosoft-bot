@@ -691,22 +691,24 @@ class TradingBot:
                         trade_sl = rocket_trail_sl
 
             # --- 🔴 ELASTIC LADDER (السلم المطاطي) ---
-            # Gives trades more oxygen to swing while protecting the baseline
+            # ⚠️ FEE-AWARE: Binance round-trip fees = ~0.15%. ALL locks MUST exceed this.
+            # Gives trades more oxygen to swing while protecting REAL net profit.
+            BINANCE_FEE_ROUNDTRIP = 0.0015  # 0.075% entry + 0.075% exit = 0.15%
             ladder_lock_pct = 0.0
-            if pnl_pct >= 0.003:   # Reach +0.30%
-                ladder_lock_pct = 0.0005  # Lock breakeven (+0.05%) - Pure protection
+            if pnl_pct >= 0.004:   # Reach +0.40% (raised from 0.30% to ensure room above fees)
+                ladder_lock_pct = 0.0018  # Lock +0.18% — above 0.15% fee, nets ~$0.006 real profit
             if pnl_pct >= 0.006:   # Reach +0.60%
-                ladder_lock_pct = 0.0025  # Lock +0.25%
-            if pnl_pct >= 0.0085:  # Reach +0.85% (NEW AGGRESSIVE TIER)
-                ladder_lock_pct = 0.0050  # Lock +0.50%
+                ladder_lock_pct = 0.0035  # Lock +0.35% — nets ~+0.20% after fees
+            if pnl_pct >= 0.0085:  # Reach +0.85% (CHOKEHOLD TIER)
+                ladder_lock_pct = 0.0055  # Lock +0.55% — nets ~+0.40% after fees
             if pnl_pct >= 0.010:   # Reach +1.00%
-                ladder_lock_pct = 0.0070  # Lock +0.70%
-            if pnl_pct >= 0.012:   # Reach +1.20% (NEW AGGRESSIVE TIER)
-                ladder_lock_pct = 0.0090  # Lock +0.90%
+                ladder_lock_pct = 0.0075  # Lock +0.75% — nets ~+0.60% after fees
+            if pnl_pct >= 0.012:   # Reach +1.20% (AGGRESSIVE TIER)
+                ladder_lock_pct = 0.0095  # Lock +0.95% — nets ~+0.80% after fees
             if pnl_pct >= 0.015:   # Reach +1.50%
-                ladder_lock_pct = 0.0110  # Lock +1.10%
+                ladder_lock_pct = 0.0120  # Lock +1.20% — nets ~+1.05% after fees
             if pnl_pct >= 0.020:   # Reach +2.00%
-                ladder_lock_pct = 0.0150  # Lock +1.50%
+                ladder_lock_pct = 0.0160  # Lock +1.60% — nets ~+1.45% after fees
             
             # Apply Ladder Shield instantly if it provides a higher lock
             if ladder_lock_pct > 0:
@@ -714,7 +716,8 @@ class TradingBot:
                 if ladder_sl > trade_sl:
                     trade['trailing_sl'] = ladder_sl
                     trade_sl = ladder_sl
-                    self.add_log(f"🪜 [ELASTIC LADDER] {trade_symbol}: Reached +{pnl_pct*100:.2f}%. Locked +{ladder_lock_pct*100:.2f}% profit!")
+                    net_after_fees = (ladder_lock_pct - BINANCE_FEE_ROUNDTRIP) * 100
+                    self.add_log(f"🪜 [ELASTIC LADDER] {trade_symbol}: Reached +{pnl_pct*100:.2f}%. Locked +{ladder_lock_pct*100:.2f}% (Net after fees: +{net_after_fees:.2f}%)")
 
             # ── 🎯 [SCALP RATCHET v1.0 — Profit Time-Lock] ──
             # Problem it solves: Trade hits +0.40% then reverses → exits at +0.06% (net LOSS after fees)
@@ -723,16 +726,17 @@ class TradingBot:
             if pnl_pct >= 0.004:  # Activated only after crossing +0.40%
                 if not trade.get('scalp_ratchet_active'):
                     # First activation — mark it and set base lock
+                    # Base lock MUST be above round-trip fee (0.15%) to guarantee real profit
                     trade['scalp_ratchet_active'] = True
                     trade['scalp_ratchet_last_tick'] = datetime.now().isoformat()
-                    trade['scalp_ratchet_level'] = 0.0020  # Base lock: +0.20% (above fees)
-                    ratchet_sl = entry_p * 1.0020
+                    trade['scalp_ratchet_level'] = 0.0025  # Base lock: +0.25% (nets +0.10% after 0.15% fees)
+                    ratchet_sl = entry_p * 1.0025
                     if ratchet_sl > trade_sl:
                         trade['trailing_sl'] = ratchet_sl
                         trade_sl = ratchet_sl
                     self.add_log(
                         f"🎯 [SCALP RATCHET] {trade_symbol}: ACTIVATED at +{pnl_pct*100:.2f}%! "
-                        f"SL locked to +0.20% — ticking every 3m."
+                        f"SL locked to +0.25% (nets +0.10% after fees) — ticking every 3m."
                     )
                 else:
                     # Ratchet is running — check if 3 minutes passed since last tick
@@ -2462,6 +2466,20 @@ class TradingBot:
                 self.add_log(
                     f"🛑 [ABSOLUTE PANIC BLOCK] Market Health {current_health:.1f}% is in FREEFALL. "
                     f"ALL entries blocked. Capital protected. Strategy: {strategy_name}"
+                )
+                return False
+            
+            # 😱 [FGI FEAR FILTER] — Block entries during extreme market fear.
+            # In fear markets (FGI<35), whales dump every small rally. Odds are stacked against us.
+            fgi_value = int(self.stats.get('fear_greed_index', 50))
+            FGI_MIN_NORMAL   = 40  # Minimum FGI for regular entries
+            FGI_MIN_ROCKET   = 35  # Minimum FGI even for explosive rocket signals
+            is_rocket = 'ROCKET' in strategy_name or 'IGNITION' in strategy_name or 'VSHAPE' in strategy_name
+            fgi_threshold = FGI_MIN_ROCKET if is_rocket else FGI_MIN_NORMAL
+            if fgi_value < fgi_threshold:
+                self.add_log(
+                    f"😱 [FGI FEAR BLOCK] FGI={fgi_value} < {fgi_threshold} (Extreme Fear). "
+                    f"Market too fearful for entry. Strategy: {strategy_name}. Protecting capital."
                 )
                 return False
         
