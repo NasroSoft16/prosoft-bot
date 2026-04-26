@@ -325,8 +325,7 @@ class TradingBot:
         # These are classic Pump & Dump traps with fake Binance-branded names.
         # EXCEPTION: Allow if there's a GENUINE price explosion (> 8% move + strong buy pressure)
         try:
-            symbol_name = symbol.replace('USDT', '').replace('BTC', '').replace('ETH', '')
-            has_non_ascii = not symbol_name.isascii() or not symbol_name.isalnum()
+            has_non_ascii = not symbol.isascii()
             if has_non_ascii:
                 # Check for genuine explosion before blocking
                 explosion_detected = False
