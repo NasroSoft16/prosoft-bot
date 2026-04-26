@@ -227,12 +227,13 @@ class TradingBot:
         self.is_paused = False # Mode to stop all loops if Omega triggered
         
         # Active Trade Tracking (v12.8 MULTI-TRADE Architecture)
-        self.active_trades = self.healer.load_trade_state()
+        raw_trades = self.healer.load_trade_state()
+        # 🛡️ SANITY CHECK: Remove any corrupted booleans or invalid items from persistent memory
+        self.active_trades = [t for t in (raw_trades or []) if isinstance(t, dict) and 'symbol' in t]
+        
         if self.active_trades:
             symbols = [t['symbol'] for t in self.active_trades]
             self.add_log(f"💾 SYSTEM RECOVERED: Restored {len(self.active_trades)} active trades: {', '.join(symbols)}")
-        else:
-            self.active_trades = []
 
         self.main_loop = asyncio.get_event_loop()
         self.wakeup_event = asyncio.Event()
