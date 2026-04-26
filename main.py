@@ -1868,7 +1868,12 @@ class TradingBot:
                             # 🛡️ [HARD FLOOR] Absolute panic protection — NO bypass allowed when market is in free-fall
                             HARD_FLOOR_HEALTH = 28.0  # Below this = market panic → all rockets are fake traps
                             if current_health < HARD_FLOOR_HEALTH:
-                                self.add_log(f"🛑 [HARD FLOOR] Market health {current_health:.1f}% < PANIC FLOOR {HARD_FLOOR_HEALTH:.0f}%. Rocket signal on {self.symbol} is a FALSE TRAP. Entry BLOCKED!")
+                                # 🔇 SPAM GUARD: Only log this once per 60 seconds per symbol to save CPU & logs
+                                _floor_key = f'_hard_floor_logged_{self.symbol}'
+                                _last_logged = getattr(self, _floor_key, 0)
+                                if time.time() - _last_logged >= 60:
+                                    self.add_log(f"🛑 [HARD FLOOR] Market health {current_health:.1f}% < PANIC FLOOR {HARD_FLOOR_HEALTH:.0f}%. ALL entries blocked. Capital preserved.")
+                                    setattr(self, _floor_key, time.time())
                                 continue
 
                             if current_health < adaptive_min_health:
