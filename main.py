@@ -1344,6 +1344,9 @@ class TradingBot:
             new_symbol = f"{new_symbol}USDT"
             
         old_symbol = self.symbol
+        if old_symbol == new_symbol:
+            return
+
         self.symbol = new_symbol
         self.add_log(f"⭐ STRATEGIC SWITCHOVER: {old_symbol} -> {self.symbol}")
         
