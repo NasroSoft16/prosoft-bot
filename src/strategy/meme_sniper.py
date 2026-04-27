@@ -21,6 +21,9 @@ class MemeRocketSniper:
     
     def __init__(self, api_wrapper):
         self.api = api_wrapper
+        # 🔇 Spam Guard: Track last log time per symbol to avoid flooding logs every second
+        self._last_ignition_log = {}  # symbol -> timestamp
+        self._spam_cooldown_sec = 60  # Only log once per minute per symbol
         
     def detect_rocket(self, df, symbol):
         """
@@ -81,11 +84,16 @@ class MemeRocketSniper:
         momentum_ok     = prev_close >= prev_open * 0.999 # Allow previous candle to be flat or slightly red
         
         if volume_surging and early_move and rsi_safe and body_ok and momentum_ok:
-            app_logger.critical(
-                f"🚀 [EARLY IGNITION] {symbol}: "
-                f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | RSI: {rsi:.0f} | "
-                f"Rocket is LOADING - Entering NOW before launch!"
-            )
+            import time
+            _now = time.time()
+            _last = self._last_ignition_log.get(symbol + '_ignition', 0)
+            if _now - _last >= self._spam_cooldown_sec:
+                app_logger.critical(
+                    f"🚀 [EARLY IGNITION] {symbol}: "
+                    f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | RSI: {rsi:.0f} | "
+                    f"Rocket is LOADING - Entering NOW before launch!"
+                )
+                self._last_ignition_log[symbol + '_ignition'] = _now
             # Tight SL since we're catching early momentum (0.85% gives enough breathing room against noise)
             # TP is set to 1.5x the current move since it has more room to run
             projected_tp_pct = max(1.5, curr_price_change * 2.5)
@@ -104,11 +112,16 @@ class MemeRocketSniper:
         second_leg    = vol_ratio >= 1.8 and 0.20 <= curr_price_change <= 0.80
         
         if prev_big_move and prev_vol_building and second_leg and rsi_safe and body_ok:
-            app_logger.critical(
-                f"🔥 [2ND LEG] {symbol}: "
-                f"First rocket confirmed. 2nd leg forming! "
-                f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | RSI: {rsi:.0f}"
-            )
+            import time
+            _now = time.time()
+            _last = self._last_ignition_log.get(symbol + '_2ndleg', 0)
+            if _now - _last >= self._spam_cooldown_sec:
+                app_logger.critical(
+                    f"🔥 [2ND LEG] {symbol}: "
+                    f"First rocket confirmed. 2nd leg forming! "
+                    f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | RSI: {rsi:.0f}"
+                )
+                self._last_ignition_log[symbol + '_2ndleg'] = _now
             return {
                 'signal': 'SECOND_LEG',
                 'entry_price': curr_close,
