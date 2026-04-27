@@ -45,7 +45,10 @@ class MarketScanner:
             for t in tickers:
                 sym = t['symbol']
                 if sym.endswith('USDT') and float(t['quoteVolume']) > 15000000:
-                    # Check if any blacklisted token is part of the symbol
+                    # Filter out non-ASCII symbols (Chinese, etc.) to avoid P&D traps
+                    if not sym.isascii():
+                        continue
+                        
                     is_blacklisted = any(blocked in sym for blocked in self.blacklist)
                     if not is_blacklisted:
                         usdt_pairs.append(t)

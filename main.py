@@ -359,52 +359,23 @@ class TradingBot:
 
         # ── Gate 0.5: Symbol Name Integrity Filter (Pump & Dump Shield) ──
         # Block tokens whose names contain non-ASCII characters (Chinese, Arabic, etc.)
-        # These are classic Pump & Dump traps with fake Binance-branded names.
-        # EXCEPTION: Allow if there's a GENUINE price explosion (> 8% move + strong buy pressure)
-        try:
-            has_non_ascii = not symbol.isascii()
-            if has_non_ascii:
-                # Check for genuine explosion before blocking
-                explosion_detected = False
-                try:
-                    ticker = self.api.client.get_ticker(symbol=symbol)
-                    price_change_pct = abs(float(ticker.get('priceChangePercent', 0)))
-                    quote_volume = float(ticker.get('quoteVolume', 0))
-                    
-                    # Explosion criteria: > 8% move AND > $500K volume AND Order Flow supports it
-                    of = self.order_flow.analyze_order_book(symbol) if hasattr(self, 'order_flow') else None
-                    of_bias = of.get('bias', 'NEUTRAL') if of else 'NEUTRAL'
-                    of_pressure = of.get('pressure_score', 50) if of else 50
-                    
-                    if (price_change_pct > 8.0 
-                            and quote_volume > 500_000
-                            and of_bias in ('BUY', 'STRONG_BUY')
-                            and of_pressure > 60):
-                        explosion_detected = True
-                        app_logger.warning(
-                            f"💥 [EXPLOSION OVERRIDE] {symbol} has non-ASCII name BUT shows "
-                            f"genuine +{price_change_pct:.1f}% explosion with {of_bias} flow. ALLOWING."
-                        )
-                except Exception:
-                    pass
-                    
-                if not explosion_detected:
-                    app_logger.warning(
-                        f"🚫 [NAME SHIELD] {symbol} blocked — contains non-ASCII/suspicious characters. "
-                        f"Likely Pump & Dump trap."
-                    )
-                    return False, f"NAME SHIELD: {symbol} has suspicious non-ASCII name (P&D trap filter)"
-        except Exception as name_err:
-            app_logger.debug(f"[NAME SHIELD] Check skipped: {name_err}")
-
+        # These are 99% Pump & Dump traps with fake Binance-branded names.
+        if not symbol.isascii():
+            app_logger.warning(f"🚫 [NAME SHIELD] {symbol} blocked — contains non-ASCII characters. High P&D risk.")
+            return False, f"NAME SHIELD: {symbol} has suspicious non-ASCII name"
 
         # ── Gate 2: Risk Manager daily limits ──
         if not self.risk_manager.can_trade():
             return False, "Daily loss limit / consecutive losses"
 
         # ── Gate 3: Minimum market health ──
+        # Soft Gate: 45% (allows rockets to bypass)
+        # Hard Gate: 28% (nothing bypasses this)
+        if market_health < 28.0:
+            return False, f"ABSOLUTE PANIC: Market health {market_health:.1f}% is too dangerous for any entry."
+            
         if market_health < self.min_market_health and not is_rocket_signal:
-            return False, f"Market health too low ({market_health:.0f}% < {self.min_market_health:.0f}%)"
+            return False, f"Market health too low ({market_health:.1f}% < {self.min_market_health:.0f}%)"
 
         # ── Gate 4: Manipulation Shield ──
         order_flow = None
@@ -1340,6 +1311,10 @@ class TradingBot:
             return False
 
     def switch_symbol(self, new_symbol):
+        if not new_symbol.isascii():
+            app_logger.warning(f"🚫 [SECURITY VETO] Rejected attempt to switch to non-ASCII symbol: {new_symbol}")
+            return
+
         if not new_symbol.endswith('USDT'):
             new_symbol = f"{new_symbol}USDT"
             
