@@ -304,6 +304,43 @@ class TradingBot:
             if t.get('symbol') == symbol:
                 return False, f"Anti-Duplicate Lock: Already holding active trade for {symbol}"
 
+        # ── Gate 0.15: Smart Re-Entry Gate ──
+        # After a WIN on this symbol, enforce strict conditions for 5 minutes.
+        # After 5 minutes, the gate expires automatically — normal rules apply.
+        if not hasattr(self, 'winner_cooldown'):
+            self.winner_cooldown = {}
+        if symbol in self.winner_cooldown:
+            winner_data = self.winner_cooldown[symbol]
+            elapsed_min = (time.time() - winner_data.get('timestamp', 0)) / 60
+            if elapsed_min < 5.0:
+                # Still inside strict window — apply elevated requirements
+                if market_health < 50.0:
+                    return False, (
+                        f"⚡ [SMART RE-ENTRY] {symbol} won {elapsed_min:.1f}m ago. "
+                        f"Health must be > 50% to re-enter (current: {market_health:.0f}%)"
+                    )
+                # Check Order Flow pressure
+                _of_pressure = 50
+                try:
+                    if hasattr(self, 'order_flow'):
+                        _of = self.order_flow.analyze_order_book(symbol)
+                        _of_pressure = _of.get('pressure_score', 50) if _of else 50
+                except Exception:
+                    pass
+                if _of_pressure < 65.0:
+                    return False, (
+                        f"⚡ [SMART RE-ENTRY] {symbol} won {elapsed_min:.1f}m ago. "
+                        f"Order Flow must be > 65% to re-enter (current: {_of_pressure:.0f}%)"
+                    )
+                # All conditions met — log and allow
+                app_logger.info(
+                    f"✅ [SMART RE-ENTRY] {symbol}: Conditions met within 5m window. "
+                    f"Health={market_health:.0f}% OF={_of_pressure:.0f}%. Allowing re-entry."
+                )
+            else:
+                # 5-minute window expired — remove and use normal rules
+                del self.winner_cooldown[symbol]
+
         # ── Gate 0.2: Micro-Price Shield ──
         # Prevent trading coins with extremely small prices (e.g., 0.000004) where spread eats the profit
         try:
@@ -389,6 +426,36 @@ class TradingBot:
             allowed, mtf_reason = self.mtf.is_entry_allowed(symbol)
             if not allowed:
                 return False, mtf_reason
+
+        # ── Gate 5B: 🕵️ Spike Exhaustion Detector ──
+        # Institutional-grade filter: blocks entry when BOTH conditions are true:
+        #   1. RSI > 70 (price already moved too far — overbought)
+        #   2. Current volume < 40% of peak volume in last 10 candles (fuel is dying)
+        # This is EXACTLY what happened with TRXUSDT: entered at 09:15 after spike was over.
+        # Exception: Rocket signals (explosive breakouts) bypass this — they may sustain above RSI 70.
+        if df is not None and not df.empty and not is_rocket_signal:
+            try:
+                # --- RSI Check ---
+                rsi_val = float(df['RSI'].iloc[-1]) if 'RSI' in df.columns else 50.0
+
+                # --- Volume Exhaustion Check ---
+                if 'volume' in df.columns and len(df) >= 10:
+                    recent_vols = df['volume'].iloc[-10:].values
+                    peak_vol    = float(max(recent_vols))
+                    curr_vol    = float(df['volume'].iloc[-1])
+                    vol_ratio   = (curr_vol / peak_vol) if peak_vol > 0 else 1.0
+                else:
+                    vol_ratio = 1.0  # Safe default — don't block if no volume data
+
+                # --- Fire only when BOTH signals confirm exhaustion ---
+                if rsi_val > 70.0 and vol_ratio < 0.40:
+                    return False, (
+                        f"⛔ [SPIKE EXHAUSTION] {symbol}: RSI={rsi_val:.1f} (overbought) + "
+                        f"Volume={vol_ratio*100:.0f}% of spike peak — move is OVER. "
+                        f"Entering now = buying the top. Entry BLOCKED."
+                    )
+            except Exception:
+                pass  # Silent fail — never block the main loop on indicator errors
 
         # ── 🚀 ROCKET OVERRIDE (Breakout Exemption) ──
         # إذا وجدنا ملامح انفجار حقيقي مؤكد، سنسامح العملة من أخطاء الماضي!
@@ -1041,6 +1108,13 @@ class TradingBot:
                 )
 
                 if pnl_absolute > 0:
+                    # ── [SMART RE-ENTRY] Register winner for 5-minute strict gate ──
+                    if not hasattr(self, 'winner_cooldown'):
+                        self.winner_cooldown = {}
+                    self.winner_cooldown[trade['symbol']] = {
+                        'timestamp': time.time(),
+                        'exit_conf': trade.get('ai_conf', trade.get('conf', 0))
+                    }
                     self.voice_alerts.alert_take_profit()
                 else:
                     self.voice_alerts.alert_stop_loss()
