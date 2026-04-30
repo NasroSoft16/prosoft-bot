@@ -248,6 +248,7 @@ class TradingBot:
         self.blacklist_file = 'data/isolation_state.json'
         self.blacklisted_symbols = self._load_blacklist() 
         self.market_crash_gate = 0 # Timestamp until global entry block
+        self.trade_lock = asyncio.Lock() # 🔥 Double Entry Prevention Lock
 
         # ═══════════════════════════════════════════════════════════════════════════════
         #  UPGRADE PATCH ALIASES & ADDITIONS (v2.0)
@@ -491,14 +492,8 @@ class TradingBot:
         if symbol in self.blacklisted_symbols:
             expiry = self.blacklisted_symbols[symbol]
             if time.time() < expiry:
-                if is_rocket:
-                    # نلغي الحظر نهائياً لأن السهم انفجر
-                    app_logger.info(f"🔓 [UNBAN] Removing {symbol} from isolation due to Rocket Override")
-                    del self.blacklisted_symbols[symbol]
-                    self._save_blacklist()
-                else:
-                    m, s = divmod(expiry - time.time(), 60)
-                    return False, f"Symbol {symbol} is in ISOLATION (Recent Loss). Time left: {int(m)}m {int(s)}s."
+                m, s = divmod(expiry - time.time(), 60)
+                return False, f"Symbol {symbol} is in ISOLATION (Recent Loss). Time left: {int(m)}m {int(s)}s."
             else:
                 del self.blacklisted_symbols[symbol]
                 self._save_blacklist()
@@ -2517,66 +2512,64 @@ class TradingBot:
             self.live_instance.update(self.ui.update_ui(self.symbol, self.timeframe, self.stats, self.logs))
 
     async def execute_trade(self, symbol, side, qty, price, sl, tp, conf, strategy_name='QUANTUM_ALPHA'):
-        self.add_log(f"CORE EXECUTION: {side} {symbol} @ {price} [{strategy_name}]")
-        
-        # 🛡️ [LAST-RESORT HARD FLOOR] — Blocks ALL BUY entries during market panic.
-        # Even if a rocket signal bypassed the main loop gate, it stops here.
-        if side == 'BUY':
-            current_health = self.stats.get('market_health', 50)
-            ABSOLUTE_PANIC_FLOOR = 28.0
-            if current_health < ABSOLUTE_PANIC_FLOOR:
-                self.add_log(
-                    f"🛑 [ABSOLUTE PANIC BLOCK] Market Health {current_health:.1f}% is in FREEFALL. "
-                    f"ALL entries blocked. Capital protected. Strategy: {strategy_name}"
-                )
-                return False
-            
-            # 😱 [FGI FEAR FILTER] — Block entries during extreme market fear.
-            # In fear markets (FGI<35), whales dump every small rally. Odds are stacked against us.
-            fgi_value = int(self.stats.get('fear_greed_index', 50))
-            FGI_MIN_NORMAL   = 40  # Minimum FGI for regular entries
-            FGI_MIN_ROCKET   = 35  # Minimum FGI even for explosive rocket signals
-            is_rocket = 'ROCKET' in strategy_name or 'IGNITION' in strategy_name or 'VSHAPE' in strategy_name
-            fgi_threshold = FGI_MIN_ROCKET if is_rocket else FGI_MIN_NORMAL
-            if fgi_value < fgi_threshold:
-                self.add_log(
-                    f"😱 [FGI FEAR BLOCK] FGI={fgi_value} < {fgi_threshold} (Extreme Fear). "
-                    f"Market too fearful for entry. Strategy: {strategy_name}. Protecting capital."
-                )
-                return False
-        
-        try:
-            balance = self.api.get_account_balance('USDT')
-            multiplier = self.stats.get('qty_multiplier', 1.0)
-            
-            # --- 🧠 PROSOFT DYNAMIC KELLY SIZING (AI Confidence & Win Rate) ---
-            # Automatically scales up when winning, scales down during losing streaks.
-            win_rate = self.stats.get('ai_accuracy', 50)
-            health = self.stats.get('market_health', 50)
-            if win_rate >= 65 and health >= 55 and conf >= 0.85:
-                multiplier *= 1.8  # Aggressive sizing on absolute confidence
-                self.add_log(f"🧠 [KELLY SIZING] Aggressive mode activated! WinRate: {win_rate}%. Scaling up.")
-            elif win_rate <= 45 or health <= 40:
-                multiplier *= 0.5  # Defensive sizing
-                self.add_log(f"🛡️ [KELLY SIZING] Defensive mode. WinRate: {win_rate}%. Scaling down.")
-
-            # 12.8 PROSOFT: Smart Sizing for Small Accounts
-            target_usd = qty * price * multiplier
-            safe_usd = min(target_usd, balance * 0.95)
-            
-            # Ensure we don't fall below Binance $10 limit if we have enough
-            if safe_usd < 10.1 and balance >= 10.1:
-                safe_usd = balance * 0.98  # Use almost everything if we are at the limit
-            
-            if safe_usd < 10.0:
-                self.add_log(f"⚠️ [EXECUTION] Aborted: Resulting amount ${safe_usd:.2f} is below Binance Minimum or Balance.")
+        async with self.trade_lock:
+            # 🛡️ Anti-Duplicate Race Condition Guard
+            if len(self.active_trades) >= int(os.getenv('MAX_CONCURRENT_TRADES', 3)):
                 return False
 
-            final_qty = safe_usd / price
-            order_res = self.orders.place_market_buy(symbol, final_qty)
-        except Exception as e:
-            self.add_log(f"Execution Error: {str(e)}")
-            order_res = None
+            self.add_log(f"CORE EXECUTION: {side} {symbol} @ {price} [{strategy_name}]")
+            
+            try:
+                if side == 'BUY':
+                    current_health = self.stats.get('market_health', 50)
+                    ABSOLUTE_PANIC_FLOOR = 28.0
+                    if current_health < ABSOLUTE_PANIC_FLOOR:
+                        self.add_log(
+                            f"🛑 [ABSOLUTE PANIC BLOCK] Market Health {current_health:.1f}% is in FREEFALL. "
+                            f"ALL entries blocked. Capital protected. Strategy: {strategy_name}"
+                        )
+                        return False
+                    
+                    fgi_value = int(self.stats.get('fear_greed_index', 50))
+                    FGI_MIN_NORMAL   = 40
+                    FGI_MIN_ROCKET   = 35
+                    is_rocket = 'ROCKET' in strategy_name or 'IGNITION' in strategy_name or 'VSHAPE' in strategy_name
+                    fgi_threshold = FGI_MIN_ROCKET if is_rocket else FGI_MIN_NORMAL
+                    if fgi_value < fgi_threshold:
+                        self.add_log(
+                            f"😱 [FGI FEAR BLOCK] FGI={fgi_value} < {fgi_threshold} (Extreme Fear). "
+                            f"Market too fearful for entry. Strategy: {strategy_name}."
+                        )
+                        return False
+                    
+                    # ── 🧠 PROSOFT DYNAMIC KELLY SIZING (AI Confidence & Win Rate) ──
+                    balance = self.api.get_account_balance('USDT')
+                    multiplier = self.stats.get('qty_multiplier', 1.0)
+                    win_rate = self.stats.get('ai_accuracy', 50)
+                    if win_rate >= 65 and current_health >= 55 and conf >= 0.85:
+                        multiplier *= 1.8 
+                        self.add_log(f"🧠 [KELLY SIZING] Aggressive mode: Scaling up (WinRate: {win_rate}%).")
+                    elif win_rate <= 45 or current_health <= 40:
+                        multiplier *= 0.5
+                        self.add_log(f"🛡️ [KELLY SIZING] Defensive mode: Scaling down (Health: {current_health}%).")
+
+                    target_usd = qty * price * multiplier
+                    safe_usd = min(target_usd, balance * 0.95)
+                    if safe_usd < 10.1 and balance >= 10.1:
+                        safe_usd = balance * 0.98 
+
+                    if safe_usd < 10.0:
+                        self.add_log(f"⚠️ [EXECUTION] Aborted: Resulting amount ${safe_usd:.2f} is below Binance Minimum.")
+                        return False
+
+                    final_qty = safe_usd / price
+                    order_res = self.orders.place_market_buy(symbol, final_qty)
+                else:
+                    # Logic for SELL or other sides if needed
+                    order_res = self.orders.place_market_sell(symbol, qty)
+            except Exception as e:
+                self.add_log(f"Execution Error: {str(e)}")
+                order_res = None
         
         if order_res:
             # ✅ FILL PRICE FIX: Use ACTUAL weighted average fill price from Binance,
