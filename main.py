@@ -284,6 +284,11 @@ class TradingBot:
         Returns (allowed: bool, reason: str).
         All gates must pass before entering a trade.
         """
+        # ── Gate 0: Global Blacklist Gate ──
+        # Check if symbol is in scanner's blacklist (Stablecoins, Gold, etc.)
+        if hasattr(self, 'market_scanner') and any(blocked in symbol for blocked in self.market_scanner.blacklist):
+            return False, f"GLOBAL BLACKLIST: {symbol} is a restricted asset."
+            
         # ── Gate 0: Max Concurrent Trades Limit ──
         # For micro-accounts (under $40), strictly allow ONLY 1 active trade.
         balance = self.api.get_account_balance('USDT')
