@@ -27,7 +27,7 @@ from src.utils.logger import app_logger
 
 # ─── Default limits (overridable via environment variables) ───────────────────
 _MAX_DAILY_LOSS_PCT   = float(os.getenv('CB_MAX_DAILY_LOSS_PCT',   5.0))   # 5%
-_MAX_CONSECUTIVE_LOSS = int(os.getenv('CB_MAX_CONSECUTIVE_LOSS',   5))
+_MAX_CONSECUTIVE_LOSS = int(os.getenv('CB_MAX_CONSECUTIVE_LOSS',   10))  # Increased from 5 to 10 to prevent premature lockouts
 STATE_FILE = 'data/circuit_breaker_state.json'
 # ─────────────────────────────────────────────────────────────────────────────
 
