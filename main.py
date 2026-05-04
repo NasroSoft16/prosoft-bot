@@ -1873,14 +1873,22 @@ class TradingBot:
                                 continue
 
                             if current_health < adaptive_min_health:
-                                self.add_log(f"⚡ [ROCKET BYPASS] Health {current_health:.1f}% < Req {adaptive_min_health:.1f}%. BUT this is an explosive rocket. BYPASSING HEALTH GATE!")
+                                _bypass_key = f'_bypass_logged_{self.symbol}'
+                                _last_bypass = getattr(self, _bypass_key, 0)
+                                if time.time() - _last_bypass >= 60:
+                                    self.add_log(f"⚡ [ROCKET BYPASS] Health {current_health:.1f}% < Req {adaptive_min_health:.1f}%. BUT this is an explosive rocket. BYPASSING HEALTH GATE!")
+                                    setattr(self, _bypass_key, time.time())
                                 # WE DO NOT CONTINUE. We allow the rocket to bypass health.
 
                             # Gate 4: Blacklist Check
                             if self.symbol in self.blacklisted_symbols:
                                 expiry = self.blacklisted_symbols[self.symbol]
                                 if time.time() < expiry:
-                                    self.add_log(f"⛔ [ROCKET BLOCKED] {self.symbol} is in isolation (recent loss).")
+                                    _block_key = f'_blocked_logged_{self.symbol}'
+                                    _last_b_logged = getattr(self, _block_key, 0)
+                                    if time.time() - _last_b_logged >= 60:
+                                        self.add_log(f"⛔ [ROCKET BLOCKED] {self.symbol} is in isolation (recent loss).")
+                                        setattr(self, _block_key, time.time())
                                     continue
                                 else:
                                     del self.blacklisted_symbols[self.symbol]
@@ -2153,7 +2161,10 @@ class TradingBot:
                             if arb_opps:
                                 best = arb_opps[0]
                                 liquidity_status = "✅ SECURE" if best.get('is_high_liquidity') else "⚠️ LOW DEPTH"
-                                self.add_log(f"🔺 [ARBITRAGE] Best: {best['route_name']} ({best['direction']}) +{best['profit_pct']}% | {liquidity_status}")
+                                # 🔇 SPAM GUARD: Only log arbitrage if profit is decent
+                                if best['profit_pct'] > 0.2:
+                                    self.add_log(f"🔺 [ARBITRAGE] Best: {best['route_name']} ({best['direction']}) +{best['profit_pct']}% | {liquidity_status}")
+                                
                                 if best['profit_pct'] > 0.3:
                                     now = datetime.now().strftime("%H:%M:%S")
                                     arb_msg = (f"🔺 *ARBITRAGE ALERT / تنبيه مراجحة* 🔺\n"
