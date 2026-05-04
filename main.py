@@ -733,19 +733,19 @@ class TradingBot:
                         trade['trailing_sl'] = rocket_trail_sl
                         trade_sl = rocket_trail_sl
 
-            # ── 🛡️ [SMART PROFIT LOCKER] ──
-            # Once +0.80% is reached, instantly lock Break-Even (+0.15%).
-            # As price climbs further, trail 50% of the new gains securely.
-            if highest_peak >= entry_p * 1.008:
-                profit_above_08 = (highest_peak - entry_p * 1.008) / entry_p
-                smart_lock_pct = 0.0015 + (profit_above_08 * 0.5) # lock 50% of any extra gain
+            # ── 🛡️ [ULTRA-SCALP SMART LOCKER] ──
+            # Activates very early at +0.45% to guarantee no losses on quick spikes.
+            # As price climbs further, trail aggressively by locking 70% of new gains.
+            if highest_peak >= entry_p * 1.0045:
+                profit_above_045 = (highest_peak - entry_p * 1.0045) / entry_p
+                smart_lock_pct = 0.0015 + (profit_above_045 * 0.70) # lock 70% of extra gain
                 smart_lock_sl = entry_p * (1 + smart_lock_pct)
                 
                 if smart_lock_sl > trade_sl:
                     trade['trailing_sl'] = smart_lock_sl
                     trade_sl = smart_lock_sl
                     if not trade.get('be_logged'):
-                        self.add_log(f"🛡️ [SMART LOCK ACTIVATED] {trade_symbol} reached +0.80%. Profit strictly secured.")
+                        self.add_log(f"🛡️ [ULTRA-LOCK ACTIVATED] {trade_symbol} reached +0.45%. Securing Break-Even & Trailing tightly.")
                         trade['be_logged'] = True
 
             # --- 📈 DYNAMIC ATR RUBBER BAND (الرباط المطاطي الديناميكي) ---
