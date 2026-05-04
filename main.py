@@ -2934,7 +2934,12 @@ class TradingBot:
             if self.active_trades:
                 report += f"📈 *ACTIVE POSITIONS ({len(self.active_trades)}) / الصفقات الحالية*\n"
                 for t in self.active_trades:
-                    t_price = self.stats.get('price', 0)
+                    try:
+                        # MUST GET SPECIFIC SYMBOL PRICE, not the global scanner price
+                        t_price = self.api.get_symbol_ticker(t['symbol'])
+                    except:
+                        t_price = t['entry_price'] # Fallback
+                        
                     pnl_pct = (t_price / t['entry_price'] - 1) * 100
                     color = "🟢" if pnl_pct > 0 else "🔴"
                     report += (
