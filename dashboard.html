@@ -2550,7 +2550,7 @@
 
                 // ── Section 5: Last 10 Trades from Memory ──
                 report += `📜 [LAST 10 TRADES FROM MEMORY]\n`;
-                const last10 = Array.isArray(memory) ? memory.slice(-10).reverse() : [];
+                const last10 = Array.isArray(memory) ? memory.slice(0, 10) : [];
                 if (last10.length === 0) {
                     report += `  No trade memory found.\n`;
                 } else {
