@@ -748,6 +748,26 @@ class TradingBot:
                         self.add_log(f"🛡️ [ULTRA-LOCK ACTIVATED] {trade_symbol} reached +0.45%. Securing Break-Even & Trailing tightly.")
                         trade['be_logged'] = True
 
+            # ── 💸 [SCALP PARTIAL TP - SECURE CASH] ──
+            # If the trade reaches +0.60%, secure real cash immediately by selling 50% of the position.
+            if highest_peak >= entry_p * 1.006 and not trade.get('scalp_partial_done'):
+                trade_qty = trade.get('qty', 0)
+                half_qty = trade_qty * 0.5
+                if half_qty > 0:
+                    try:
+                        res = self.order_manager.place_market_sell(trade_symbol, half_qty)
+                        if res:
+                            trade['scalp_partial_done'] = True
+                            trade['qty'] = trade_qty - half_qty # update local qty
+                            self.add_log(f"💸 [SCALP PARTIAL TP] {trade_symbol} reached +0.60%. Sold 50% to secure hard cash!")
+                            if hasattr(self, 'telegram'):
+                                import asyncio
+                                asyncio.create_task(self.telegram.send_message(
+                                    f"💸 *PARTIAL PROFIT SECURED*\n`{trade_symbol}` hit +0.60%.\nSold 50% of position.\nRemaining is running risk-free."
+                                ))
+                    except Exception as e:
+                        self.add_log(f"⚠️ Partial TP Error: {e}")
+
             # --- 📈 DYNAMIC ATR RUBBER BAND (الرباط المطاطي الديناميكي) ---
             # Instead of static steps, we use the coin's natural breath (ATR) to trail profits
             # Fee-aware: Ensure we cover 0.15% roundtrip Binance fee
