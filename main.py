@@ -2802,15 +2802,9 @@ class TradingBot:
                 if not any(t['symbol'] == symbol for t in self.active_trades):
                     self.add_log(f"🛡️ [RECOVERY] Auditing ghost asset: {asset}...")
                     
-                    try:
-                        trades = self.api.client.get_my_trades(symbol=symbol, limit=5)
-                        buy_trades = [t for t in trades if t.get('isBuyer')]
-                        if buy_trades:
-                            entry_price = float(buy_trades[-1]['price'])
-                        else:
-                            entry_price = ticker 
-                    except:
-                        entry_price = ticker
+                    # Force entry price to current ticker to prevent ancient 
+                    # trades from corrupting today's PnL when liquidated.
+                    entry_price = ticker
                         
                     new_trade = {
                         'symbol': symbol,
