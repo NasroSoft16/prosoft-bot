@@ -755,6 +755,13 @@ class TradingBot:
                 half_qty = trade_qty * 0.5
                 if half_qty > 0:
                     try:
+                        # 1. Unlock funds by cancelling current OCO
+                        if 'oco_id' in trade:
+                            try:
+                                self.api.client.cancel_order_list(symbol=trade_symbol, orderListId=trade['oco_id'])
+                            except: pass
+                            
+                        # 2. Sell half
                         res = self.order_manager.place_market_sell(trade_symbol, half_qty)
                         if res:
                             trade['scalp_partial_done'] = True
@@ -765,6 +772,9 @@ class TradingBot:
                                 asyncio.create_task(self.telegram.send_message(
                                     f"💸 *PARTIAL PROFIT SECURED*\n`{trade_symbol}` hit +0.60%.\nSold 50% of position.\nRemaining is running risk-free."
                                 ))
+                            
+                            # 3. Secure the remaining half with a new OCO
+                            await self._sync_remote_sl(trade)
                     except Exception as e:
                         self.add_log(f"⚠️ Partial TP Error: {e}")
 
@@ -889,14 +899,26 @@ class TradingBot:
                 if trade_price >= halfway and not trade.get('partial_done'):
                     half_qty = trade_qty * 0.4
                     if half_qty > 0:
-                        self.order_manager.place_market_sell(trade_symbol, half_qty)
-                        trade['partial_done'] = True
-                        # Move SL to break-even safely
-                        trade['trailing_sl'] = entry_p * 1.002
-                        trade['sl'] = entry_p * 1.002
-                        self.add_log(
-                            f"🟡 PARTIAL TP: sold 40% of {trade_symbol} | SL moved to break-even"
-                        )
+                        try:
+                            # 1. Cancel current OCO to free locked balance
+                            if 'oco_id' in trade:
+                                try:
+                                    self.api.client.cancel_order_list(symbol=trade_symbol, orderListId=trade['oco_id'])
+                                except: pass
+                            
+                            # 2. Execute Market Sell
+                            res = self.order_manager.place_market_sell(trade_symbol, half_qty)
+                            if res:
+                                trade['partial_done'] = True
+                                trade['qty'] = trade_qty - half_qty
+                                # Move SL to break-even safely
+                                trade['trailing_sl'] = entry_p * 1.002
+                                trade['sl'] = entry_p * 1.002
+                                self.add_log(f"🟡 PARTIAL TP: sold 40% of {trade_symbol} | SL moved to break-even")
+                                # 3. Sync new OCO with remaining balance
+                                await self._sync_remote_sl(trade)
+                        except Exception as e:
+                            self.add_log(f"⚠️ Partial TP Error: {e}")
 
     async def _close_trade(self, trade, exit_price, reason=''):
         """
