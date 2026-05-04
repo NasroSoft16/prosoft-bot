@@ -973,6 +973,9 @@ class TradingBot:
                 # Remove from trackers
                 if trade in self.active_trades:
                     self.active_trades.remove(trade)
+                # ── [GHOST COOLDOWN] Block Ghost Recovery from re-picking this symbol for 90s ──
+                if not hasattr(self, '_recently_closed'): self._recently_closed = {}
+                self._recently_closed[trade['symbol']] = time.time() + 90
                 self.healer.save_trade_state(self.active_trades)
 
                 self.add_log(
@@ -2812,6 +2815,12 @@ class TradingBot:
                 if not ticker or (qty * ticker < 0.3): continue
                 
                 if not any(t['symbol'] == symbol for t in self.active_trades):
+                    # ── [RACE CONDITION GUARD] Don't pick up symbols closed in the last 90s ──
+                    if not hasattr(self, '_recently_closed'): self._recently_closed = {}
+                    recently_closed_until = self._recently_closed.get(symbol, 0)
+                    if time.time() < recently_closed_until:
+                        self.add_log(f"⏳ [GHOST GUARD] {symbol} was just closed — skipping recovery for {int(recently_closed_until - time.time())}s more.")
+                        continue
                     self.add_log(f"🛡️ [RECOVERY] Auditing ghost asset: {asset}...")
                     
                     # Force entry price to current ticker to prevent ancient 
