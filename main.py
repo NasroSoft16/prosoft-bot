@@ -2586,7 +2586,13 @@ class TradingBot:
         pnl_pct = pnl_decimal * 100
         p_qty = trade.get('qty', 0)
         pnl_absolute = (price - entry_p) * p_qty
-        
+
+        # ── [GHOST DUST GUARD] Skip all accounting for recovered dust ──
+        if trade.get('is_dust_recovery'):
+            self.active_trades = [t for t in self.active_trades if t is not trade]
+            self.add_log(f"🧹 [DUST SWEEP] {trade['symbol']} dust swept silently via close_trade_by_symbol. No PnL impact.")
+            return
+
         self.add_log(f"TRADE CLOSED ({reason}): {trade['symbol']} @ {price} | PNL: ${pnl_absolute:.2f} ({pnl_pct:.2f}%)")
     
         if self.execution_mode == 'auto' or "MANUAL" in reason or reason in ["SL", "TP", "TRAILING STOP", "GLOBAL SAFETY (1.95%)"] or "SAFETY" in reason or "LIMIT" in reason or "EMERGENCY" in reason:
