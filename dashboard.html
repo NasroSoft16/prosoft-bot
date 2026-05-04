@@ -2557,7 +2557,8 @@
                     last10.forEach(t => {
                         const pnl = Number(t.profit_loss || 0);
                         const sign = pnl >= 0 ? '✅' : '❌';
-                        report += `  ${sign} ${t.exit_time || '?'} | ${t.symbol} | ${t.side} | Entry:${(t.entry_price||0).toFixed(4)} Exit:${(t.exit_price||0).toFixed(4)} | PnL:${pnl.toFixed(3)}$ | ${t.reason || ''}\n`;
+                        let peakStr = t.highest_peak && t.highest_peak > 0 ? ` Peak:${t.highest_peak.toFixed(4)} |` : '';
+                        report += `  ${sign} ${t.exit_time || '?'} | ${t.symbol} | ${t.side} | Entry:${(t.entry_price||0).toFixed(4)} Exit:${(t.exit_price||0).toFixed(4)} |${peakStr} PnL:${pnl.toFixed(3)}$ | ${t.reason || ''}\n`;
                         if (t.neural_lesson) report += `     🧠 Lesson: ${t.neural_lesson}\n`;
                     });
                 }

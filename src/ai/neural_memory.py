@@ -43,7 +43,8 @@ class NeuralMemory:
                     entry_time     TEXT,
                     exit_time      TEXT,
                     lesson_learned TEXT,
-                    strategy_used  TEXT
+                    strategy_used  TEXT,
+                    highest_peak   REAL
                 )
             """)
 
@@ -55,7 +56,8 @@ class NeuralMemory:
             missing_cols = {
                 'entry_time': 'TEXT',
                 'exit_time': 'TEXT',
-                'strategy_used': 'TEXT'
+                'strategy_used': 'TEXT',
+                'highest_peak': 'REAL'
             }
             
             for col, col_type in missing_cols.items():
@@ -90,7 +92,7 @@ class NeuralMemory:
 
     def log_trade(self, symbol, side, entry, exit_p,
                   entry_t, exit_t, pnl, conf, health, sentiment,
-                  strategy_used=''):
+                  strategy_used='', highest_peak=0.0):
         try:
             lesson = (
                 "POSITIVE: Pattern reinforced."
@@ -103,10 +105,10 @@ class NeuralMemory:
                 INSERT INTO trade_memory
                 (symbol, side, entry_price, exit_price, entry_time, exit_time,
                  profit_loss, ai_confidence, market_health, sentiment,
-                 lesson_learned, strategy_used)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                 lesson_learned, strategy_used, highest_peak)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (symbol, side, entry, exit_p, entry_t, exit_t,
-                  pnl, conf, health, sentiment, lesson, strategy_used))
+                  pnl, conf, health, sentiment, lesson, strategy_used, highest_peak))
             conn.commit()
             trade_id = cursor.lastrowid
             conn.close()

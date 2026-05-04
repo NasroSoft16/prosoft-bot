@@ -930,6 +930,7 @@ class TradingBot:
                         health        = trade.get('market_health', self.stats.get('market_health', 50)),
                         sentiment     = self.stats.get('sentiment', 'Neural'),
                         strategy_used = trade.get('strategy', reason),
+                        highest_peak  = trade.get('highest_peak', entry_p)
                     )
                     self.add_log(f"🧠 Brain-Link: Trade saved to -> {db_abs_path} (Reason: {reason})")
                 except Exception as log_err:
@@ -2662,7 +2663,8 @@ class TradingBot:
                 conf          = conf,
                 health        = float(self.stats.get('market_health', 50)),
                 sentiment     = str(self.stats.get('sentiment', 'Neural')),
-                strategy_used = str(trade.get('strategy', reason))
+                strategy_used = str(trade.get('strategy', reason)),
+                highest_peak  = float(trade.get('highest_peak', entry_p))
             )
             self.add_log(f"🧠 Brain-Link: Trade saved to -> {db_abs_path} (Dashboard Exit)")
         except Exception as log_err:
