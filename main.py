@@ -652,7 +652,11 @@ class TradingBot:
             _raw_atr = df.iloc[-1].get('ATR', entry_p * 0.01) if df is not None else entry_p * 0.01
             _atr_ratio = (float(_raw_atr) / entry_p) * 100 if entry_p > 0 else 1.0
             atr_is_volatile = _atr_ratio > 1.5
-            is_volatile = strategy_is_volatile or atr_is_volatile
+            
+            known_memes = ['PENGU', 'PEPE', 'SHIB', 'DOGE', 'FLOKI', 'BONK', 'WIF', 'BOME', 'MEME', 'TURBO', 'MYRO', 'SLERF', 'DEGEN', 'PNUT', 'CHILLGUY', 'NEIRO']
+            symbol_is_volatile = any(m in trade_symbol for m in known_memes)
+            
+            is_volatile = strategy_is_volatile or atr_is_volatile or symbol_is_volatile
 
             # ── [PROSOFT TIME STOP: Smart Volatility Holding] ──
             trade_time_str = trade.get('timestamp')
@@ -728,6 +732,18 @@ class TradingBot:
                     if rocket_trail_sl > trade_sl:
                         trade['trailing_sl'] = rocket_trail_sl
                         trade_sl = rocket_trail_sl
+
+            # ── 🛡️ [SECURE BREAK-EVEN GUARD] ──
+            # If the trade reaches +0.80%, immediately move the SL to break-even (+0.15% to cover fees)
+            # This protects trades from reversing before the full ATR Rubber Band activates.
+            if highest_peak >= entry_p * 1.008:
+                break_even_sl = entry_p * 1.0015
+                if break_even_sl > trade_sl:
+                    trade['trailing_sl'] = break_even_sl
+                    trade_sl = break_even_sl
+                    if not trade.get('be_logged'):
+                        self.add_log(f"🛡️ [BREAK-EVEN] {trade_symbol}: Reached +0.80%. SL moved to Break-Even (+0.15%).")
+                        trade['be_logged'] = True
 
             # --- 📈 DYNAMIC ATR RUBBER BAND (الرباط المطاطي الديناميكي) ---
             # Instead of static steps, we use the coin's natural breath (ATR) to trail profits
