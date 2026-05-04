@@ -907,7 +907,13 @@ class TradingBot:
                 p_qty = trade.get('qty', 0)
                 pnl_absolute = (exit_price - entry_p) * p_qty
 
-                # Update Risk Manager
+                # ── [GHOST DUST GUARD] Skip all accounting for recovered dust ──
+                if trade.get('is_dust_recovery'):
+                    self.active_trades = [t for t in self.active_trades if t is not trade]
+                    self.add_log(f"🧹 [DUST SWEEP] {trade['symbol']} dust liquidated silently. No PnL impact.")
+                    return
+
+                # ── Update Risk Manager (real trades only) ──
                 self.risk_manager.update_performance(pnl_decimal)
 
                 # ── Circuit Breaker Record (Using Equity) ──
@@ -2815,6 +2821,7 @@ class TradingBot:
                         'side': 'BUY',
                         'conf': 85.0, 
                         'order_id': 'RECOVERED',
+                        'is_dust_recovery': True,  # 🏷️ Flag: skip PnL & memory logging
                         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     self.active_trades.append(new_trade)
