@@ -2414,6 +2414,187 @@
             }
         };
     </script>
+
+    <!-- ====== 🧠 PROSOFT DIAGNOSTIC REPORT PANEL ====== -->
+    <style>
+        #diag-fab {
+            position: fixed;
+            bottom: 90px;
+            right: 18px;
+            z-index: 9999;
+            background: linear-gradient(135deg, #1e3a5f, #0f2027);
+            border: 1px solid rgba(59,130,246,0.4);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 0 18px rgba(59,130,246,0.35);
+            transition: all 0.2s;
+        }
+        #diag-fab:hover { transform: scale(1.1); box-shadow: 0 0 28px rgba(59,130,246,0.6); }
+        #diag-panel {
+            position: fixed;
+            bottom: 155px;
+            right: 18px;
+            z-index: 9998;
+            width: 370px;
+            max-height: 70vh;
+            background: #0a0d14;
+            border: 1px solid rgba(59,130,246,0.35);
+            border-radius: 14px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.7);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #diag-panel.open { display: flex; }
+        #diag-report-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            line-height: 1.6;
+            color: #94a3b8;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            max-height: 52vh;
+            padding: 14px;
+            background: #06080c;
+            border-radius: 0 0 14px 14px;
+        }
+    </style>
+
+    <!-- Floating Button -->
+    <div id="diag-fab" title="AI Diagnostic Report" onclick="toggleDiagPanel()">
+        <svg width="22" height="22" fill="none" stroke="#60a5fa" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+        </svg>
+    </div>
+
+    <!-- Diagnostic Panel -->
+    <div id="diag-panel">
+        <div style="background:#111520; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.06);">
+            <span style="font-size:11px; font-weight:700; color:#60a5fa; letter-spacing:0.08em; text-transform:uppercase;">🧠 AI Diagnostic Report</span>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button onclick="generateDiagReport()" style="font-size:10px; background:#1e3a5f; border:1px solid #2563eb; color:#93c5fd; padding:4px 10px; border-radius:6px; cursor:pointer;">⟳ Refresh</button>
+                <button onclick="copyDiagReport()" style="font-size:10px; background:#14532d; border:1px solid #16a34a; color:#86efac; padding:4px 10px; border-radius:6px; cursor:pointer;">📋 Copy</button>
+                <button onclick="toggleDiagPanel()" style="color:#64748b; font-size:16px; background:none; border:none; cursor:pointer; line-height:1;">✕</button>
+            </div>
+        </div>
+        <div id="diag-report-text">جاري تحميل التقرير... انقر Refresh</div>
+    </div>
+
+    <script>
+        function toggleDiagPanel() {
+            const panel = document.getElementById('diag-panel');
+            panel.classList.toggle('open');
+            if (panel.classList.contains('open')) generateDiagReport();
+        }
+
+        async function generateDiagReport() {
+            const el = document.getElementById('diag-report-text');
+            el.textContent = '⏳ Generating diagnostic snapshot...';
+            try {
+                const [statsRes, analyticsRes, memoryRes] = await Promise.all([
+                    fetch(`${API_BASE}/stats`),
+                    fetch(`${API_BASE}/analytics`),
+                    fetch(`${API_BASE}/memory`)
+                ]);
+                const stats  = await statsRes.json();
+                const analytics = await analyticsRes.json();
+                const memory = await memoryRes.json();
+
+                const bs = stats.bot_stats || {};
+                const trades = stats.active_trades || [];
+                const logs = stats.logs || [];
+
+                // ── Section 1: Snapshot ──
+                const now = new Date().toLocaleString('ar-DZ');
+                let report = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+                report += `🧠 PROSOFT DIAGNOSTIC SNAPSHOT\n`;
+                report += `📅 ${now}\n`;
+                report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+                // ── Section 2: Key Stats ──
+                report += `📊 [KEY STATS]\n`;
+                report += `  Asset        : ${stats.current_symbol || 'N/A'}\n`;
+                report += `  Price        : $${(bs.price || 0).toFixed(4)}\n`;
+                report += `  Balance      : $${(bs.balance || 0).toFixed(2)}\n`;
+                report += `  Total Equity : $${(bs.total_equity || 0).toFixed(2)}\n`;
+                report += `  Daily PnL    : ${(bs.daily_pnl_pct || 0).toFixed(2)}% ($${(bs.daily_pnl || 0).toFixed(3)})\n`;
+                report += `  Win Rate     : ${(bs.ai_accuracy || 0).toFixed(1)}%\n`;
+                report += `  Mkt Health   : ${(bs.market_health || 0).toFixed(1)}%\n`;
+                report += `  Fear/Greed   : ${bs.fear_greed_index || 'N/A'}\n`;
+                report += `  Regime       : ${bs.regime || 'N/A'}\n`;
+                report += `  AI Conf Thr  : ${(bs.ai_confidence || 0).toFixed(2)}\n\n`;
+
+                // ── Section 3: Active Trades ──
+                report += `📈 [ACTIVE POSITIONS: ${trades.length}]\n`;
+                if (trades.length === 0) {
+                    report += `  No active trades.\n`;
+                } else {
+                    trades.forEach(t => {
+                        const ep = Number(t.entry_price || 0);
+                        const cp = Number(t.current_price || ep);
+                        const pnl = ep > 0 ? ((cp / ep - 1) * 100).toFixed(2) : '0.00';
+                        report += `  ${t.symbol} | Entry: $${ep.toFixed(4)} | Now: $${cp.toFixed(4)} | PnL: ${pnl}% | SL: $${(t.sl||0).toFixed(4)} | TP: $${(t.tp||0).toFixed(4)}\n`;
+                    });
+                }
+                report += `\n`;
+
+                // ── Section 4: Trade Performance ──
+                report += `🏆 [PERFORMANCE - LAST ${analytics.total_trades || 0} TRADES]\n`;
+                report += `  Win Rate  : ${(analytics.win_rate || 0).toFixed(1)}%\n`;
+                report += `  Avg PnL   : $${(analytics.avg_pn_l || 0).toFixed(3)}\n\n`;
+
+                // ── Section 5: Last 10 Trades from Memory ──
+                report += `📜 [LAST 10 TRADES FROM MEMORY]\n`;
+                const last10 = Array.isArray(memory) ? memory.slice(-10).reverse() : [];
+                if (last10.length === 0) {
+                    report += `  No trade memory found.\n`;
+                } else {
+                    last10.forEach(t => {
+                        const pnl = Number(t.profit_loss || 0);
+                        const sign = pnl >= 0 ? '✅' : '❌';
+                        report += `  ${sign} ${t.exit_time || '?'} | ${t.symbol} | ${t.side} | Entry:${(t.entry_price||0).toFixed(4)} Exit:${(t.exit_price||0).toFixed(4)} | PnL:${pnl.toFixed(3)}$ | ${t.reason || ''}\n`;
+                        if (t.neural_lesson) report += `     🧠 Lesson: ${t.neural_lesson}\n`;
+                    });
+                }
+                report += `\n`;
+
+                // ── Section 6: Key Engine Events (from logs) ──
+                const keywords = ['TRAILING BUY', 'ATR RUBBER BAND', 'WALL EJECTOR', 'BLEED STOP', 'MEME_TIME_STOP', 'STABLE_BLEED', 'SHADOW HUNTER', 'GHOST-NET', 'ROCKET GUARD', 'EMERGENCY'];
+                const keyLogs = logs.filter(l => keywords.some(k => l.includes(k)));
+                report += `⚡ [KEY ENGINE EVENTS - LAST ${keyLogs.length}]\n`;
+                if (keyLogs.length === 0) {
+                    report += `  No special engine events in recent logs.\n`;
+                } else {
+                    keyLogs.slice(-15).forEach(l => { report += `  ${l}\n`; });
+                }
+                report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+                report += `✅ END OF REPORT — Copy & send to your engineer\n`;
+                report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+                el.textContent = report;
+            } catch (e) {
+                el.textContent = `❌ Error generating report: ${e.message}\nMake sure the bot is running.`;
+            }
+        }
+
+        function copyDiagReport() {
+            const text = document.getElementById('diag-report-text').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('#diag-panel button:nth-child(2)');
+                const orig = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                btn.style.background = '#166534';
+                setTimeout(() => { btn.textContent = orig; btn.style.background = '#14532d'; }, 2000);
+            });
+        }
+    </script>
+    <!-- ====== END DIAGNOSTIC PANEL ====== -->
+
 </body>
 
 </html>
