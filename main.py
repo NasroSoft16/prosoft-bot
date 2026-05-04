@@ -644,29 +644,8 @@ class TradingBot:
                 await self._close_trade(trade, trade_price, reason="BLACKLISTED_ASSET_EJECT")
                 continue
 
-            # ── [PROSOFT TIME STOP: 45-Minute Momentum Guard] ──
-            # Scalping relies on immediate momentum. If a trade is stuck for >45m without breaking out, kill it.
-            trade_time_str = trade.get('timestamp')
-            if trade_time_str:
-                from datetime import datetime as dt
-                try:
-                    trade_time = dt.strptime(trade_time_str, "%Y-%m-%d %H:%M:%S")
-                    minutes_open = (dt.now() - trade_time).total_seconds() / 60
-                    if minutes_open > 45 and pnl_pct < 0.002: # If not at least 0.2% in profit after 45m
-                        # ── Fee Guard: Give 10 extra minutes if in profit but below fee threshold ──
-                        if pnl_pct > 0 and minutes_open < 55:
-                            self.add_log(f"⏳ [FEE GUARD] {trade_symbol}: In profit (+{pnl_pct*100:.2f}%) but below fee threshold. Extending 10m grace period.")
-                        else:
-                            self.add_log(f"⏰ [TIME STOP] {trade_symbol}: Open for {minutes_open:.0f}m with no momentum. Ejecting to free capital.")
-                            await self._close_trade(trade, trade_price, reason="TIME_STOP_45M")
-                            continue
-                except: pass
-
-
-            # ── [PROSOFT SHIELD: Universal Trailing Profit Guard] ──
+            # ── [PROSOFT VOLATILITY DETECTION] ──
             # Determine if this is a "Meme/Rocket" or High-Volatility trade
-            # FIX v2: Do NOT rely on 'strategy' tag alone (Auto-Sync trades never have it!)
-            # Instead, use DUAL DETECTION: strategy tag OR ATR-based volatility ratio
             strategy_tag = trade.get('strategy', '')
             strategy_is_volatile = any(k in strategy_tag for k in ['Meme', 'Rocket', 'Scalp', 'Sniper'])
             # ATR-based: if the coin's natural swing is > 1.5% per candle it's treated as volatile
@@ -674,6 +653,29 @@ class TradingBot:
             _atr_ratio = (float(_raw_atr) / entry_p) * 100 if entry_p > 0 else 1.0
             atr_is_volatile = _atr_ratio > 1.5
             is_volatile = strategy_is_volatile or atr_is_volatile
+
+            # ── [PROSOFT TIME STOP: Smart Volatility Holding] ──
+            trade_time_str = trade.get('timestamp')
+            if trade_time_str:
+                from datetime import datetime as dt
+                try:
+                    trade_time = dt.strptime(trade_time_str, "%Y-%m-%d %H:%M:%S")
+                    minutes_open = (dt.now() - trade_time).total_seconds() / 60
+                    
+                    if is_volatile:
+                        # Fast decay for volatile/meme coins
+                        if minutes_open > 30 and pnl_pct < 0.002:
+                            self.add_log(f"⏰ [TIME STOP] {trade_symbol}: Volatile coin flat for {minutes_open:.0f}m. Ejecting.")
+                            await self._close_trade(trade, trade_price, reason="MEME_TIME_STOP_30M")
+                            continue
+                    else:
+                        # Stable coin: Liquidity Anchor. Hold as long as it's not bleeding out.
+                        # If bleeding (-0.5%) for more than 60 mins, cut it. Otherwise, let it ride for hours.
+                        if minutes_open > 60 and pnl_pct < -0.005:
+                            self.add_log(f"🩸 [BLEED STOP] {trade_symbol}: Stable coin bleeding for {minutes_open:.0f}m. Cutting losses.")
+                            await self._close_trade(trade, trade_price, reason="STABLE_BLEED_STOP_60M")
+                            continue
+                except: pass
             
             # ── [PROSOFT HARD KILL: Absolute -1.95% Emergency Eject] ──
             # This runs FIRST before any trailing logic. No trade survives past -1.95% EVER.
@@ -720,173 +722,66 @@ class TradingBot:
                     await self._close_trade(trade, trade_price, reason="ROCKET_GUARD_SL")
                     continue
 
-                # If we are slightly in profit on a rocket, use tighter trailing (0.20% from peak)
+            # If we are slightly in profit on a rocket, use tighter trailing
                 if pnl_pct > 0 and highest_peak > entry_p:
-                    rocket_trail_sl = highest_peak * (1 - 0.0020)  # 0.20% trail for rockets
+                    rocket_trail_sl = highest_peak * (1 - 0.0025)  # Slightly wider 0.25% trail for rockets
                     if rocket_trail_sl > trade_sl:
                         trade['trailing_sl'] = rocket_trail_sl
                         trade_sl = rocket_trail_sl
 
-            # --- 🔴 ELASTIC LADDER (السلم المطاطي) ---
-            # ⚠️ FEE-AWARE: Binance round-trip fees = ~0.15%. ALL locks MUST exceed this.
-            # Gives trades more oxygen to swing while protecting REAL net profit.
-            BINANCE_FEE_ROUNDTRIP = 0.0015  # 0.075% entry + 0.075% exit = 0.15%
-            ladder_lock_pct = 0.0
-            if pnl_pct >= 0.004:   # Reach +0.40% (raised from 0.30% to ensure room above fees)
-                ladder_lock_pct = 0.0018  # Lock +0.18% — above 0.15% fee, nets ~$0.006 real profit
-            if pnl_pct >= 0.006:   # Reach +0.60%
-                ladder_lock_pct = 0.0035  # Lock +0.35% — nets ~+0.20% after fees
-            if pnl_pct >= 0.0085:  # Reach +0.85% (CHOKEHOLD TIER)
-                ladder_lock_pct = 0.0055  # Lock +0.55% — nets ~+0.40% after fees
-            if pnl_pct >= 0.010:   # Reach +1.00%
-                ladder_lock_pct = 0.0075  # Lock +0.75% — nets ~+0.60% after fees
-            if pnl_pct >= 0.012:   # Reach +1.20% (AGGRESSIVE TIER)
-                ladder_lock_pct = 0.0095  # Lock +0.95% — nets ~+0.80% after fees
-            if pnl_pct >= 0.015:   # Reach +1.50%
-                ladder_lock_pct = 0.0120  # Lock +1.20% — nets ~+1.05% after fees
-            if pnl_pct >= 0.020:   # Reach +2.00%
-                ladder_lock_pct = 0.0160  # Lock +1.60% — nets ~+1.45% after fees
+            # --- 📈 DYNAMIC ATR RUBBER BAND (الرباط المطاطي الديناميكي) ---
+            # Instead of static steps, we use the coin's natural breath (ATR) to trail profits
+            # Fee-aware: Ensure we cover 0.15% roundtrip Binance fee
+            BINANCE_FEE_ROUNDTRIP = 0.0015
             
-            # Apply Ladder Shield instantly if it provides a higher lock
-            if ladder_lock_pct > 0:
-                ladder_sl = entry_p * (1 + ladder_lock_pct)
-                if ladder_sl > trade_sl:
-                    trade['trailing_sl'] = ladder_sl
-                    trade_sl = ladder_sl
-                    net_after_fees = (ladder_lock_pct - BINANCE_FEE_ROUNDTRIP) * 100
-                    self.add_log(f"🪜 [ELASTIC LADDER] {trade_symbol}: Reached +{pnl_pct*100:.2f}%. Locked +{ladder_lock_pct*100:.2f}% (Net after fees: +{net_after_fees:.2f}%)")
-
-            # ── 🎯 [SCALP RATCHET v1.2 — Profit Time-Lock] ──
-            # Breathing Room Math: Activate @ +0.30%, Lock @ +0.16%. Buffer = 0.14%
-            # Gives the coin room to breathe and fluctuate without exiting prematurely.
-            # Then every 3 minutes, SL ratchets UP by +0.05%. Like winding a clock.
-            if pnl_pct >= 0.0030:  # Activated when reaching +0.30%
-                if not trade.get('scalp_ratchet_active'):
-                    # First activation — mark it and set base lock
-                    # Base lock MUST be above round-trip fee (0.15%) to guarantee no loss
-                    trade['scalp_ratchet_active'] = True
-                    trade['scalp_ratchet_last_tick'] = datetime.now().isoformat()
-                    trade['scalp_ratchet_level'] = 0.0016  # Base lock: +0.16% (nets +0.01% after 0.15% fees)
-                    ratchet_sl = entry_p * 1.0016
-                    if ratchet_sl > trade_sl:
-                        trade['trailing_sl'] = ratchet_sl
-                        trade_sl = ratchet_sl
-                    self.add_log(
-                        f"🎯 [SCALP RATCHET] {trade_symbol}: ACTIVATION at +{pnl_pct*100:.2f}%! "
-                        f"SL locked to +0.16% (Break-even + Fees) — ticking every 3m."
-                    )
-                else:
-                    # Ratchet is running — check if 3 minutes passed since last tick
-                    try:
-                        last_tick_str = trade.get('scalp_ratchet_last_tick', '')
-                        last_tick = datetime.fromisoformat(last_tick_str)
-                        minutes_since_tick = (datetime.now() - last_tick).total_seconds() / 60
-
-                        if minutes_since_tick >= 3.0:
-                            # ⏰ Tick! Move SL up by 0.05% (one ratchet click)
-                            current_level = trade.get('scalp_ratchet_level', 0.0016)
-                            new_level = current_level + 0.0005  # +0.05% per tick
-
-                            # Safety cap: never lock more than current profit - 0.14% buffer
-                            max_safe_level = pnl_pct - 0.0014
-                            new_level = min(new_level, max_safe_level)
-
-                            ratchet_sl = entry_p * (1 + new_level)
-                            if ratchet_sl > trade_sl:
-                                trade['trailing_sl'] = ratchet_sl
-                                trade_sl = ratchet_sl
-                                trade['scalp_ratchet_level'] = new_level
-                                trade['scalp_ratchet_last_tick'] = datetime.now().isoformat()
-                                self.add_log(
-                                    f"🎯 [SCALP RATCHET] {trade_symbol}: Tick! "
-                                    f"SL → +{new_level*100:.2f}% | "
-                                    f"Current profit: +{pnl_pct*100:.2f}%"
-                                )
-                    except Exception as ratchet_err:
-                        pass  # Silent fail — never block the main loop
-
-
-            # Tier 1: The Activation -> Unlock ATR Fee Shield
-            if pnl_pct >= activation_trigger:
-                shield_lock_pct = max(0.0015, activation_trigger * 0.4)
+            # Base breath is ATR% or 0.20% minimum.
+            coin_breath = max(0.0020, (atr / entry_p) if entry_p > 0 and atr > 0 else 0.0025)
+            
+            # If the coin is volatile, give it more space to breathe (wider rubber band)
+            trail_distance = coin_breath * 1.5 if is_volatile else coin_breath * 1.2
+            
+            # Bound the trail distance to be sane (Min 0.25%, Max 1.00%)
+            trail_distance = max(0.0025, min(0.01, trail_distance))
+            
+            # Activation: We only start trailing once we are clearly in profit (at least 1 ATR + Fees)
+            activation_threshold = coin_breath + BINANCE_FEE_ROUNDTRIP
+            
+            if pnl_pct >= activation_threshold:
+                # Calculate dynamic stop: Highest Peak - Rubber Band Distance
+                dynamic_sl = highest_peak * (1 - trail_distance)
                 
-                # Apply Shield (fallback if ladder didn't catch it)
-                fee_sl = entry_p * (1 + shield_lock_pct)
-                if fee_sl > trade_sl:
-                    trade['trailing_sl'] = fee_sl
-                    trade_sl = fee_sl
-                    self.add_log(f"🛡️ [TIER-1 SHIELD] {trade_symbol}: Guaranteed +{shield_lock_pct*100:.2f}% profit secured.")
+                # Make sure the dynamic SL is strictly locking in profit + fees (Guarantee Win)
+                min_acceptable_sl = entry_p * (1 + BINANCE_FEE_ROUNDTRIP + 0.0005) 
+                dynamic_sl = max(dynamic_sl, min_acceptable_sl)
                 
-                # Tier 1 Base Trail (Climbing the hill)
-                t1_dist = 0.5 * vol_scale if not is_volatile else 0.40 # Modest oxygen
-                trail_distance = 1 - (t1_dist / 100.0) 
-                tier_msg = f"{t1_dist:.2f}% dynamic distance (ATR={vol_scale:.1f}x)"
-
-                # Tier 1.5: The Chokehold (0.85% to 1.5% profit) -> Aggressive lock for oscillating coins
-                if pnl_pct >= 0.0085 and pnl_pct < 0.015:
-                    t15_dist = 0.35 * vol_scale if not is_volatile else 0.25
-                    trail_distance = 1 - (t15_dist / 100.0)
-                    tier_msg = f"{t15_dist:.2f}% dynamic distance (Chokehold)"
-
-                # Tier 2: The Elastic Band (1.5% to 3.5% profit) -> The oxygen zone
-                if pnl_pct >= 0.015:
-                    # SMART ADJUSTMENT: Give the rocket room to swing without shaking us out!
-                    t2_dist = 0.8 * vol_scale if not is_volatile else 0.65 
-                    trail_distance = 1 - (t2_dist / 100.0)
-                    tier_msg = f"{t2_dist:.2f}% dynamic distance (Elastic Breathing)"
-                
-                # Tier 3: The Peak Strangler (3.5%+ profit) -> Dump on their heads!
-                if pnl_pct >= 0.035:
-                    t3_dist = 0.3 * vol_scale if not is_volatile else 0.12 # Absolute suffocation at the peak
-                    trail_distance = 1 - (t3_dist / 100.0)
-                    tier_msg = f"{t3_dist:.2f}% dynamic distance (Peak-Strangler)"
-
-                # Apply the dynamically calculated trail
-                dynamic_sl = highest_peak * trail_distance
-                
-                # Only update if the new trail actually pushes the Stop Loss HIGHER
                 if dynamic_sl > trade_sl:
                     trade['trailing_sl'] = dynamic_sl
                     trade_sl = dynamic_sl
-                    self.add_log(f"⚡ [QUANTUM NET] {trade_symbol}: Trail updated to {tier_msg} off peak.")
-            
-            # --- TIME-PROTECT ENGINE (v26.0: Liquidity Preservation) ---
-            # Don't let precious capital freeze in a stagnant market
-            from datetime import datetime, timedelta
-            entry_time = trade.get('entry_time') or trade.get('time')
-            
-            if entry_time:
-                if isinstance(entry_time, str):
-                    try:
-                        # Replace generic ISO parse with robust parsing
-                        raw_str = str(entry_time).strip()
-                        # If string is just HH:MM:SS
-                        if len(raw_str) == 8 and raw_str.count(':') == 2:
-                            dt = datetime.strptime(raw_str, "%H:%M:%S")
-                            entry_time = datetime.now().replace(hour=dt.hour, minute=dt.minute, second=dt.second)
-                        else:
-                            try:
-                                entry_time = datetime.fromisoformat(raw_str)
-                            except ValueError:
-                                entry_time = datetime.strptime(raw_str, "%Y-%m-%d %H:%M:%S")
-                    except Exception:
-                        # Absolute fallback sets time backward artificially to force timeout if parse fails
-                        entry_time = datetime.now() - timedelta(minutes=60)
-                
-                # Time Limits: 20m for Volatile, 45m for Standard
-                time_limit = 20 if is_volatile else 45
-                is_stagnant = (datetime.now() - entry_time) > timedelta(minutes=time_limit)
-            else:
-                is_stagnant = False # Safety: if no time info, don't kill the trade yet
-            
-            if is_stagnant and pnl_pct < 0.001:
-                # ── Fee Guard: If trade is slightly positive but below fee threshold, wait 10 more minutes ──
-                if pnl_pct > 0 and (datetime.now() - entry_time) < timedelta(minutes=time_limit + 10):
-                    self.add_log(f"⏳ [FEE GUARD] {trade_symbol}: Positive but below 0.1% fee threshold. Holding {time_limit + 10 - int((datetime.now() - entry_time).total_seconds() / 60)}m more.")
-                else:
-                    self.add_log(f"⏳ [TIME-EXIT] {trade_symbol}: Closing stagnant trade after {time_limit}m to free capital.")
-                    await self._close_trade(trade, trade_price, reason="TIME_LIMIT_REACHED")
-                    continue
+                    locked_pct = (dynamic_sl / entry_p - 1) * 100
+                    net_after_fees = locked_pct - (BINANCE_FEE_ROUNDTRIP * 100)
+                    self.add_log(f"📈 [ATR RUBBER BAND] {trade_symbol}: Reached +{pnl_pct*100:.2f}%. Band tightened! Locked +{locked_pct:.2f}% (Net: +{net_after_fees:.2f}%)")
+
+            # --- 🧱 INSTITUTIONAL WALL EJECTOR (مستشعر الحوائط المؤسساتية) ---
+            # If we are trailing profits upward, watch out for massive sell walls just above the current price.
+            # If a whale builds a wall, we sell just below it before the price crashes.
+            if pnl_pct > 0.005:  # Only activate if we have decent profit (>0.5%)
+                try:
+                    if hasattr(self, 'order_flow') and self.order_flow is not None:
+                        of_data = self.order_flow.last_analysis if self.order_flow.last_analysis and self.order_flow.last_analysis['symbol'] == trade_symbol else self.order_flow.analyze_order_book(trade_symbol)
+                        if of_data and 'sell_walls' in of_data:
+                            for wall in of_data['sell_walls']:
+                                wall_price = wall['price']
+                                # If the wall is within 0.1% above our current price
+                                distance_to_wall = (wall_price / trade_price) - 1
+                                if 0 < distance_to_wall < 0.0010:
+                                    self.add_log(f"🚨 [WALL EJECTOR] {trade_symbol}: Massive sell wall detected at {wall_price:.6f} (just {distance_to_wall*100:.2f}% above). Ejecting NOW to secure profit!")
+                                    await self._close_trade(trade, trade_price, reason="WALL_EJECTOR_SECURE")
+                                    # Break out to avoid executing normal trailing SL below
+                                    trade_price = -1 # Force loop skip
+                                    break
+                except Exception as wall_err:
+                    pass
+
 
             # Sync with Binance to ensure safety (Rate limited to 0.15% jumps to prevent API spam)
             if trade_sl > trade.get('sl', 0) * 1.0015:
@@ -2474,6 +2369,16 @@ class TradingBot:
                                         
                                     if self.symbol not in self.trailing_buys_pool:
                                         current_p = float(df.iloc[-1]['close'])
+                                        
+                                        # --- 🕸️ THE SHADOW HUNTER ENTRY (Reverse-Net) ---
+                                        # Use actual ATR to determine the dip depth instead of static 0.3%
+                                        _raw_atr = float(df.iloc[-1].get('ATR', current_p * 0.003))
+                                        _atr_pct = _raw_atr / current_p if current_p > 0 else 0.003
+                                        # Set the trap bounce sensitivity to 30% of an ATR
+                                        trail_bounce = max(0.0015, _atr_pct * 0.3)
+                                        # Set FOMO breakout to 1.5 ATRs
+                                        fomo_break = max(0.005, _atr_pct * 1.5)
+                                        
                                         self.trailing_buys_pool[self.symbol] = {
                                             'lowest_seen': current_p,
                                             'activation_price': current_p,
@@ -2481,14 +2386,15 @@ class TradingBot:
                                             'ai_conf': ai_conf,
                                             'mkt_health': mkt_health,
                                             'fgi_val': fgi_val,
-                                            'trail_distance': 0.003, # 0.3% trailing distance to catch the bottom
-                                            'fomo_distance': 0.006,  # 0.6% pump without drop = FOMO buy
+                                            'trail_distance': trail_bounce,
+                                            'fomo_distance': fomo_break,
                                         }
-                                        self.add_log(f"🎣 [TRAILING BUY] {self.symbol} Signal intercepted! Throwing reverse-net @ {current_p:.6f}. Waiting to catch the literal dip...")
+                                        self.add_log(f"🎣 [TRAILING BUY] {self.symbol} Signal intercepted! Throwing reverse-net @ {current_p:.6f} (ATR Trap). Waiting to catch the literal dip...")
 
-                    # 7. Periodic position & report updates
-                    if loop_count % 5 == 0:
-                        pass # High-Intelligence Telegram Report active in _check_daily_report
+                    # 7. Periodic Deep Sync & Updates
+                    if loop_count % 6 == 0:  # Approx every 60 seconds
+                        # Deep API Sync to guarantee Dashboard is 100% accurate
+                        await self.sync_from_binance()
 
                     loop_count += 1
                     live.update(self.ui.update_ui(self.symbol, self.timeframe, self.stats, self.logs))
