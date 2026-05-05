@@ -726,88 +726,52 @@ class TradingBot:
                     await self._close_trade(trade, trade_price, reason="ROCKET_GUARD_SL")
                     continue
 
-            # If we are slightly in profit on a rocket, use tighter trailing
-                if pnl_pct > 0 and highest_peak > entry_p:
-                    rocket_trail_sl = highest_peak * (1 - 0.0025)  # Slightly wider 0.25% trail for rockets
-                    if rocket_trail_sl > trade_sl:
-                        trade['trailing_sl'] = rocket_trail_sl
-                        trade_sl = rocket_trail_sl
+            # ── 🛡️ THE QUANTUM VAULT (قبو الأرباح - Smart Profit Guarantor) ──
+            # Phase 0: Breathing Zone (< +0.50%) -> DO NOTHING. Let the trade breathe.
+            # Phase 1: Break-Even Lock (>= +0.50%) -> SL to Entry + 0.15% (Zero Risk).
+            # Phase 2: Profit Guarantor (>= +0.85%) -> SL to Entry + 0.45%.
+            # Phase 3: Momentum Trailing (>= +1.20%) -> Aggressive trail, SL is Peak - 0.25%.
+            
+            vault_sl = trade_sl # Default to current SL
+            highest_pct = (highest_peak / entry_p) - 1
 
-            # ── 🛡️ [ULTRA-SCALP SMART LOCKER] ──
-            # Activates very early at +0.45% to guarantee no losses on quick spikes.
-            # As price climbs further, trail aggressively by locking 70% of new gains.
-            if highest_peak >= entry_p * 1.0045:
-                profit_above_045 = (highest_peak - entry_p * 1.0045) / entry_p
-                smart_lock_pct = 0.0015 + (profit_above_045 * 0.70) # lock 70% of extra gain
-                smart_lock_sl = entry_p * (1 + smart_lock_pct)
+            if highest_pct >= 0.0120:
+                # Phase 3: Momentum Trailing (Tight 0.25% distance from peak)
+                vault_sl = highest_peak * (1 - 0.0025)
+                log_tag = "🚀 [MOMENTUM TRAIL]"
+            elif highest_pct >= 0.0085:
+                # Phase 2: Profit Guarantor (Lock at +0.45%)
+                vault_sl = entry_p * (1 + 0.0045)
+                log_tag = "💰 [PROFIT GUARANTOR]"
+            elif highest_pct >= 0.0050:
+                # Phase 1: Break-Even Lock (Lock at +0.15%)
+                vault_sl = entry_p * (1 + 0.0015)
+                log_tag = "🛡️ [BREAK-EVEN LOCK]"
                 
-                if smart_lock_sl > trade_sl:
-                    trade['trailing_sl'] = smart_lock_sl
-                    trade_sl = smart_lock_sl
-                    if not trade.get('be_logged'):
-                        self.add_log(f"🛡️ [ULTRA-LOCK ACTIVATED] {trade_symbol} reached +0.45%. Securing Break-Even & Trailing tightly.")
-                        trade['be_logged'] = True
-
-            # ── 💸 [SCALP PARTIAL TP - SECURE CASH] ──
-            # If the trade reaches +0.60%, secure real cash immediately by selling 50% of the position.
-            if highest_peak >= entry_p * 1.006 and not trade.get('scalp_partial_done'):
-                trade_qty = trade.get('qty', 0)
-                half_qty = trade_qty * 0.5
-                if half_qty > 0:
-                    try:
-                        # 1. Unlock funds by cancelling current OCO
-                        if 'oco_id' in trade:
-                            try:
-                                self.api.client.cancel_order_list(symbol=trade_symbol, orderListId=trade['oco_id'])
-                            except: pass
-                            
-                        # 2. Sell half
-                        res = self.order_manager.place_market_sell(trade_symbol, half_qty)
-                        if res:
-                            trade['scalp_partial_done'] = True
-                            trade['qty'] = trade_qty - half_qty # update local qty
-                            self.add_log(f"💸 [SCALP PARTIAL TP] {trade_symbol} reached +0.60%. Sold 50% to secure hard cash!")
-                            if hasattr(self, 'telegram'):
-                                asyncio.create_task(self.telegram.send_message(
-                                    f"💸 *PARTIAL PROFIT SECURED*\n`{trade_symbol}` hit +0.60%.\nSold 50% of position.\nRemaining is running risk-free."
-                                ))
-                            
-                            # 3. Secure the remaining half with a new OCO
-                            await self._sync_remote_sl(trade)
-                    except Exception as e:
-                        self.add_log(f"⚠️ Partial TP Error: {e}")
-
-            # --- 📈 DYNAMIC ATR RUBBER BAND (الرباط المطاطي الديناميكي) ---
-            # Instead of static steps, we use the coin's natural breath (ATR) to trail profits
-            # Fee-aware: Ensure we cover 0.15% roundtrip Binance fee
-            BINANCE_FEE_ROUNDTRIP = 0.0015
-            
-            # Base breath is ATR% or 0.20% minimum.
-            coin_breath = max(0.0020, (atr / entry_p) if entry_p > 0 and atr > 0 else 0.0025)
-            
-            # If the coin is volatile, give it more space to breathe (wider rubber band)
-            trail_distance = coin_breath * 1.5 if is_volatile else coin_breath * 1.2
-            
-            # Bound the trail distance to be sane (Min 0.25%, Max 1.00%)
-            trail_distance = max(0.0025, min(0.01, trail_distance))
-            
-            # Activation: We only start trailing once we are clearly in profit (at least 1 ATR + Fees)
-            activation_threshold = coin_breath + BINANCE_FEE_ROUNDTRIP
-            
-            if pnl_pct >= activation_threshold:
-                # Calculate dynamic stop: Highest Peak - Rubber Band Distance
-                dynamic_sl = highest_peak * (1 - trail_distance)
+            if vault_sl > trade_sl:
+                trade['trailing_sl'] = vault_sl
+                trade_sl = vault_sl
                 
-                # Make sure the dynamic SL is strictly locking in profit + fees (Guarantee Win)
-                min_acceptable_sl = entry_p * (1 + BINANCE_FEE_ROUNDTRIP + 0.0005) 
-                dynamic_sl = max(dynamic_sl, min_acceptable_sl)
+                # Log state changes so user can see the ladder climbing
+                current_phase = trade.get('vault_phase', 0)
+                new_phase = 0
+                if highest_pct >= 0.0120: new_phase = 3
+                elif highest_pct >= 0.0085: new_phase = 2
+                elif highest_pct >= 0.0050: new_phase = 1
                 
-                if dynamic_sl > trade_sl:
-                    trade['trailing_sl'] = dynamic_sl
-                    trade_sl = dynamic_sl
-                    locked_pct = (dynamic_sl / entry_p - 1) * 100
-                    net_after_fees = locked_pct - (BINANCE_FEE_ROUNDTRIP * 100)
-                    self.add_log(f"📈 [ATR RUBBER BAND] {trade_symbol}: Reached +{pnl_pct*100:.2f}%. Band tightened! Locked +{locked_pct:.2f}% (Net: +{net_after_fees:.2f}%)")
+                # Only log when advancing a phase, or every time in phase 3 (momentum trailing)
+                if new_phase > current_phase or new_phase == 3:
+                    locked_pct = (vault_sl / entry_p - 1) * 100
+                    if new_phase == 3:
+                        # Throttle phase 3 logs to prevent spamming the terminal every tick
+                        last_log_peak = trade.get('last_log_peak', 0)
+                        if highest_peak > last_log_peak * 1.001: # Log only every 0.1% peak climb
+                            self.add_log(f"{log_tag} {trade_symbol}: Peak +{highest_pct*100:.2f}%. Aggressive trail! Locked SL at +{locked_pct:.2f}%")
+                            trade['last_log_peak'] = highest_peak
+                    else:
+                        self.add_log(f"{log_tag} {trade_symbol}: Reached +{highest_pct*100:.2f}%. SL strictly locked at +{locked_pct:.2f}%")
+                    
+                    trade['vault_phase'] = max(current_phase, new_phase)
 
             # --- 🧱 INSTITUTIONAL WALL EJECTOR (مستشعر الحوائط المؤسساتية) ---
             # If we are trailing profits upward, watch out for massive sell walls just above the current price.
