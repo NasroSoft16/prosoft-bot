@@ -1035,6 +1035,11 @@ class TradingBot:
 
         except Exception as e:
             app_logger.error(f"Trade close error: {e}")
+            self.add_log(f"⚠️ ERROR CLOSING {trade.get('symbol')}: {e}")
+        finally:
+            # If the trade survived the closure attempt (API rejected, error, etc.), unmark it so we can retry later
+            if trade in getattr(self, 'active_trades', []) and 'is_closing' in trade:
+                del trade['is_closing']
 
 
 
