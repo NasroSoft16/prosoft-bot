@@ -905,39 +905,20 @@ class TradingBot:
                 await self._close_trade(trade, trade_price, reason='TP')
                 continue
 
-            # ── Partial TP at 60% of the way ──
-            if entry_p > 0 and trade_tp > 0:
-                halfway = entry_p + (trade_tp - entry_p) * 0.6
-                if trade_price >= halfway and not trade.get('partial_done'):
-                    half_qty = trade_qty * 0.4
-                    if half_qty > 0:
-                        try:
-                            # 1. Cancel current OCO to free locked balance
-                            if 'oco_id' in trade:
-                                try:
-                                    self.api.client.cancel_order_list(symbol=trade_symbol, orderListId=trade['oco_id'])
-                                except: pass
-                            
-                            # 2. Execute Market Sell
-                            res = self.order_manager.place_market_sell(trade_symbol, half_qty)
-                            if res:
-                                trade['partial_done'] = True
-                                trade['qty'] = trade_qty - half_qty
-                                # Move SL to break-even safely
-                                trade['trailing_sl'] = entry_p * 1.002
-                                trade['sl'] = entry_p * 1.002
-                                self.add_log(f"🟡 PARTIAL TP: sold 40% of {trade_symbol} | SL moved to break-even")
-                                # 3. Sync new OCO with remaining balance
-                                await self._sync_remote_sl(trade)
-                        except Exception as e:
-                            self.add_log(f"⚠️ Partial TP Error: {e}")
+            # ── [LEGACY PARTIAL TP DISABLED] ──
+            # Old 40% partial at 60% of TP range removed — replaced by superior
+            # SCALP PARTIAL TP (50% sell at +0.60%) at line ~753 above.
+            # Both running simultaneously caused double-partial & wrong qty.
+            pass
 
     async def _close_trade(self, trade, exit_price, reason=''):
         """
         Sell remaining quantity, log to memory, update stats.
         """
         try:
-            qty   = trade.get('qty', 0) * (0.6 if trade.get('partial_done') else 1.0)
+            # trade['qty'] is ALWAYS the current remaining quantity
+            # Partial TP logic already reduces it before calling _close_trade
+            qty     = trade.get('qty', 0)
             entry_p = trade.get('entry_price', exit_price)
             order = None
             
