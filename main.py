@@ -726,27 +726,47 @@ class TradingBot:
                     await self._close_trade(trade, trade_price, reason="ROCKET_GUARD_SL")
                     continue
 
-            # ── 🛡️ THE QUANTUM VAULT (قبو الأرباح - Smart Profit Guarantor) ──
-            # Phase 0: Breathing Zone (< +0.50%) -> DO NOTHING. Let the trade breathe.
-            # Phase 1: Break-Even Lock (>= +0.50%) -> SL to Entry + 0.15% (Zero Risk).
-            # Phase 2: Profit Guarantor (>= +0.85%) -> SL to Entry + 0.45%.
-            # Phase 3: Momentum Trailing (>= +1.20%) -> Aggressive trail, SL is Peak - 0.25%.
-            
+            # ── 🛡️ THE QUANTUM VAULT (قبو الأرباح - Smart Profit Guarantor v2) ──
             vault_sl = trade_sl # Default to current SL
             highest_pct = (highest_peak / entry_p) - 1
 
             if highest_pct >= 0.0120:
-                # Phase 3: Momentum Trailing (Tight 0.25% distance from peak)
+                # Phase 7: Momentum Trailing (Tight 0.25% distance from peak)
                 vault_sl = highest_peak * (1 - 0.0025)
                 log_tag = "🚀 [MOMENTUM TRAIL]"
+                new_phase = 7
+            elif highest_pct >= 0.0100:
+                # Phase 6: Heavy Lock at +0.65%
+                vault_sl = entry_p * (1 + 0.0065)
+                log_tag = "💎 [HEAVY LOCK]"
+                new_phase = 6
             elif highest_pct >= 0.0085:
-                # Phase 2: Profit Guarantor (Lock at +0.45%)
+                # Phase 5: Profit Guarantor at +0.45%
                 vault_sl = entry_p * (1 + 0.0045)
                 log_tag = "💰 [PROFIT GUARANTOR]"
+                new_phase = 5
+            elif highest_pct >= 0.0070:
+                # Phase 4: Base Profit Lock at +0.30%
+                vault_sl = entry_p * (1 + 0.0030)
+                log_tag = "💵 [BASE PROFIT]"
+                new_phase = 4
             elif highest_pct >= 0.0050:
-                # Phase 1: Break-Even Lock (Lock at +0.15%)
+                # Phase 3: Break-Even Lock at +0.15%
                 vault_sl = entry_p * (1 + 0.0015)
                 log_tag = "🛡️ [BREAK-EVEN LOCK]"
+                new_phase = 3
+            elif highest_pct >= 0.0030:
+                # Phase 2: Risk Cut 75% -> SL to -0.50%
+                vault_sl = entry_p * (1 - 0.0050)
+                log_tag = "🧯 [RISK CUT 75%]"
+                new_phase = 2
+            elif highest_pct >= 0.0015:
+                # Phase 1: Risk Cut 50% -> SL to -1.00%
+                vault_sl = entry_p * (1 - 0.0100)
+                log_tag = "🧯 [RISK CUT 50%]"
+                new_phase = 1
+            else:
+                new_phase = 0
                 
             if vault_sl > trade_sl:
                 trade['trailing_sl'] = vault_sl
@@ -754,22 +774,18 @@ class TradingBot:
                 
                 # Log state changes so user can see the ladder climbing
                 current_phase = trade.get('vault_phase', 0)
-                new_phase = 0
-                if highest_pct >= 0.0120: new_phase = 3
-                elif highest_pct >= 0.0085: new_phase = 2
-                elif highest_pct >= 0.0050: new_phase = 1
                 
-                # Only log when advancing a phase, or every time in phase 3 (momentum trailing)
-                if new_phase > current_phase or new_phase == 3:
+                # Only log when advancing a phase, or every time in phase 7 (momentum trailing)
+                if new_phase > current_phase or new_phase == 7:
                     locked_pct = (vault_sl / entry_p - 1) * 100
-                    if new_phase == 3:
-                        # Throttle phase 3 logs to prevent spamming the terminal every tick
+                    if new_phase == 7:
+                        # Throttle phase 7 logs to prevent spamming the terminal every tick
                         last_log_peak = trade.get('last_log_peak', 0)
                         if highest_peak > last_log_peak * 1.001: # Log only every 0.1% peak climb
-                            self.add_log(f"{log_tag} {trade_symbol}: Peak +{highest_pct*100:.2f}%. Aggressive trail! Locked SL at +{locked_pct:.2f}%")
+                            self.add_log(f"{log_tag} {trade_symbol}: Peak +{highest_pct*100:.2f}%. Aggressive trail! Locked SL at {'+' if locked_pct > 0 else ''}{locked_pct:.2f}%")
                             trade['last_log_peak'] = highest_peak
                     else:
-                        self.add_log(f"{log_tag} {trade_symbol}: Reached +{highest_pct*100:.2f}%. SL strictly locked at +{locked_pct:.2f}%")
+                        self.add_log(f"{log_tag} {trade_symbol}: Reached +{highest_pct*100:.2f}%. SL locked at {'+' if locked_pct > 0 else ''}{locked_pct:.2f}%")
                     
                     trade['vault_phase'] = max(current_phase, new_phase)
 
