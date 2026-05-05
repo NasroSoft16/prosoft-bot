@@ -148,16 +148,24 @@ class OrderManager:
         """Places an OCO (One-Cancels-the-Other) order for TP and SL."""
         try:
             formatted_qty = self._format_quantity(symbol, quantity)
+            # Round TP and SL prices to correct precision
+            tp_r  = round(take_profit, 6)
+            sl_r  = round(stop_loss, 6)
+            # CRITICAL: Binance STOP_LOSS_LIMIT requires:
+            #   belowStopPrice (trigger) must be ABOVE belowPrice (limit sell)
+            #   and both must be BELOW current price.
+            #   Using stop_loss * 1.001 means trigger is 0.1% above the limit price.
+            sl_trigger = round(stop_loss * 1.001, 6)
             # OCO order for SL/TP exit
             order = self.client.create_oco_order(
                 symbol=symbol,
                 side='SELL',
                 quantity=formatted_qty,
                 aboveType='LIMIT_MAKER',
-                abovePrice=str(round(take_profit, 2)),
+                abovePrice=str(tp_r),
                 belowType='STOP_LOSS_LIMIT',
-                belowStopPrice=str(round(stop_loss * 1.01, 2)), # trigger price
-                belowPrice=str(round(stop_loss, 2)),            # actual sell price
+                belowStopPrice=str(sl_trigger), # trigger: just 0.1% above the limit sell
+                belowPrice=str(sl_r),            # actual sell price (limit)
                 belowTimeInForce='GTC'
             )
             app_logger.info(f"OCO Order (SL/TP) placed: {order['orderListId']}")
