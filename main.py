@@ -1356,7 +1356,9 @@ class TradingBot:
                     current_price = self.stats.get('price', 0)
                     await self._manage_open_trades(df, current_price)
             except Exception as e:
-                app_logger.warning(f"[WATCHER] Heartbeat error: {e}")
+                err_msg = f"⚠️ [WATCHER ERROR] Trade heartbeat failed: {type(e).__name__}: {e}"
+                app_logger.warning(err_msg)
+                self.add_log(err_msg)  # CRITICAL: show in dashboard terminal too!
             await asyncio.sleep(1)  # 🔥 ALWAYS 1 second, independent of main loop
 
     async def _multi_rocket_scan(self):
