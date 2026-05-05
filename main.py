@@ -832,11 +832,23 @@ class TradingBot:
                     pass
 
 
-            # Sync with Binance to ensure safety (Rate limited to 0.15% jumps to prevent API spam)
-            if trade_sl > trade.get('sl', 0) * 1.0015:
+            # ── 🔁 [SL SYNC ENGINE v2.0] ──
+            # Push the updated SL to Binance if:
+            #  a) SL jumped by at least 0.04% (covers Smart Locker's small increments)
+            #  b) OR SL changed at all AND it's been > 30s since last sync (time fallback)
+            _last_sync_sl = trade.get('last_synced_sl', 0)
+            _last_sync_time = trade.get('last_sync_time', 0)
+            _sl_changed_enough = trade_sl > _last_sync_sl * 1.0004  # 0.04% gate
+            _time_fallback = (trade_sl > _last_sync_sl) and (time.time() - _last_sync_time > 30)
+
+            if _sl_changed_enough or _time_fallback:
                 trade['sl'] = trade_sl
+                trade['last_synced_sl'] = trade_sl
+                trade['last_sync_time'] = time.time()
+                locked_pct = (trade_sl / entry_p - 1) * 100 if entry_p > 0 else 0
+                self.add_log(f"🔒 [SL SYNC] {trade_symbol}: Pushing new SL ${trade_sl:.6f} (+{locked_pct:.2f}%) to Binance.")
                 sync_success = await self._sync_remote_sl(trade)
-                
+
                 # ── 🚨 OVERRIDE: Eject instantly if Binance rejected OCO due to latency dropdown
                 if sync_success is False and trade_price <= trade_sl:
                     self.add_log(f"⚡ [MARKET SELL OVERRIDE] {trade_symbol}: OCO Rejected. Price crashed past SL during API latency. FORCING EXIT!")
@@ -1124,27 +1136,31 @@ class TradingBot:
     async def _sync_remote_sl(self, trade):
         """
         Synchronizes the local SL/TP with Binance. Returns True if successful, False if rejected.
+        NOTE: trade['qty'] is always the CURRENT remaining quantity — partial TP logic
+        already updates it before calling this function, so we use it directly.
         """
         try:
             symbol = trade['symbol']
             qty = trade.get('qty', 0)
-            if trade.get('partial_done'):
-                qty *= 0.6
-            
-            # Cancel old OCO if exists
+
+            # Cancel old OCO if exists (MUST happen before new one is placed)
             if 'oco_id' in trade:
                 try:
                     self.api.client.cancel_order_list(symbol=symbol, orderListId=trade['oco_id'])
+                    trade.pop('oco_id', None)
                 except: pass
-            
+
             # Place new OCO with updated SL and original/default TP
             tp = trade.get('tp', trade.get('entry_price', 0) * 1.05)
-            sl = trade['sl']
-            
+            sl = trade.get('sl', trade.get('trailing_sl', 0))
+
+            if qty <= 0 or sl <= 0:
+                app_logger.warning(f"[SL Sync] Skipped {symbol}: qty={qty:.6f}, sl={sl:.6f} invalid")
+                return False
+
             oco = self.order_manager.place_oco_order(symbol, qty, tp, sl)
             if oco:
                 trade['oco_id'] = oco.get('orderListId')
-                # Optional: Silent sync to avoid console spam
                 return True
             return False
         except Exception as e:
