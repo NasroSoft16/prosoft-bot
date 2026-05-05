@@ -598,6 +598,7 @@ class TradingBot:
 
         # Removed destructive get_all_tickers bulk call. Only check specific active trades.
         for trade in list(self.active_trades):
+            if trade.get('is_closing'): continue
             trade_symbol = trade.get('symbol', self.symbol)
             
             # REAL-TIME PATH: Retry up to 3 times forcefully so we are NEVER blind.
@@ -894,6 +895,8 @@ class TradingBot:
         """
         Sell remaining quantity, log to memory, update stats.
         """
+        if trade.get('is_closing'): return
+        trade['is_closing'] = True
         try:
             # trade['qty'] is ALWAYS the current remaining quantity
             # Partial TP logic already reduces it before calling _close_trade
