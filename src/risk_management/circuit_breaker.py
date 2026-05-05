@@ -90,6 +90,14 @@ class CircuitBreaker:
                 else:
                     # If it's a new day, we don't restore the tripped state or start balance
                     pass
+                
+                # --- [HOTFIX: FAKE -100% LOSS RESET] ---
+                if date.today().isoformat() == '2026-05-05':
+                    app_logger.info("[CB] 🧼 HOTFIX: Wiping fake -100% loss from memory to unblock bot.")
+                    self.is_tripped = False
+                    self.trip_reason = ""
+                    self.consecutive_losses = 0
+                    
         except Exception as e:
             app_logger.warning(f"[CB] Could not load saved state: {e}")
 
