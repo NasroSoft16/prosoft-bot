@@ -158,8 +158,8 @@ class CircuitBreaker:
         if self.is_tripped and hasattr(self, 'last_trip_time') and self.last_trip_time:
             from datetime import datetime
             elapsed = (datetime.now() - self.last_trip_time).total_seconds() / 3600
-            if elapsed >= 4.0:
-                app_logger.info(f"[CB] 🔄 SMART RECOVERY: 4 hours passed since last trip ({self.trip_reason}). Resetting for re-evaluation.")
+            if elapsed >= 1.5:
+                app_logger.info(f"[CB] 🔄 SMART RECOVERY: 1.5 hours passed since last trip ({self.trip_reason}). Resetting for re-evaluation.")
                 self.is_tripped = False
                 self.trip_reason = ""
                 self._save_state()
