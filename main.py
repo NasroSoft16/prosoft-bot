@@ -371,8 +371,9 @@ class TradingBot:
             return False, f"NAME SHIELD: {symbol} has suspicious non-ASCII name"
 
         # ── Gate 2: Risk Manager daily limits ──
-        if not self.risk_manager.can_trade():
-            return False, "Daily loss limit / consecutive losses"
+        # DISABLED PER USER REQUEST (relying on Neural Memory and Quantum Vault instead)
+        # if not self.risk_manager.can_trade():
+        #     return False, "Daily loss limit / consecutive losses"
 
         # ── Gate 3: Minimum market health ──
         # Soft Gate: 45% (allows rockets to bypass)
