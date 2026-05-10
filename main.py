@@ -728,42 +728,45 @@ class TradingBot:
                     await self._close_trade(trade, trade_price, reason="ROCKET_GUARD_SL")
                     continue
 
-            # ── 🛡️ THE QUANTUM VAULT (قبو الأرباح - Smart Profit Guarantor v2) ──
+            # ── 🛡️ THE TRIPLE SHIELD & ELASTIC WHIP (نظام السوط المطاطي والدرع الثلاثي) ──
             vault_sl = trade_sl # Default to current SL
             highest_pct = (highest_peak / entry_p) - 1
 
-            if highest_pct >= 0.0120:
-                # Phase 7: Momentum Trailing (Tight 0.25% distance from peak)
+            if highest_pct >= 0.0200:
+                # Phase 5: Peak Guillotine (صواريخ الميم) -> Tight 0.25% distance
                 vault_sl = highest_peak * (1 - 0.0025)
-                log_tag = "🚀 [MOMENTUM TRAIL]"
-                new_phase = 7
-            elif highest_pct >= 0.0100:
-                # Phase 6: Heavy Lock at +0.65%
-                vault_sl = entry_p * (1 + 0.0065)
-                log_tag = "💎 [HEAVY LOCK]"
-                new_phase = 6
-            elif highest_pct >= 0.0085:
-                # Phase 5: Profit Guarantor at +0.45%
-                vault_sl = entry_p * (1 + 0.0045)
-                log_tag = "💰 [PROFIT GUARANTOR]"
+                log_tag = "🪓 [PEAK GUILLOTINE]"
                 new_phase = 5
-            elif highest_pct >= 0.0070:
-                # Phase 4: Base Profit Lock at +0.30%
-                vault_sl = entry_p * (1 + 0.0030)
-                log_tag = "💵 [BASE PROFIT]"
+            elif highest_pct >= 0.0100:
+                # Phase 4: Let it Run -> 0.40% distance
+                vault_sl = highest_peak * (1 - 0.0040)
+                # Enforce minimum locked profit to avoid stepping backwards
+                min_lock = entry_p * 1.0065
+                if vault_sl < min_lock: vault_sl = min_lock
+                log_tag = "🦅 [LET IT RUN]"
                 new_phase = 4
             elif highest_pct >= 0.0050:
-                # Phase 3: Break-Even Lock at +0.15%
-                vault_sl = entry_p * (1 + 0.0015)
-                log_tag = "🛡️ [BREAK-EVEN LOCK]"
+                # Phase 3: Base Profit Trail -> 0.35% distance
+                vault_sl = highest_peak * (1 - 0.0035)
+                min_lock = entry_p * 1.0015
+                if vault_sl < min_lock: vault_sl = min_lock
+                log_tag = "💰 [BASE PROFIT TRAIL]"
                 new_phase = 3
             elif highest_pct >= 0.0030:
-                # Phase 2: Risk Cut 75% -> SL to -0.50%
-                vault_sl = entry_p * (1 - 0.0050)
-                log_tag = "🧯 [RISK CUT 75%]"
+                # Phase 2: Break-Even Trail -> 0.30% distance
+                vault_sl = highest_peak * (1 - 0.0030)
+                # Shield 1: Zero-Loss Lock - Never go below +0.05% once we hit +0.25%
+                if vault_sl < entry_p * 1.0005:
+                    vault_sl = entry_p * 1.0005
+                log_tag = "⚡ [SHADOW TRAIL]"
                 new_phase = 2
+            elif highest_pct >= 0.0025:
+                # Phase 1.5: ZERO-LOSS LOCK (الدرع الأول)
+                vault_sl = entry_p * 1.0005  # +0.05%
+                log_tag = "🛡️ [ZERO-LOSS LOCK]"
+                new_phase = 1
             elif highest_pct >= 0.0015:
-                # Phase 1: Risk Cut 50% -> SL to -1.00%
+                # Phase 1: Risk Cut 50%
                 vault_sl = entry_p * (1 - 0.0100)
                 log_tag = "🧯 [RISK CUT 50%]"
                 new_phase = 1
@@ -794,7 +797,7 @@ class TradingBot:
             # --- 🧱 INSTITUTIONAL WALL EJECTOR (مستشعر الحوائط المؤسساتية) ---
             # If we are trailing profits upward, watch out for massive sell walls just above the current price.
             # If a whale builds a wall, we sell just below it before the price crashes.
-            if pnl_pct > 0.005:  # Only activate if we have decent profit (>0.5%)
+            if pnl_pct >= 0.0025:  # Shield 3: Activate Wall Ejector early at +0.25% profit
                 try:
                     if hasattr(self, 'order_flow') and self.order_flow is not None:
                         of_data = self.order_flow.last_analysis if self.order_flow.last_analysis and self.order_flow.last_analysis['symbol'] == trade_symbol else self.order_flow.analyze_order_book(trade_symbol)
