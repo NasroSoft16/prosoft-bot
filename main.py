@@ -683,14 +683,14 @@ class TradingBot:
                             continue
                 except: pass
             
-            # ── [PROSOFT HARD KILL: Absolute -1.95% Emergency Eject] ──
-            # This runs FIRST before any trailing logic. No trade survives past -1.95% EVER.
-            if pnl_pct <= -0.0195:
+            # ── [PROSOFT HARD KILL: Absolute -1.20% Emergency Eject] ──
+            # This runs FIRST before any trailing logic. No trade survives past -1.20% EVER.
+            if pnl_pct <= -0.0120:
                 self.add_log(
-                    f"🚨 [HARD KILL] {trade_symbol}: Absolute loss limit -1.95% breached "
+                    f"🚨 [HARD KILL] {trade_symbol}: Absolute loss limit -1.20% breached "
                     f"(PNL: {pnl_pct*100:.2f}%). FORCING EMERGENCY EXIT!"
                 )
-                await self._close_trade(trade, trade_price, reason="HARD_KILL_-1.95%")
+                await self._close_trade(trade, trade_price, reason="HARD_KILL_-1.20%")
                 continue
 
             # Track the highest price reached since entry to lock in every cent securely
@@ -748,21 +748,21 @@ class TradingBot:
             elif highest_pct >= 0.0050:
                 # Phase 3: Base Profit Trail -> 0.35% distance
                 vault_sl = highest_peak * (1 - 0.0035)
-                min_lock = entry_p * 1.0015
+                min_lock = entry_p * 1.0020
                 if vault_sl < min_lock: vault_sl = min_lock
                 log_tag = "💰 [BASE PROFIT TRAIL]"
                 new_phase = 3
-            elif highest_pct >= 0.0030:
+            elif highest_pct >= 0.0040:
                 # Phase 2: Break-Even Trail -> 0.30% distance
                 vault_sl = highest_peak * (1 - 0.0030)
-                # Shield 1: Zero-Loss Lock - Never go below +0.05% once we hit +0.25%
-                if vault_sl < entry_p * 1.0005:
-                    vault_sl = entry_p * 1.0005
+                # Shield 1: Zero-Loss Lock - Never go below +0.15% once we hit +0.40%
+                if vault_sl < entry_p * 1.0015:
+                    vault_sl = entry_p * 1.0015
                 log_tag = "⚡ [SHADOW TRAIL]"
                 new_phase = 2
-            elif highest_pct >= 0.0025:
+            elif highest_pct >= 0.0030:
                 # Phase 1.5: ZERO-LOSS LOCK (الدرع الأول)
-                vault_sl = entry_p * 1.0005  # +0.05%
+                vault_sl = entry_p * 1.0015  # +0.15%
                 log_tag = "🛡️ [ZERO-LOSS LOCK]"
                 new_phase = 1
             elif highest_pct >= 0.0015:
