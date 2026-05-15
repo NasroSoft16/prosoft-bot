@@ -138,8 +138,10 @@ class SelfHealingEngine:
             asset = symbol.replace('USDT', '')
             
             try:
-                # 1. Check actual free balance of the asset
-                balance = self.bot.api.get_account_balance(asset)
+                # 1. Check actual balance of the asset (Free + Locked)
+                # SMART FIX: We MUST include_locked=True because if the bot placed an OCO/SL order,
+                # Binance locks the funds. Checking only 'free' would return 0 and cause a ghost loop.
+                balance = self.bot.api.get_account_balance(asset, include_locked=True)
                 ticker = self.bot.api.get_symbol_ticker(symbol)
                 
                 if ticker and ticker > 0:

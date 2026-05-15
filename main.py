@@ -2902,6 +2902,7 @@ class TradingBot:
                         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     self.active_trades.append(new_trade)
+                    self.healer.save_trade_state(self.active_trades) # 🧠 Smart persistence to avoid memory loss
                     self.add_log(f"✅ [RECOVERY] Ghost Asset Found: {symbol} (${(qty*ticker):.2f}). Restored to monitoring.")
                     
                     # Notify Telegram
