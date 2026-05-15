@@ -262,7 +262,7 @@ class TradingBot:
 
         # ── Adaptive thresholds (updated live by StrategyOptimizer) ──
         self.ai_confidence_threshold = float(os.getenv('AI_CONFIDENCE_THRESHOLD', 0.58))
-        self.min_market_health       = float(os.getenv('MIN_MARKET_HEALTH', 42.0))
+        self.min_market_health       = float(os.getenv('MIN_MARKET_HEALTH', 45.0))  # Raised from 42 → 45 for tighter entry discipline
 
         # ── Weekly review scheduler ──
         schedule.every().sunday.at("03:00").do(
@@ -375,12 +375,19 @@ class TradingBot:
         # if not self.risk_manager.can_trade():
         #     return False, "Daily loss limit / consecutive losses"
 
-        # ── Gate 3: Minimum market health ──
-        # Soft Gate: 45% (allows rockets to bypass)
-        # Hard Gate: 28% (nothing bypasses this)
-        if market_health < 28.0:
-            return False, f"ABSOLUTE PANIC: Market health {market_health:.1f}% is too dangerous for any entry."
-            
+        # ── Gate 3: Minimum market health (3-Layer Defense) ──
+        # Layer 1 — MICRO-ACCOUNT IRON FLOOR: When equity < $40, NOTHING enters below 35%
+        # (Protects small capital from market noise — not even rockets bypass this)
+        _equity = self.stats.get('total_equity', self.api.get_account_balance('USDT'))
+        if _equity < 40.0 and market_health < 35.0:
+            return False, f"MICRO-ACCOUNT IRON FLOOR: Health {market_health:.1f}% < 35% — Capital protection mode. No entries allowed."
+
+        # Layer 2 — ABSOLUTE PANIC HARD GATE: Nothing, ever, below 33% (raised from 28%)
+        if market_health < 33.0:
+            return False, f"ABSOLUTE PANIC: Market health {market_health:.1f}% is critically dangerous. Entry REFUSED."
+
+        # Layer 3 — SOFT GATE: Dynamic threshold (default 45%, managed by Optimizer)
+        # Only rocket breakout signals can bypass this layer.
         if market_health < self.min_market_health and not is_rocket_signal:
             return False, f"Market health too low ({market_health:.1f}% < {self.min_market_health:.0f}%)"
 

@@ -173,14 +173,14 @@ class StrategyOptimizer:
             # Part B: Proactive Step-by-Step Easing (Smart Recovery)
             if 'market_gate_raised' not in changes:
                 # 1. Strong Recovery (Market is healthy)
-                if market_health >= 45.0 and curr_limit > 42.0:
-                    new_limit = max(42.0, curr_limit - 1.5)
+                if market_health >= 45.0 and curr_limit > 44.0:
+                    new_limit = max(44.0, curr_limit - 1.5)  # Floor: never below 44%
                     bot_instance.min_market_health = new_limit
                     app_logger.info(f"🧠 [OPTIMIZER] 📉 Easing Market Gate: {curr_limit:.1f}% -> {new_limit:.1f}% (Strong recovery)")
                     changes['market_gate_lowered'] = new_limit
                 # 2. Gentle Bounce Support (Market is trying to push up)
-                elif 38.0 < market_health < 45.0 and curr_limit > 44.0:
-                    new_limit = max(44.0, curr_limit - 1.0)
+                elif 38.0 < market_health < 45.0 and curr_limit > 46.0:
+                    new_limit = max(46.0, curr_limit - 1.0)  # Floor: never below 46% in weak markets
                     bot_instance.min_market_health = new_limit
                     app_logger.info(f"🧠 [OPTIMIZER] 🌱 Soft Easing Market Gate: {curr_limit:.1f}% -> {new_limit:.1f}% (Encouraging bounce)")
                     changes['market_gate_lowered'] = new_limit
