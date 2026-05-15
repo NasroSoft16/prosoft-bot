@@ -126,7 +126,6 @@ class TradingBot:
         self.intel = QuantumIntelligence(gemini=self.gemini, groq=self.groq)
         self.portfolio = PortfolioManager(self.api)
         self.whales = WhaleTracker()
-        self.vault = SwingVault(self.api, self.telegram)
         
         # Initialize Stats early to avoid AttributeErrors
         self.logs = []
@@ -180,6 +179,7 @@ class TradingBot:
         self.whales = WhaleTracker()
         self.reporter = ReportGenerator()
         self.telegram = TelegramBot()
+        self.vault = SwingVault(self.api, self.telegram)
         from src.strategy.listing_sniper import ListingSniper
         from src.strategy.yield_farmer import YieldFarmer
         from src.strategy.funding_arb import FundingRateArb
