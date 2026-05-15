@@ -3,9 +3,10 @@ import time
 from datetime import datetime
 
 class SwingVault:
-    def __init__(self, api_client, telegram_bot):
+    def __init__(self, api_client, telegram_bot, memory):
         self.api = api_client
         self.telegram = telegram_bot
+        self.memory = memory
         self.vault_trades = []
         
         # Elite coins only
@@ -156,6 +157,23 @@ class SwingVault:
                         if close_order and close_order['status'] == 'FILLED':
                             self.vault_trades.remove(trade)
                             net_profit = (current_price - entry_p) / entry_p * 100
+                            
+                            # Save to diagnostic snapshot & memory DB
+                            try:
+                                self.memory.save_trade({
+                                    'symbol': symbol,
+                                    'side': 'BUY',
+                                    'entry_price': entry_p,
+                                    'exit_price': current_price,
+                                    'peak_price': trade.get('highest_price', current_price),
+                                    'pnl_usd': (current_price - entry_p) * trade['qty'],
+                                    'duration': 0,
+                                    'ai_conf': 0.99,
+                                    'macro_fgi': 0
+                                })
+                            except Exception as mem_e:
+                                self.add_log(f"Memory save error: {mem_e}")
+                                
                             await self.telegram.send_message(
                                 f"🔒 *SWING VAULT CLOSED / إغلاق صفقة الاستثمار*\n"
                                 f"Asset: `{symbol}`\n"

@@ -179,7 +179,6 @@ class TradingBot:
         self.whales = WhaleTracker()
         self.reporter = ReportGenerator()
         self.telegram = TelegramBot()
-        self.vault = SwingVault(self.api, self.telegram)
         from src.strategy.listing_sniper import ListingSniper
         from src.strategy.yield_farmer import YieldFarmer
         from src.strategy.funding_arb import FundingRateArb
@@ -211,6 +210,7 @@ class TradingBot:
         self.quantum_alpha      = QuantumAlphaStrategy()
         self.squeeze_scanner    = VolatilitySqueezeScanner(self.api, self.ta)
         self.divergence_scanner = RSIDivergenceScanner(self.api)
+        self.vault = SwingVault(self.api, self.telegram, self.memory)
         
         # --- NEW MODULES (v12.0) ---
         self.shield = ManipulationShield()        # درع التلاعب
