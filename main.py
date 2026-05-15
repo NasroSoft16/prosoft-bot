@@ -100,6 +100,7 @@ from src.strategy.micro_scalper            import MicroScalper
 from src.strategy.quantum_alpha              import QuantumAlphaStrategy
 from src.strategy.squeeze_scanner            import VolatilitySqueezeScanner
 from src.strategy.divergence_scanner         import RSIDivergenceScanner
+from src.strategy.swing_vault              import SwingVault
 
 load_dotenv()
 
@@ -125,6 +126,7 @@ class TradingBot:
         self.intel = QuantumIntelligence(gemini=self.gemini, groq=self.groq)
         self.portfolio = PortfolioManager(self.api)
         self.whales = WhaleTracker()
+        self.vault = SwingVault(self.api, self.telegram)
         
         # Initialize Stats early to avoid AttributeErrors
         self.logs = []
@@ -1605,6 +1607,13 @@ class TradingBot:
                                 )
                                 self.stats['active_count'] = len(self.active_trades)
                     
+                    # --- DUAL-ENGINE: SWING VAULT EXECUTION ---
+                    if hasattr(self, 'vault'):
+                        try:
+                            await self.vault.run_cycle()
+                        except Exception as ve:
+                            self.add_log(f"Swing Vault Error: {ve}")
+
                     self._force_ui_update()
                     await self._check_daily_report()
                     
@@ -1987,7 +1996,12 @@ class TradingBot:
                                 val = asset.get('value', 0.0)
                                 if asset_name != 'USDT' and val > 1.0: # Track everything > $1 for small accounts
                                     symbol = f"{asset_name}USDT"
+                                    
+                                    # DUAL ENGINE FIX: Prevent auto-tracking Swing trades into the Scalper
                                     is_tracked = any(t['symbol'] == symbol for t in self.active_trades)
+                                    if hasattr(self, 'vault') and hasattr(self.vault, 'vault_trades'):
+                                        is_tracked = is_tracked or any(t['symbol'] == symbol for t in self.vault.vault_trades)
+                                        
                                     if not is_tracked:
                                         self.add_log(f"🧠 SYNC: Detected significant untracked manual asset {symbol} (${val:.2f}). Adding to tracker.")
                                         # Use cached price if available

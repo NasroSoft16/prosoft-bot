@@ -50,10 +50,14 @@ class DashboardAPI:
             while True:
                 try:
                     # Collect current status
+                    all_t = list(self.bot.active_trades)
+                    if hasattr(self.bot, 'vault'):
+                        all_t.extend(self.bot.vault.vault_trades)
+                        
                     status_data = {
                         'bot_stats': self.bot.stats,
                         'current_symbol': self.bot.symbol,
-                        'active_trades': self.bot.active_trades, # List of all positions
+                        'active_trades': all_t, # List of all positions
                         'equity': self.bot.stats.get('total_equity', 0)
                     }
                     self.socketio.emit('status_update', status_data)
@@ -146,9 +150,13 @@ class DashboardAPI:
             
         @self.app.route('/api/stats', methods=['GET'])
         def get_stats():
+            all_t = list(self.bot.active_trades)
+            if hasattr(self.bot, 'vault'):
+                all_t.extend(self.bot.vault.vault_trades)
+                
             # Inject current prices for all active trades to ensure accurate PNL in dashboard
             active_trades = []
-            for t in self.bot.active_trades:
+            for t in all_t:
                 try:
                     t_copy = t.copy()
                     ticker = self.bot.api.get_symbol_ticker(t['symbol'])

@@ -165,6 +165,28 @@ class SelfHealingEngine:
             if hasattr(self.bot, '_force_ui_update'):
                 self.bot._force_ui_update()
 
+        # VAULT DEEP SYNC
+        if hasattr(self.bot, 'vault') and getattr(self.bot.vault, 'vault_trades', None):
+            vault_remove = []
+            for trade in self.bot.vault.vault_trades:
+                symbol = trade['symbol']
+                asset = symbol.replace('USDT', '')
+                try:
+                    balance = self.bot.api.get_account_balance(asset, include_locked=True)
+                    ticker = self.bot.api.get_symbol_ticker(symbol)
+                    if ticker and ticker > 0:
+                        if (balance * ticker) < 1.0:
+                            app_logger.warning(f"[Deep Sync] VAULT GHOST DETECTED: {symbol}. Clearing state...")
+                            vault_remove.append(trade)
+                except: pass
+            
+            if vault_remove:
+                for trade in vault_remove:
+                    if trade in self.bot.vault.vault_trades:
+                        self.bot.vault.vault_trades.remove(trade)
+                if hasattr(self.bot, '_force_ui_update'):
+                    self.bot._force_ui_update()
+
     def save_trade_state(self, trades_list):
         """Saves current active trades list to disk to recover after cloud restarts."""
         import json

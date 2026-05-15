@@ -1744,7 +1744,7 @@
                             <div class="bg-[#1f2937]/30 p-2 rounded border border-white/5 hover:border-blue-500/20 transition group">
                                 <div class="flex justify-between items-start mb-1">
                                     <div>
-                                        <span class="text-[11px] font-black text-white">${t.symbol}</span>
+                                        <span class="text-[11px] font-black text-white">${t.trade_type === 'SWING' ? t.symbol + ' 🎯 [SWING]' : t.symbol + ' ⚡'}</span>
                                         <span class="text-[9px] px-1 bg-blue-500/10 text-blue-400 rounded ml-1">${t.side}</span>
                                     </div>
                                     <span class="text-[10px] font-mono ${pnlColor} font-bold">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span>
