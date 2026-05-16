@@ -545,6 +545,26 @@
                 </div>
             </div>
 
+            <!-- SWING VAULT MONITOR -->
+            <div class="prime-panel h-[120px] flex flex-col border-cyan-500/30" style="border-color: rgba(6, 182, 212, 0.3);">
+                <div class="panel-header"
+                    data-hint-en="Monitors the Swing Vault which utilizes 60% of capital to hunt for 4H massive market dips."
+                    data-hint-ar="يراقب خزينة الموجات التي تستخدم 60% من رأس المال لاصطياد الانهيارات الكبرى على فريم 4 ساعات.">
+                    <span data-en="Swing Vault Tracker" data-ar="مراقب خزينة الموجات">Swing Vault Tracker</span>
+                    <div id="vault-status-badge" class="px-1.5 py-0.5 bg-cyan-600/20 text-cyan-400 text-[9px] font-bold rounded border border-cyan-500/30">STANDBY</div>
+                </div>
+                <div class="flex-1 flex flex-col justify-center px-2">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Capital Allocated" data-ar="رأس المال المخصص">Capital Allocated</span>
+                        <span id="vault-capital" class="text-[11px] font-mono text-cyan-400 font-bold">60%</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Last Radar Scan" data-ar="آخر فحص راداري">Last Radar Scan</span>
+                        <span id="vault-scan" class="text-[11px] font-mono text-slate-300 font-bold">--:--:--</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- AI SUGGESTIONS -->
             <div class="prime-panel h-[340px] flex flex-col">
                 <div class="panel-header"
@@ -1794,6 +1814,20 @@
                             `;
                         });
                     }
+                }
+
+                // 8c. Update Swing Vault Tracker
+                if (data.vault_info) {
+                    const vBadge = document.getElementById('vault-status-badge');
+                    if (vBadge) {
+                        vBadge.innerText = data.vault_info.status;
+                        if (data.vault_info.status === 'ACTIVE') {
+                            vBadge.className = "px-1.5 py-0.5 bg-green-600/20 text-green-400 text-[9px] font-bold rounded border border-green-500/30";
+                        } else {
+                            vBadge.className = "px-1.5 py-0.5 bg-cyan-600/20 text-cyan-400 text-[9px] font-bold rounded border border-cyan-500/30";
+                        }
+                    }
+                    if (document.getElementById('vault-scan')) document.getElementById('vault-scan').innerText = data.vault_info.last_scan;
                 }
 
                 // 9. Primary Action Center Signal / Trade

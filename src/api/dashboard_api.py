@@ -185,6 +185,19 @@ class DashboardAPI:
                 threshold_data['tp_multiplier'] = f"{getattr(self.bot.strategy, 'atr_multiplier_tp', 0)}x"
                 threshold_data['sl_multiplier'] = f"{getattr(self.bot.strategy, 'atr_multiplier_sl', 0)}x"
 
+            vault_info = None
+            if hasattr(self.bot, 'vault'):
+                last_scan_str = "--:--:--"
+                if self.bot.vault.last_scan_time > 0:
+                    import datetime
+                    last_scan_str = datetime.datetime.fromtimestamp(self.bot.vault.last_scan_time).strftime("%H:%M:%S")
+                status_str = "ACTIVE" if len(self.bot.vault.vault_trades) > 0 else "STANDBY"
+                vault_info = {
+                    'status': status_str,
+                    'last_scan': last_scan_str,
+                    'budget_pct': "60%"
+                }
+
             return jsonify({
                 'bot_stats': self.bot.stats,
                 'current_symbol': self.bot.symbol,
@@ -192,6 +205,7 @@ class DashboardAPI:
                 'thresholds': threshold_data,
                 'gemini_cluster': self.bot.gemini.get_quota_info() if hasattr(self.bot, 'gemini') and self.bot.gemini else [],
                 'groq_cluster': self.bot.groq.get_quota_info() if hasattr(self.bot, 'groq') and self.bot.groq else [],
+                'vault_info': vault_info,
                 'logs': list(self.bot.logs[-50:]),
                 'historical_bars': self.bot.last_df.tail(60).to_dict('records') if hasattr(self.bot, 'last_df') and hasattr(self.bot.last_df, 'tail') else []
             })
