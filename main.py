@@ -1922,6 +1922,31 @@ class TradingBot:
                                     del self.blacklisted_symbols[self.symbol]
                                     self._save_blacklist()
 
+                            # Gate 4.5: BTC Gravity Filter (Don't buy altcoins if BTC is dumping)
+                            if self.symbol != 'BTCUSDT':
+                                try:
+                                    btc_df = self.api.get_historical_klines('BTCUSDT', interval='1m', limit=3)
+                                    if btc_df is not None and len(btc_df) >= 2:
+                                        last_btc_close = float(btc_df['close'].iloc[-1])
+                                        prev_btc_close = float(btc_df['close'].iloc[-2])
+                                        btc_drop_pct = (prev_btc_close - last_btc_close) / prev_btc_close * 100
+                                        if btc_drop_pct > 0.08: # BTC dropped more than 0.08% in 1 min
+                                            self.add_log(f"⛔ [ROCKET BLOCKED] BTC Gravity is dropping (-{btc_drop_pct:.2f}%/m). {self.symbol} purchase blocked.")
+                                            continue
+                                except Exception as e:
+                                    pass # Ignore error and proceed
+
+                            # Gate 4.6: Order Book Imbalance (Fake Breakout / Wall Trap Detector)
+                            try:
+                                depth = self.api.client.get_order_book(symbol=self.symbol, limit=20)
+                                bids = sum([float(b[0]) * float(b[1]) for b in depth['bids']])
+                                asks = sum([float(a[0]) * float(a[1]) for a in depth['asks']])
+                                if bids > 0 and asks > (bids * 3.0): # Sell walls are 3x bigger than buy walls
+                                    self.add_log(f"⛔ [ROCKET BLOCKED] Huge Sell Wall detected! Asks(${asks:,.0f}) > 3x Bids. Fake breakout trapped.")
+                                    continue
+                            except Exception as e:
+                                pass # Ignore error and proceed
+
                             # Gate 5: MTF basic consensus (at least 50% buy signal for rockets)
                             if hasattr(self, 'mtf'):
                                 mtf_sig = self.mtf.get_signal(self.symbol)
