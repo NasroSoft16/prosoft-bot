@@ -195,7 +195,9 @@ class DashboardAPI:
                 vault_info = {
                     'status': status_str,
                     'last_scan': last_scan_str,
-                    'budget_pct': "60%"
+                    'budget_pct': "60%",
+                    'rsi_target': getattr(self.bot.vault, 'current_rsi_target', 35),
+                    'hunger': getattr(self.bot.vault, 'hunger_state', 'NORMAL')
                 }
 
             return jsonify({

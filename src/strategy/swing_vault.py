@@ -17,6 +17,30 @@ class SwingVault:
         
         self.last_scan_time = 0
         self.scan_interval = 900  # Scan every 15 minutes for 4H trends
+        
+        self.state_file = "vault_state.json"
+        self.last_trade_time = self._load_state()
+        self.current_rsi_target = 35 # Default
+        self.hunger_state = "NORMAL"
+
+    def _load_state(self):
+        import json, os
+        if os.path.exists(self.state_file):
+            try:
+                with open(self.state_file, 'r') as f:
+                    data = json.load(f)
+                    return data.get('last_trade_time', time.time() - (86400 * 3)) # Default 3 days hungry
+            except:
+                pass
+        return time.time() - (86400 * 3)
+        
+    def _save_state(self):
+        import json
+        try:
+            with open(self.state_file, 'w') as f:
+                json.dump({'last_trade_time': self.last_trade_time}, f)
+        except:
+            pass
 
     def add_log(self, msg):
         print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Vault - INFO - {msg}")
@@ -45,8 +69,24 @@ class SwingVault:
         if budget < 10.5:
             budget = balance_raw * 0.95 # Fallback if 60% is too small, though Scalper shouldn't leave it this low
 
-        best_coin = None
         lowest_rsi = 100
+        best_coin = None
+        
+        # Adaptive RSI Logic
+        hours_since_trade = (time.time() - self.last_trade_time) / 3600
+        
+        if hours_since_trade < 24:
+            self.current_rsi_target = 30
+            self.hunger_state = "SATISFIED"
+        elif hours_since_trade < 72:
+            self.current_rsi_target = 35
+            self.hunger_state = "NORMAL"
+        elif hours_since_trade < 168:
+            self.current_rsi_target = 38
+            self.hunger_state = "HUNGRY"
+        else:
+            self.current_rsi_target = 42
+            self.hunger_state = "STARVING"
 
         for symbol in self.elite_symbols:
             try:
@@ -62,8 +102,8 @@ class SwingVault:
                 rsi = 100 - (100 / (1 + rs))
                 current_rsi = rsi.iloc[-1]
 
-                # Look for extreme oversold conditions on 4H (meaning a massive dip just happened)
-                if current_rsi < 35 and current_rsi < lowest_rsi:
+                # Look for extreme oversold conditions based on adaptive target
+                if current_rsi < self.current_rsi_target and current_rsi < lowest_rsi:
                     lowest_rsi = current_rsi
                     best_coin = symbol
 
@@ -71,7 +111,7 @@ class SwingVault:
                 self.add_log(f"Error scanning {symbol}: {e}")
 
         # If we found a great dip
-        if best_coin and lowest_rsi < 35:
+        if best_coin and lowest_rsi < self.current_rsi_target:
             await self._execute_vault_entry(best_coin, budget)
 
     async def _execute_vault_entry(self, symbol, usdt_budget):
@@ -106,12 +146,17 @@ class SwingVault:
                     })
 
                     self.add_log(f"🎯 [SWING VAULT] Executed entry on {symbol} at ${fill_price:.4f}. Budget: ${usdt_budget:.2f}")
+                    
+                    # Reset hunger
+                    self.last_trade_time = time.time()
+                    self._save_state()
+                    
                     await self.telegram.send_message(
                         f"🎯 *SWING VAULT ENTRY / الدخول الاستثماري*\n"
                         f"Asset: `{symbol}`\n"
                         f"Price: `${fill_price:.4f}`\n"
                         f"Budget: `${usdt_budget:.2f}`\n"
-                        f"Strategy: 4H Deep Dip Detection"
+                        f"Strategy: Adaptive 4H Deep Dip (RSI Target: < {self.current_rsi_target})"
                     )
             except Exception as e:
                 self.add_log(f"Failed vault entry for {symbol}: {e}")

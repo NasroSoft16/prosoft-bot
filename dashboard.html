@@ -554,9 +554,17 @@
                     <div id="vault-status-badge" class="px-1.5 py-0.5 bg-cyan-600/20 text-cyan-400 text-[9px] font-bold rounded border border-cyan-500/30">STANDBY</div>
                 </div>
                 <div class="flex-1 flex flex-col justify-center px-2">
-                    <div class="flex justify-between items-center mb-2">
+                    <div class="flex justify-between items-center mb-1">
                         <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Capital Allocated" data-ar="رأس المال المخصص">Capital Allocated</span>
                         <span id="vault-capital" class="text-[11px] font-mono text-cyan-400 font-bold">60%</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Adaptive RSI Target" data-ar="مؤشر RSI المتغير">Adaptive RSI Target</span>
+                        <span id="vault-rsi-target" class="text-[11px] font-mono text-yellow-400 font-bold">< 35</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Hunger State" data-ar="حالة الجوع">Hunger State</span>
+                        <span id="vault-hunger" class="text-[10px] font-bold text-pink-400">NORMAL</span>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-[10px] text-slate-400 font-bold uppercase" data-en="Last Radar Scan" data-ar="آخر فحص راداري">Last Radar Scan</span>
@@ -1828,6 +1836,8 @@
                         }
                     }
                     if (document.getElementById('vault-scan')) document.getElementById('vault-scan').innerText = data.vault_info.last_scan;
+                    if (document.getElementById('vault-rsi-target')) document.getElementById('vault-rsi-target').innerText = "< " + (data.vault_info.rsi_target || 35);
+                    if (document.getElementById('vault-hunger')) document.getElementById('vault-hunger').innerText = data.vault_info.hunger || "NORMAL";
                 }
 
                 // 9. Primary Action Center Signal / Trade
