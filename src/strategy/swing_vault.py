@@ -178,11 +178,45 @@ class SwingVault:
                     
                     highest_pct = (trade['highest_price'] - entry_p) / entry_p
                     
-                    # LAZY TRAILING LOGIC
+                    # 1. SMART SCALE-OUT LOGIC (Partial Take Profit)
+                    if highest_pct >= 0.0300 and not trade.get('sold_tier_1', False):
+                        qty_to_sell = trade['qty'] * 0.25 # Sell 25%
+                        sell_order = self.api.place_market_order(symbol, 'SELL', qty_to_sell)
+                        if sell_order and sell_order.get('status') == 'FILLED':
+                            trade['qty'] -= float(sell_order['executedQty'])
+                            trade['sold_tier_1'] = True
+                            self.add_log(f"💰 [SCALE-OUT] Sold 25% of {symbol} at +{highest_pct*100:.2f}% profit!")
+                            await self.telegram.send_message(f"💰 *SCALE-OUT 1 (25%)*: `{symbol}` locked at +{highest_pct*100:.2f}% profit!")
+
+                    if highest_pct >= 0.0600 and not trade.get('sold_tier_2', False):
+                        qty_to_sell = trade['qty'] * 0.333 # Sell 1/3 of remaining (which is ~25% of original)
+                        sell_order = self.api.place_market_order(symbol, 'SELL', qty_to_sell)
+                        if sell_order and sell_order.get('status') == 'FILLED':
+                            trade['qty'] -= float(sell_order['executedQty'])
+                            trade['sold_tier_2'] = True
+                            self.add_log(f"💰 [SCALE-OUT] Sold another 25% of {symbol} at +{highest_pct*100:.2f}% profit!")
+                            await self.telegram.send_message(f"💰 *SCALE-OUT 2 (25%)*: `{symbol}` locked at +{highest_pct*100:.2f}% profit!")
+
+                    # 2. DYNAMIC PARABOLIC TRAILING LOGIC
                     new_sl = trade['sl']
                     
-                    if highest_pct >= 0.0500: # 5% profit reached -> Trail by 2%
-                        new_sl = trade['highest_price'] * 0.98
+                    trail_pct = 0.02 # Default 2% trail
+                    if highest_pct >= 0.0500:
+                        try:
+                            # Quick 15m momentum check to tighten the stop if overbought
+                            df_15 = self.api.get_historical_data(symbol, interval='15m', limit=15)
+                            if df_15 is not None and not df_15.empty:
+                                delta = df_15['close'].diff()
+                                rs = (delta.where(delta > 0, 0)).rolling(window=14).mean() / (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                                rsi_15 = 100 - (100 / (1 + rs)).iloc[-1]
+                                if rsi_15 > 75: # Extreme Overbought -> Tighten stop to 0.5%
+                                    trail_pct = 0.005 
+                                    self.add_log(f"🔥 [PARABOLIC TRAIL] {symbol} RSI is {rsi_15:.1f}. Tightening stop loss to 0.5%!")
+                        except:
+                            pass
+                    
+                    if highest_pct >= 0.0500: # 5% profit reached -> Trail dynamically
+                        new_sl = trade['highest_price'] * (1 - trail_pct)
                     elif highest_pct >= 0.0300: # 3% profit reached -> Lock at +1.5%
                         new_sl = entry_p * 1.015
                     elif highest_pct >= 0.0150: # 1.5% profit reached -> Break-even lock
