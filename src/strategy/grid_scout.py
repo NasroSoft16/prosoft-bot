@@ -1,13 +1,15 @@
 import time
 import math
+from datetime import datetime
 from src.utils.logger import app_logger
 
 class GridScout:
     """PROSOFT QUANTUM PRIME: Flash Arbitrage & Grid Scouting (Range Sniper)"""
     
-    def __init__(self, api_wrapper, telegram_bot=None):
+    def __init__(self, api_wrapper, telegram_bot=None, memory=None):
         self.api = api_wrapper
         self.telegram = telegram_bot
+        self.memory = memory
         self.active_grids = {} # symbol -> {'buy_price': x, 'sell_price': y, 'state': 'WAITING_BUY', 'sl': z, 'qty': 0}
         self.max_allocation = 11.5 # Micro account allocation
         
@@ -61,6 +63,22 @@ class GridScout:
                         del self.active_grids[symbol]
                         if self.telegram:
                             await self.telegram.send_message(f"🚨 *RANGE SNIPER SL HIT*\n{symbol} broke Support. Cut loss at 0.8%. Returning to Scalper.")
+                        
+                        if self.memory:
+                            self.memory.log_trade(
+                                symbol=symbol,
+                                side='BUY',
+                                entry=grid.get('buy_price_executed', current_price),
+                                exit_p=current_price,
+                                entry_t=grid.get('entry_time', datetime.now().isoformat()),
+                                exit_t=datetime.now().isoformat(),
+                                pnl=-0.8,
+                                conf=0.99,
+                                health=50.0,
+                                sentiment='NEUTRAL',
+                                strategy_used='RANGE_SNIPER',
+                                highest_peak=0.0
+                            )
                     return True
 
             # 2. BUY OPPORTUNITY
@@ -80,6 +98,7 @@ class GridScout:
                         grid['qty'] = actual_qty
                         grid['buy_price_executed'] = fill_price
                         grid['sl'] = fill_price * 0.992 # 0.8% strict Stop Loss
+                        grid['entry_time'] = datetime.now().isoformat()
                         
                         if self.telegram:
                             await self.telegram.send_message(f"🕸️ *RANGE SNIPER BUY*\n{symbol} at `{fill_price:.4f}`\nTarget: `{grid['sell_price']:.4f}`")
@@ -95,12 +114,28 @@ class GridScout:
                     fill_price = float(order['fills'][0]['price']) if 'fills' in order and order['fills'] else current_price
                     profit_pct = (fill_price - grid['buy_price_executed']) / grid['buy_price_executed'] * 100
                     
+                    if self.telegram:
+                        await self.telegram.send_message(f"✅ *RANGE SNIPER PROFIT*\n{symbol} sold at `{fill_price:.4f}`\nPnL: `+{profit_pct:.2f}%`\nWaiting for next dip...")
+                        
+                    if self.memory:
+                        self.memory.log_trade(
+                            symbol=symbol,
+                            side='BUY',
+                            entry=grid['buy_price_executed'],
+                            exit_p=fill_price,
+                            entry_t=grid.get('entry_time', datetime.now().isoformat()),
+                            exit_t=datetime.now().isoformat(),
+                            pnl=profit_pct,
+                            conf=0.99,
+                            health=50.0,
+                            sentiment='NEUTRAL',
+                            strategy_used='RANGE_SNIPER',
+                            highest_peak=fill_price
+                        )
+                        
                     # Reset grid for next cycle
                     grid['state'] = 'WAITING_BUY'
                     grid['qty'] = 0
-                    
-                    if self.telegram:
-                        await self.telegram.send_message(f"✅ *RANGE SNIPER PROFIT*\n{symbol} sold at `{fill_price:.4f}`\nPnL: `+{profit_pct:.2f}%`\nWaiting for next dip...")
                     return True
                 
         except Exception as e:

@@ -212,7 +212,7 @@ class TradingBot:
         self.squeeze_scanner    = VolatilitySqueezeScanner(self.api, self.ta)
         self.divergence_scanner = RSIDivergenceScanner(self.api)
         self.vault = SwingVault(self.api, self.telegram, self.memory)
-        self.grid_scout = GridScout(self.api, self.telegram)
+        self.grid_scout = GridScout(self.api, self.telegram, self.memory)
         
         # --- NEW MODULES (v12.0) ---
         self.shield = ManipulationShield()        # درع التلاعب
