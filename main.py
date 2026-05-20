@@ -101,6 +101,7 @@ from src.strategy.quantum_alpha              import QuantumAlphaStrategy
 from src.strategy.squeeze_scanner            import VolatilitySqueezeScanner
 from src.strategy.divergence_scanner         import RSIDivergenceScanner
 from src.strategy.swing_vault              import SwingVault
+from src.strategy.grid_scout                 import GridScout
 
 load_dotenv()
 
@@ -211,6 +212,7 @@ class TradingBot:
         self.squeeze_scanner    = VolatilitySqueezeScanner(self.api, self.ta)
         self.divergence_scanner = RSIDivergenceScanner(self.api)
         self.vault = SwingVault(self.api, self.telegram, self.memory)
+        self.grid_scout = GridScout(self.api, self.telegram)
         
         # --- NEW MODULES (v12.0) ---
         self.shield = ManipulationShield()        # درع التلاعب
@@ -2417,8 +2419,27 @@ class TradingBot:
                                 del self.trailing_buys_pool[self.symbol]
                         
                         # 2. Run Scalper Cycle
+                        # 2. Run Scalper or Grid Scout Cycle (ADX Controller)
                         mkt_health = self.stats.get('market_health', 50)
-                        await self._scalper_cycle(mkt_health)
+                        try:
+                            current_adx = df['ADX'].iloc[-1] if 'ADX' in df.columns else 25
+                        except Exception:
+                            current_adx = 25
+                            
+                        if current_adx < 20:
+                            # Sideways / Choppy -> Range Sniper
+                            if hasattr(self, 'grid_scout'):
+                                try:
+                                    balance = self.api.get_account_balance('USDT')
+                                    self.grid_scout.deploy_grid(self.symbol, df)
+                                    curr_p = float(self.stats.get('price', 0))
+                                    if curr_p > 0:
+                                        await self.grid_scout.execute_grid_cycle(self.symbol, curr_p, balance)
+                                except Exception as ge:
+                                    self.add_log(f"GridScout Error: {ge}")
+                        else:
+                            # Trending -> Micro Scalper
+                            await self._scalper_cycle(mkt_health)
 
                         # 3. Check Entry Conditions
                         fgi_val = 50

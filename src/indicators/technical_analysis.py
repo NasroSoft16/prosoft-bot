@@ -37,6 +37,12 @@ class TechnicalAnalysis:
                 df['high'], df['low'], df['close'], window=14
             )
 
+            # ── ADX (Trend Strength) ──
+            try:
+                df['ADX'] = ta.trend.adx(df['high'], df['low'], df['close'], window=14)
+            except Exception:
+                df['ADX'] = 25 # Fallback if ADX fails
+
             # ── Volume ──
             df['VOLUME_SMA'] = df['volume'].rolling(window=20).mean()
 
