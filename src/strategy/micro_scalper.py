@@ -92,6 +92,13 @@ class MicroScalper:
             curr_low     = float(curr.get('low',         close))
             curr_vol     = float(curr.get('volume',      0))
             vol_sma      = float(curr.get('VOLUME_SMA',  max(curr_vol, 1)))
+            bb_upper     = float(curr.get('BB_UPPER',    close * 1.1))
+
+            # ── ANTI-FOMO GUARD (الدرع المضاد للتعلق في القمة) ──
+            # Do not buy if RSI is screaming overbought, or if price is piercing 
+            # outside the upper Bollinger Band (mathematically over-extended).
+            if rsi > 75 or close > bb_upper:
+                return None
 
             # Pre-compute candle geometry
             candle_range = curr_high - curr_low
