@@ -1150,6 +1150,27 @@ class TradingBot:
             app_logger.warning(f"Remote SL Sync failed for {trade.get('symbol', 'Unknown')}: {e}")
             return False
 
+    async def _simulate_paper_trade(self, symbol, entry, tp, sl):
+        try:
+            self.add_log(f"🧠 [PAPER TRADE] Started virtual tracking for {symbol}")
+            for _ in range(60): # monitor for 60 minutes
+                await asyncio.sleep(60)
+                try:
+                    df = self.api.get_historical_data(symbol, "1m", limit=2)
+                    if df is not None and not df.empty:
+                        curr_p = float(df.iloc[-1]['close'])
+                        if curr_p >= tp:
+                            self.memory.record_paper_trade(symbol, True)
+                            self.add_log(f"🧠 [PAPER WIN] {symbol} virtual trade hit TP! (Forgiveness points +1)")
+                            return
+                        elif curr_p <= sl:
+                            self.memory.record_paper_trade(symbol, False)
+                            return
+                except: pass
+            # Timeout = loss
+            self.memory.record_paper_trade(symbol, False)
+        except: pass
+
     async def _scalper_cycle(self, market_health):
         """
         Run MicroScalper only when conditions are right.
@@ -1203,7 +1224,44 @@ class TradingBot:
                 # Memory veto
                 veto, _ = self.memory.should_veto_trade(sym, market_health)
                 if veto:
+                    # Phase 4: Launch virtual paper trade for vetoed coin
+                    asyncio.create_task(self._simulate_paper_trade(sym, signal['entry'], signal['tp'], signal['sl']))
                     continue
+
+                # Phase 1: Dynamic Timeframe Harmony (MTF Filter for Scalper)
+                if os.getenv('USE_MTF_HARMONY', 'false').lower() == 'true':
+                    if hasattr(self, 'mtf'):
+                        mtf_sig = self.mtf.get_signal(sym)
+                        # If the macro trend is strictly SELL, we block the 1m scalp
+                        if mtf_sig.get('direction') == 'SELL' and mtf_sig.get('confidence', 0) > 40:
+                            self.add_log(f"⛔ [MTF HARMONY] Blocked scalp on {sym} due to macro bearish trend (SELL {mtf_sig.get('confidence'):.0f}%).")
+                            continue
+                            
+                # Phase 2: Ghost-Net Trailing Buy Routing
+                # We route 'Wick Trap' or 'RSI Bounce' to the Ghost-Net for absolute bottom catching
+                if os.getenv('USE_GHOST_NET', 'true').lower() == 'true' and signal['reason'] in ["Wick Trap", "RSI Bounce"]:
+                    if not hasattr(self, 'trailing_buys_pool'):
+                        self.trailing_buys_pool = {}
+                    
+                    if sym not in self.trailing_buys_pool:
+                        self.trailing_buys_pool[sym] = {
+                            'activation_price': signal['entry'],
+                            'lowest_seen':      signal['entry'],
+                            'trail_distance':   0.002,  # buy when it bounces 0.2% from bottom
+                            'fomo_distance':    0.006,  # panic buy if it pumps 0.6% straight up
+                            'signal': {
+                                'entry_price': signal['entry'],
+                                'stop_loss':   signal['sl'],
+                                'take_profit': signal['tp'],
+                                'rr_ratio':    round((signal['tp'] - signal['entry']) / max((signal['entry'] - signal['sl']), 0.0001), 2),
+                                'indicators':  {'Strategy': f"Scalp-{signal['reason']}"},
+                            },
+                            'ai_conf':      signal['confidence'],
+                            'mkt_health':   market_health,
+                            'fgi_val':      self.stats.get('fgi', 50)
+                        }
+                        self.add_log(f"🕸️ [GHOST-NET DEPLOYED] {sym}: Intercepted scalp ({signal['reason']}). Trailing to catch the absolute bottom...")
+                    continue # Bypass immediate execution, Ghost-Net will handle it
 
                 self.add_log(
                     f"⚡ SCALP SIGNAL: {sym} | {signal['reason']} | "
@@ -2393,6 +2451,22 @@ class TradingBot:
                         # 1. Manage open trades now handled by independent _trade_watcher_loop
                         current_price = float(df.iloc[-1]['close'])
                         self.stats['price'] = current_price  # Keep price updated for watcher
+                        
+                        # Phase 3: Order Block / Whale Liquidity Alert (Observation Mode)
+                        if 'OB_BOTTOM' in df.columns and 'OB_TOP' in df.columns:
+                            ob_bottom = df.iloc[-1]['OB_BOTTOM']
+                            ob_top = df.iloc[-1]['OB_TOP']
+                            import pandas as pd
+                            if pd.notna(ob_bottom) and pd.notna(ob_top) and ob_bottom > 0:
+                                if ob_bottom <= current_price <= ob_top:
+                                    if not hasattr(self, '_last_ob_alert'):
+                                        self._last_ob_alert = {}
+                                    zone_key = f"{ob_bottom:.4f}-{ob_top:.4f}"
+                                    if self._last_ob_alert.get(self.symbol) != zone_key:
+                                        self._last_ob_alert[self.symbol] = zone_key
+                                        self.add_log(f"🐋 [WHALE ALERT] {self.symbol} entered Institutional Demand Zone ({ob_bottom:.4f} - {ob_top:.4f})")
+                                        asyncio.create_task(self.telegram.send_message(f"🐋 *WHALE ALERT*\n{self.symbol} entered Institutional Demand Zone.\nZone: ${ob_bottom:.4f} - ${ob_top:.4f}\nStatus: Observing for confirmation."))
+
                         
                         # 1.5. 🐊 PROSOFT GHOST-NET: Trailing Buy (Bottom Hunter)
                         if hasattr(self, 'trailing_buys_pool') and self.symbol in self.trailing_buys_pool:

@@ -47,6 +47,16 @@ class NeuralMemory:
                     highest_peak   REAL
                 )
             """)
+            
+            # --- PHASE 4: PAPER TRADES TABLE ---
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS paper_trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    symbol TEXT,
+                    status TEXT,
+                    timestamp TEXT
+                )
+            """)
 
             # --- AUTO MIGRATION LOGIC ---
             # Check for missing columns and add them to prevent DB insert failures
@@ -152,13 +162,26 @@ class NeuralMemory:
                 """,
                 conn, params=(symbol,)
             )
-            conn.close()
 
             if df.empty or len(df) < 1:
+                conn.close()
+                return False, ""
+
+            # --- PHASE 4: ACTIVE NEURAL FORGIVENESS (PAPER TRADING) ---
+            df_paper = pd.read_sql_query(
+                "SELECT status FROM paper_trades WHERE symbol=? ORDER BY id DESC LIMIT 3",
+                conn, params=(symbol,)
+            )
+            # If the last 3 virtual trades were WIN, lift the grudge!
+            if len(df_paper) == 3 and (df_paper['status'] == 'WIN').all():
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM paper_trades WHERE symbol=?", (symbol,))
+                conn.commit()
+                conn.close()
                 return False, ""
 
             # --- TIME-DECAY FORGIVENESS ---
-            # Check if the MOS RECENT loss is older than 12 hours
+            # Check if the MOST RECENT loss is older than 12 hours
             try:
                 last_loss_time_str = df['exit_time'].iloc[0]
                 if last_loss_time_str:
@@ -170,6 +193,7 @@ class NeuralMemory:
                     # If last failure was > 12 hours ago, forgive the coin (Give it a fresh start)
                     if hours_since_last_fail > 12.0:
                         app_logger.info(f"🧊 [FORGIVENESS] {symbol} last failed {hours_since_last_fail:.1f}h ago. Veto lifted.")
+                        conn.close()
                         return False, ""
             except Exception as time_err:
                 app_logger.warning(f"Forgiveness time parse error: {time_err}")
@@ -181,6 +205,7 @@ class NeuralMemory:
             # If current health is MUCH BETTER (e.g. +20%), we forgive even if recent
             if health_diff > 20.0:
                 app_logger.info(f"🌟 [RECOVERY VETO] {symbol} forgiven because Market Health improved by {health_diff:+.0f}%")
+                conn.close()
                 return False, ""
 
             # If conditions are similar or worse AND we lost 2+ times recently
@@ -192,13 +217,29 @@ class NeuralMemory:
                     f"(current={current_market_health:.0f}%)"
                 )
                 app_logger.warning(f"🧠 {reason}")
+                conn.close()
                 return True, reason
 
+            conn.close()
             return False, ""
 
         except Exception as e:
             app_logger.error(f"Veto check error: {e}")
             return False, ""
+
+    def record_paper_trade(self, symbol: str, is_win: bool):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            status = 'WIN' if is_win else 'LOSS'
+            cursor.execute(
+                "INSERT INTO paper_trades (symbol, status, timestamp) VALUES (?,?,?)",
+                (symbol, status, datetime.now().isoformat())
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            app_logger.error(f"Paper trade log error: {e}")
 
     def analyze_past_mistakes(self, symbol: str) -> str:
         try:

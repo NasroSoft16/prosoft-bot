@@ -65,6 +65,13 @@ class TechnicalAnalysis:
             df['AVG_CANDLE_SIZE'] = df['CANDLE_SIZE'].rolling(window=10).mean()
             df['IS_CLIMAX'] = df['CANDLE_SIZE'] > (df['AVG_CANDLE_SIZE'] * 2.5) # 2.5x larger than avg
 
+            # ── Phase 3: Order Blocks (Whale Liquidity) ──
+            is_bullish_climax = (df['close'] > df['open']) & df['IS_CLIMAX']
+            df['OB_BOTTOM'] = df['low'].shift(1).where(is_bullish_climax)
+            df['OB_TOP']    = df['high'].shift(1).where(is_bullish_climax)
+            df['OB_BOTTOM'] = df['OB_BOTTOM'].ffill()
+            df['OB_TOP']    = df['OB_TOP'].ffill()
+
             # ── Smart fill ──
             df.ffill(inplace=True)
             df.bfill(inplace=True)
