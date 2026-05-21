@@ -148,8 +148,8 @@ class MicroScalper:
                 # Volatility scaling: Snatch profit when volatility expands
                 volatility_pct = atr / close
                 
-                # Dynamic TP scales directly with volatility (Min 0.5%, Max 1.5%)
-                dynamic_tp_pct = max(0.005, min(0.015, volatility_pct * 1.8))
+                # Dynamic TP scales directly with volatility (Min 0.75%, Max 2.5%) - Increased for larger waves
+                dynamic_tp_pct = max(0.0075, min(0.025, volatility_pct * 2.2))
                 
                 # Dynamic SL breathes with volatility but stays tight (Min 0.15%, Max 0.4%)
                 dynamic_sl_pct = max(0.0015, min(0.004, volatility_pct * 0.8))
@@ -159,7 +159,8 @@ class MicroScalper:
                 
                 app_logger.info(f"🌊 [WAVE RIDER] Dynamic Scalp - TP: {dynamic_tp_pct*100:.2f}% | SL: {dynamic_sl_pct*100:.2f}%")
             else:
-                tp_price = close * (1 + self.profit_target_pct)
+                # Fallback if no ATR: Increased static TP to 1.0%
+                tp_price = close * (1 + 0.01)
                 sl_price = close * (1 - self.stop_loss_pct)
 
             app_logger.info(
