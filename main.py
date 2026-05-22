@@ -743,43 +743,50 @@ class TradingBot:
             vault_sl = trade_sl # Default to current SL
             highest_pct = (highest_peak / entry_p) - 1
 
-            if highest_pct >= 0.0250:
-                # Phase 5: Peak Guillotine (صواريخ الميم) -> Tight 0.25% distance
-                vault_sl = highest_peak * (1 - 0.0025)
+            if highest_pct >= 0.0150:
+                # Phase 9: Peak Guillotine (المقصلة) -> Tight 0.20% distance
+                vault_sl = highest_peak * (1 - 0.0020)
                 log_tag = "🪓 [PEAK GUILLOTINE]"
-                new_phase = 5
-            elif highest_pct >= 0.0150:
-                # Phase 4: Let it Run -> 0.40% distance
-                vault_sl = highest_peak * (1 - 0.0040)
-                # Enforce minimum locked profit to avoid stepping backwards
-                min_lock = entry_p * 1.0080
-                if vault_sl < min_lock: vault_sl = min_lock
-                log_tag = "🦅 [LET IT RUN]"
-                new_phase = 4
+                new_phase = 9
+            elif highest_pct >= 0.0120:
+                # Phase 8: Elastic Chase (المطاردة المرنة) -> 0.30% distance
+                vault_sl = highest_peak * (1 - 0.0030)
+                log_tag = "🚀 [ELASTIC CHASE]"
+                new_phase = 8
             elif highest_pct >= 0.0100:
-                # Phase 3: Base Profit Trail -> 0.40% distance
-                vault_sl = highest_peak * (1 - 0.0040)
-                min_lock = entry_p * 1.0040
-                if vault_sl < min_lock: vault_sl = min_lock
-                log_tag = "💰 [BASE PROFIT TRAIL]"
-                new_phase = 3
+                # Phase 7: Strong Profit Lock -> +0.75%
+                vault_sl = max(vault_sl, entry_p * 1.0075)
+                log_tag = "💎 [STRONG PROFIT]"
+                new_phase = 7
             elif highest_pct >= 0.0080:
-                # Phase 2: Break-Even Trail -> 0.45% distance
-                vault_sl = highest_peak * (1 - 0.0045)
-                # Shield 1: Zero-Loss Lock - Never go below +0.25% once we hit +0.80%
-                if vault_sl < entry_p * 1.0025:
-                    vault_sl = entry_p * 1.0025
-                log_tag = "⚡ [SHADOW TRAIL]"
+                # Phase 6: Half Profit Lock -> +0.55%
+                vault_sl = max(vault_sl, entry_p * 1.0055)
+                log_tag = "💰 [HALF PROFIT]"
+                new_phase = 6
+            elif highest_pct >= 0.0065:
+                # Phase 5: Respectable Profit -> +0.40%
+                vault_sl = max(vault_sl, entry_p * 1.0040)
+                log_tag = "🛡️ [RESPECTABLE PROFIT]"
+                new_phase = 5
+            elif highest_pct >= 0.0050:
+                # Phase 4: Basic Profit Lock -> +0.25%
+                vault_sl = max(vault_sl, entry_p * 1.0025)
+                log_tag = "🧱 [BASIC PROFIT]"
+                new_phase = 4
+            elif highest_pct >= 0.0035:
+                # Phase 3: Early Breakeven Shield -> +0.10%
+                vault_sl = max(vault_sl, entry_p * 1.0010)
+                log_tag = "🟢 [EARLY BREAKEVEN]"
+                new_phase = 3
+            elif highest_pct >= 0.0025:
+                # Phase 2: Risk Cut 70%
+                vault_sl = max(vault_sl, entry_p * (1 - 0.0060))
+                log_tag = "🧯 [RISK CUT 70%]"
                 new_phase = 2
-            elif highest_pct >= 0.0060:
-                # Phase 1.5: ZERO-LOSS LOCK (الدرع الأول)
-                vault_sl = entry_p * 1.0020  # +0.20% (Net 0.00% after Binance 0.20% fees)
-                log_tag = "🛡️ [ZERO-LOSS LOCK]"
-                new_phase = 1
             elif highest_pct >= 0.0015:
-                # Phase 1: Risk Cut 50%
-                vault_sl = entry_p * (1 - 0.0100)
-                log_tag = "🧯 [RISK CUT 50%]"
+                # Phase 1: Risk Cut 40%
+                vault_sl = max(vault_sl, entry_p * (1 - 0.0120))
+                log_tag = "🧯 [RISK CUT 40%]"
                 new_phase = 1
             else:
                 new_phase = 0
