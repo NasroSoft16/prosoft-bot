@@ -230,11 +230,17 @@ class DashboardAPI:
         @self.app.route('/api/paper_trades', methods=['GET'])
         def get_paper_trades():
             """Fetch Virtual Paper Trades (Neural Forgiveness) tracking."""
+            report = []
+            total = 0
             if hasattr(self.bot, 'memory'):
                 report = self.bot.memory.get_paper_trades_report()
-            else:
-                report = []
-            return jsonify(report)
+                try:
+                    import sqlite3
+                    conn = sqlite3.connect(self.bot.memory.db_path)
+                    total = conn.execute("SELECT COUNT(*) FROM paper_trades").fetchone()[0]
+                    conn.close()
+                except Exception: pass
+            return jsonify({"total": total, "list": report})
 
         @self.app.route('/api/send_paper_report', methods=['POST'])
         def send_paper_report():
@@ -792,6 +798,22 @@ class DashboardAPI:
             except Exception as e:
                 app_logger.error(f"Accuracy Chart API Error: {str(e)}")
                 return jsonify([])
+
+        @self.app.route('/api/paper_trades', methods=['GET'])
+        def get_paper_trades():
+            try:
+                report = self.bot.memory.get_paper_trades_report()
+                import sqlite3
+                conn = sqlite3.connect(self.bot.memory.db_path)
+                try:
+                    total = conn.execute("SELECT COUNT(*) FROM paper_trades").fetchone()[0]
+                except Exception:
+                    total = 0
+                conn.close()
+                return jsonify({"total": total, "list": report})
+            except Exception as e:
+                app_logger.error(f"API Error fetching paper trades: {e}")
+                return jsonify({"total": 0, "list": []}), 500
 
         @self.app.route('/api/maintenance/delete_record', methods=['POST'])
         def delete_specific_record():

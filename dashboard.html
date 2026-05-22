@@ -579,6 +579,7 @@
                     data-hint-en="Tracks vetoed coins running in Virtual Paper Trade mode until they achieve 3 consecutive wins to be unbanned."
                     data-hint-ar="تتبع العملات المحظورة التي تتدرب في وضع التداول الوهمي حتى تحقق 3 أرباح متتالية لفك الحظر.">
                     <span data-en="Neural Forgiveness" data-ar="السماح العصبي (وهمي)">Neural Forgiveness</span>
+                    <span id="total-sims-badge" class="ml-2 px-1.5 py-0.5 bg-slate-800/50 text-slate-400 border border-slate-700 text-[8px] font-mono rounded" title="Total Historical Simulations">0 SIMS</span>
                     <button onclick="pushPaperReport()" class="bg-white/10 hover:bg-white/20 text-white p-1 rounded transition ml-2" title="Push to Telegram">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
                     </button>
@@ -2063,18 +2064,22 @@
             try {
                 const res = await fetch(`${API_BASE}/paper_trades`);
                 const data = await res.json();
+                const listData = data.list || [];
+                
                 const listEl = document.getElementById('paper-trades-list');
                 const badgeEl = document.getElementById('paper-count-badge');
+                const totalSimsEl = document.getElementById('total-sims-badge');
                 
-                if (badgeEl) badgeEl.innerText = data.length;
+                if (badgeEl) badgeEl.innerText = listData.length;
+                if (totalSimsEl) totalSimsEl.innerText = (data.total || 0) + ' SIMS';
                 
-                if (!data || data.length === 0) {
+                if (!listData || listData.length === 0) {
                     if (listEl) listEl.innerHTML = `<p class="text-[10px] text-slate-500 text-center mt-4 italic" data-en="No coins in virtual training." data-ar="لا توجد عملات قيد التدريب الوهمي.">No coins in virtual training.</p>`;
                     return;
                 }
                 
                 if (listEl) {
-                    renderList('paper-trades-list', data, r => {
+                    renderList('paper-trades-list', listData, r => {
                         let statusColor = r.wins_in_last_3 === 3 ? 'text-emerald-400' : 'text-amber-400';
                         return `
                         <div class="bg-[#1f2937]/50 p-2 rounded border border-white/5 flex justify-between items-center mb-1">
