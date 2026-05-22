@@ -799,21 +799,6 @@ class DashboardAPI:
                 app_logger.error(f"Accuracy Chart API Error: {str(e)}")
                 return jsonify([])
 
-        @self.app.route('/api/paper_trades', methods=['GET'])
-        def get_paper_trades():
-            try:
-                report = self.bot.memory.get_paper_trades_report()
-                import sqlite3
-                conn = sqlite3.connect(self.bot.memory.db_path)
-                try:
-                    total = conn.execute("SELECT COUNT(*) FROM paper_trades").fetchone()[0]
-                except Exception:
-                    total = 0
-                conn.close()
-                return jsonify({"total": total, "list": report})
-            except Exception as e:
-                app_logger.error(f"API Error fetching paper trades: {e}")
-                return jsonify({"total": 0, "list": []}), 500
 
         @self.app.route('/api/maintenance/delete_record', methods=['POST'])
         def delete_specific_record():
