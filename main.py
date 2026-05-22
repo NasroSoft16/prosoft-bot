@@ -1830,13 +1830,26 @@ class TradingBot:
                                         snipe_qty = snipe_amt / snipe_price
                                         order_res = self.orders.place_market_buy(new_asset, snipe_qty)
                                         if order_res:
-                                            snipe_sl = snipe_price * 0.98   
-                                            snipe_tp = snipe_price * 1.05   
+                                            # ✅ REAL FILL PRICE FIX
+                                            actual_snipe_price = snipe_price
+                                            actual_snipe_qty = snipe_qty
+                                            fills = order_res.get('fills', [])
+                                            if fills:
+                                                t_qty = sum(float(f['qty']) for f in fills)
+                                                t_cost = sum(float(f['qty']) * float(f['price']) for f in fills)
+                                                actual_snipe_price = t_cost / t_qty if t_qty > 0 else snipe_price
+                                                actual_snipe_qty = t_qty
+                                            else:
+                                                actual_snipe_price = snipe_price
+                                                actual_snipe_qty = snipe_qty
+                                                
+                                            snipe_sl = actual_snipe_price * 0.98   
+                                            snipe_tp = actual_snipe_price * 1.05   
                                             snipe_trade = {
                                                 'symbol': new_asset,
                                                 'side': 'BUY',
-                                                'entry_price': snipe_price,
-                                                'qty': snipe_qty,
+                                                'entry_price': actual_snipe_price,
+                                                'qty': actual_snipe_qty,
                                                 'sl': snipe_sl,
                                                 'tp': snipe_tp,
                                                 'conf': 1.0,
@@ -2819,20 +2832,16 @@ class TradingBot:
         except Exception as e:
             self.add_log(f"Order Cancellation Error: {str(e)}") 
 
-        # ── Unified PnL Calculation ──
+        # ── Unified PnL Prep ──
         entry_p = trade.get('entry_price', price)
-        pnl_decimal = (price - entry_p) / entry_p if entry_p > 0 else 0.0
-        pnl_pct = pnl_decimal * 100
         p_qty = trade.get('qty', 0)
-        pnl_absolute = (price - entry_p) * p_qty
+        actual_exit_price = price  # Default to theoretical trigger price
 
         # ── [GHOST DUST GUARD] Skip all accounting for recovered dust ──
         if trade.get('is_dust_recovery'):
             self.active_trades = [t for t in self.active_trades if t is not trade]
             self.add_log(f"🧹 [DUST SWEEP] {trade['symbol']} dust swept silently via close_trade_by_symbol. No PnL impact.")
             return
-
-        self.add_log(f"TRADE CLOSED ({reason}): {trade['symbol']} @ {price} | PNL: ${pnl_absolute:.2f} ({pnl_pct:.2f}%)")
     
         if self.execution_mode == 'auto' or "MANUAL" in reason or reason in ["SL", "TP", "TRAILING STOP", "GLOBAL SAFETY (1.95%)"] or "SAFETY" in reason or "LIMIT" in reason or "EMERGENCY" in reason:
             try:
@@ -2862,7 +2871,15 @@ class TradingBot:
                             sell_order = self.orders.place_limit_sell(trade['symbol'], actual_free_balance, current_ticker * 0.99)
                         
                         if sell_order:
-                            self.add_log(f"✅ CONVERSION SUCCESS: {asset} successfully converted to USDT.")
+                            # ✅ ACTUAL FILL PRICE FIX FOR EXIT
+                            fills = sell_order.get('fills', [])
+                            if fills:
+                                t_qty = sum(float(f['qty']) for f in fills)
+                                t_cost = sum(float(f['qty']) * float(f['price']) for f in fills)
+                                if t_qty > 0:
+                                    actual_exit_price = t_cost / t_qty
+                            
+                            self.add_log(f"✅ CONVERSION SUCCESS: {asset} successfully converted to USDT @ ${actual_exit_price:.6f}.")
                             try:
                                 await self.telegram.send_message(
                                     f"💰 *LIQUIDATION SUCCESSFUL*\n"
@@ -2895,6 +2912,13 @@ class TradingBot:
                 self.add_log(f"Exit Protocol Error: {str(e)}")
 
         
+        # ── Finalized PnL Calculation ──
+        pnl_decimal = (actual_exit_price - entry_p) / entry_p if entry_p > 0 else 0.0
+        pnl_pct = pnl_decimal * 100
+        pnl_absolute = (actual_exit_price - entry_p) * p_qty
+
+        self.add_log(f"TRADE CLOSED ({reason}): {trade['symbol']} @ {actual_exit_price:.6f} | PNL: ${pnl_absolute:.2f} ({pnl_pct:.2f}%)")
+
         # ── Statistics & Neural Memory Unification ──
         await self._update_closing_stats(trade, pnl_absolute, pnl_pct, reason)
         
@@ -2907,7 +2931,7 @@ class TradingBot:
                 symbol        = trade['symbol'],
                 side          = trade.get('side', 'BUY'),
                 entry         = entry_p,
-                exit_p        = price,
+                exit_p        = actual_exit_price,
                 exit_t        = datetime.now().isoformat(),
                 entry_t       = entry_t,
                 pnl           = pnl_pct,
