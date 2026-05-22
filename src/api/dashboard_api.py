@@ -227,6 +227,37 @@ class DashboardAPI:
                 report = {"status": "Memory not initialized"}
             return jsonify(report)
 
+        @self.app.route('/api/paper_trades', methods=['GET'])
+        def get_paper_trades():
+            """Fetch Virtual Paper Trades (Neural Forgiveness) tracking."""
+            if hasattr(self.bot, 'memory'):
+                report = self.bot.memory.get_paper_trades_report()
+            else:
+                report = []
+            return jsonify(report)
+
+        @self.app.route('/api/send_paper_report', methods=['POST'])
+        def send_paper_report():
+            """Send the Paper Trades report to Telegram."""
+            if hasattr(self.bot, 'memory') and self.bot.telegram:
+                report = self.bot.memory.get_paper_trades_report()
+                if not report:
+                    msg = "🧠 *Neural Forgiveness (Paper Trades)*\nNo coins are currently in paper trading mode."
+                else:
+                    msg = "🧠 *Neural Forgiveness (Paper Trades)*\n━━━━━━━━━━━━━━━━━━━━\n"
+                    for r in report:
+                        sym = r['symbol']
+                        w = r['wins_in_last_3']
+                        state = r['state']
+                        msg += f"🔹 `{sym}`: {w}/3 Wins ({state})\n"
+                
+                # Send via asyncio to the telegram bot
+                import threading
+                import asyncio
+                threading.Thread(target=lambda: asyncio.run(self.bot.telegram.send_message(msg))).start()
+                return jsonify({'status': 'success', 'message': 'Report sent to Telegram'})
+            return jsonify({'status': 'error', 'message': 'Memory or Telegram not initialized'})
+
         @self.app.route('/api/omega', methods=['POST'])
         def trigger_omega():
             """Execute Protocol Omega Kill Switch."""

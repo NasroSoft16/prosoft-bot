@@ -77,6 +77,24 @@ class NeuralMemory:
                         cursor.execute(f"ALTER TABLE trade_memory ADD COLUMN {col} {col_type}")
                     except Exception as alt_err:
                         app_logger.warning(f"Migration for {col} failed: {alt_err}")
+            
+            # --- PAPER TRADES MIGRATION LOGIC ---
+            cursor.execute("PRAGMA table_info(paper_trades)")
+            paper_cols = [info[1] for info in cursor.fetchall()]
+            paper_missing_cols = {
+                'side': 'TEXT',
+                'entry_price': 'REAL',
+                'exit_price': 'REAL',
+                'profit_loss': 'REAL',
+                'market_health': 'REAL',
+                'ai_confidence': 'REAL'
+            }
+            for col, col_type in paper_missing_cols.items():
+                if col not in paper_cols:
+                    app_logger.info(f"💾 DATABASE MIGRATION: Adding missing column {col} to paper_trades")
+                    try:
+                        cursor.execute(f"ALTER TABLE paper_trades ADD COLUMN {col} {col_type}")
+                    except: pass
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS revenue_memory (
@@ -227,35 +245,111 @@ class NeuralMemory:
             app_logger.error(f"Veto check error: {e}")
             return False, ""
 
-    def record_paper_trade(self, symbol: str, is_win: bool):
+    def record_paper_trade(self, symbol: str, is_win: bool, trade_data: dict = None):
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             status = 'WIN' if is_win else 'LOSS'
-            cursor.execute(
-                "INSERT INTO paper_trades (symbol, status, timestamp) VALUES (?,?,?)",
-                (symbol, status, datetime.now().isoformat())
-            )
+            
+            if trade_data:
+                cursor.execute(
+                    """INSERT INTO paper_trades 
+                       (symbol, status, timestamp, side, entry_price, exit_price, profit_loss, market_health, ai_confidence) 
+                       VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (
+                        symbol, 
+                        status, 
+                        datetime.now().isoformat(),
+                        trade_data.get('side', 'BUY'),
+                        trade_data.get('entry_price', 0.0),
+                        trade_data.get('exit_price', 0.0),
+                        trade_data.get('profit_loss', 0.0),
+                        trade_data.get('market_health', 0.0),
+                        trade_data.get('ai_confidence', 0.0)
+                    )
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO paper_trades (symbol, status, timestamp) VALUES (?,?,?)",
+                    (symbol, status, datetime.now().isoformat())
+                )
             conn.commit()
             conn.close()
         except Exception as e:
             app_logger.error(f"Paper trade log error: {e}")
 
+    def get_paper_trades_report(self):
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            # Fetch the last 3 paper trades for each unique symbol that has been paper traded
+            cursor.execute("SELECT DISTINCT symbol FROM paper_trades")
+            symbols = [row[0] for row in cursor.fetchall()]
+            
+            report = []
+            for sym in symbols:
+                cursor.execute(
+                    "SELECT status FROM paper_trades WHERE symbol=? ORDER BY id DESC LIMIT 3",
+                    (sym,)
+                )
+                statuses = [row[0] for row in cursor.fetchall()]
+                wins = statuses.count('WIN')
+                
+                # The requirement to unban is 3 consecutive wins or 3 wins out of last 3.
+                # In should_veto_trade we unban if the last 3 are WIN.
+                if len(statuses) == 3 and all(s == 'WIN' for s in statuses):
+                    state = "READY TO UNBAN"
+                else:
+                    needed = 3 - wins
+                    state = f"TRAINING (Needs {needed} more wins)"
+                    
+                report.append({
+                    "symbol": sym,
+                    "last_status": statuses[0] if statuses else "UNKNOWN",
+                    "wins_in_last_3": wins,
+                    "state": state
+                })
+            conn.close()
+            return report
+        except Exception as e:
+            app_logger.error(f"Error fetching paper trades report: {e}")
+            return []
+
     def analyze_past_mistakes(self, symbol: str) -> str:
         try:
             conn = sqlite3.connect(self.db_path)
-            df   = pd.read_sql_query(
-                "SELECT * FROM trade_memory WHERE symbol=? AND profit_loss < 0 "
-                "ORDER BY id DESC LIMIT 5",
+            # Real losses
+            df = pd.read_sql_query(
+                "SELECT * FROM trade_memory WHERE symbol=? AND profit_loss < 0 ORDER BY id DESC LIMIT 5",
                 conn, params=(symbol,)
             )
+            # Simulated losses
+            try:
+                sim_df = pd.read_sql_query(
+                    "SELECT * FROM paper_trades WHERE symbol=? AND status='LOSS' ORDER BY id DESC LIMIT 5",
+                    conn, params=(symbol,)
+                )
+            except Exception:
+                sim_df = pd.DataFrame()
+                
             conn.close()
+            
+            warning_msg = ""
             if not df.empty:
                 avg_health = df['market_health'].mean()
-                return (
-                    f"Warning: {len(df)} recent losses on {symbol} "
-                    f"when market_health≈{avg_health:.0f}%."
-                )
+                warning_msg += f"Warning: {len(df)} recent real losses on {symbol} when market_health≈{avg_health:.0f}%. "
+                
+            if not sim_df.empty:
+                # To prevent errors if the migration hasn't run yet, check if market_health exists
+                if 'market_health' in sim_df.columns and not sim_df['market_health'].isnull().all():
+                    avg_sim_health = sim_df['market_health'].mean()
+                    warning_msg += f"[SIMULATION WARNING] The AI recently suffered {len(sim_df)} virtual losses on this coin under market_health≈{avg_sim_health:.0f}%. Proceed with extreme caution and learn from these simulated patterns. "
+                else:
+                    warning_msg += f"[SIMULATION WARNING] The AI recently suffered {len(sim_df)} virtual losses on this coin. Proceed with extreme caution. "
+
+            if warning_msg:
+                return warning_msg.strip()
+                
             return "Historical data clean."
         except Exception:
             return "System optimal."

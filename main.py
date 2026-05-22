@@ -1163,19 +1163,45 @@ class TradingBot:
             for _ in range(60): # monitor for 60 minutes
                 await asyncio.sleep(60)
                 try:
-                    df = self.api.get_historical_data(symbol, "1m", limit=2)
+                    df = self.api.get_historical_data(symbol, "1m", limit=20) # Get enough for tech indicators
                     if df is not None and not df.empty:
                         curr_p = float(df.iloc[-1]['close'])
-                        if curr_p >= tp:
-                            self.memory.record_paper_trade(symbol, True)
-                            self.add_log(f"🧠 [PAPER WIN] {symbol} virtual trade hit TP! (Forgiveness points +1)")
-                            return
-                        elif curr_p <= sl:
-                            self.memory.record_paper_trade(symbol, False)
+                        
+                        if curr_p >= tp or curr_p <= sl:
+                            is_win = (curr_p >= tp)
+                            market_health = await self.intel.calculate_market_health(df, skip_ai=True)
+                            trade_data = {
+                                'side': 'BUY',
+                                'entry_price': entry,
+                                'exit_price': curr_p,
+                                'profit_loss': (curr_p - entry) / entry * 100,
+                                'market_health': market_health,
+                                'ai_confidence': 50.0
+                            }
+                            self.memory.record_paper_trade(symbol, is_win, trade_data)
+                            if is_win:
+                                self.add_log(f"🧠 [PAPER WIN] {symbol} virtual trade hit TP! (Forgiveness points +1)")
                             return
                 except: pass
+            
             # Timeout = loss
-            self.memory.record_paper_trade(symbol, False)
+            try:
+                df = self.api.get_historical_data(symbol, "1m", limit=20)
+                curr_p = float(df.iloc[-1]['close']) if df is not None and not df.empty else entry
+                market_health = await self.intel.calculate_market_health(df, skip_ai=True) if df is not None and not df.empty else 50.0
+            except:
+                curr_p = entry
+                market_health = 50.0
+                
+            trade_data = {
+                'side': 'BUY',
+                'entry_price': entry,
+                'exit_price': curr_p,
+                'profit_loss': (curr_p - entry) / entry * 100,
+                'market_health': market_health,
+                'ai_confidence': 50.0
+            }
+            self.memory.record_paper_trade(symbol, False, trade_data)
         except: pass
 
     async def _scalper_cycle(self, market_health):
