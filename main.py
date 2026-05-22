@@ -2909,12 +2909,11 @@ class TradingBot:
             self.stats['consecutive_wins'] = int(self.stats.get('consecutive_wins', 0)) + 1
             self.stats['last_trade_time'] = time.time()  # 🧠 feed drought tracker
             
-            # 🛡️ ANTI-GREED SHIELD (NEW): Rest a winning coin for 2 minutes to prevent FOMO re-entry at the top!
-            expiry = time.time() + 120
+            # 🛡️ ANTI-GREED SHIELD (NEW): Rest a winning coin for 30 minutes (1800s) to prevent FOMO re-entry at the top!
+            expiry = time.time() + 1800
             self.blacklisted_symbols[trade['symbol']] = expiry
             self._save_blacklist()
-            self.add_log(f"🛡️ [ANTI-GREED] Applied 2m cooldown to {trade['symbol']} to prevent FOMO re-entry.")
-            
+            self.add_log(f"🛡️ [ANTI-GREED] Applied 30m cooldown to {trade['symbol']} to prevent FOMO re-entry at the top.")
         ai_lesson = "Strategy performance within expected parameters. (Node Latency: AI Insight Deferred)"
         try:
             if self.gemini and self.gemini.api_keys:
