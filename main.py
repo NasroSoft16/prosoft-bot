@@ -226,7 +226,6 @@ class TradingBot:
         
         # Train on boot if not trained
         if not self.xgb_shield.is_trained:
-            import threading
             threading.Thread(target=self.xgb_shield.train, daemon=True, name="XGB-Boot-Retrainer").start()
 
         # --- NEW MODULES (v14.0 Improvements) ---
