@@ -91,7 +91,7 @@ class SwingVault:
         for symbol in self.elite_symbols:
             try:
                 # Fetch 4-hour candles
-                df = self.api.get_historical_data(symbol, interval='4h', limit=50)
+                df = self.api.get_historical_klines(symbol, interval='4h', limit=50)
                 if df is None or df.empty: continue
 
                 # Basic RSI calculation
@@ -204,7 +204,7 @@ class SwingVault:
                     if highest_pct >= 0.0500:
                         try:
                             # Quick 15m momentum check to tighten the stop if overbought
-                            df_15 = self.api.get_historical_data(symbol, interval='15m', limit=15)
+                            df_15 = self.api.get_historical_klines(symbol, interval='15m', limit=15)
                             if df_15 is not None and not df_15.empty:
                                 delta = df_15['close'].diff()
                                 rs = (delta.where(delta > 0, 0)).rolling(window=14).mean() / (-delta.where(delta < 0, 0)).rolling(window=14).mean()
