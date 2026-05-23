@@ -950,6 +950,10 @@
                             <span class="text-[10px] text-slate-400 font-bold uppercase">Fakeout Risk</span>
                             <span id="xgb-risk" class="text-sm font-mono text-green-400">0%</span>
                         </div>
+                        <div class="flex justify-between items-center mt-2 border-t border-green-500/10 pt-2">
+                            <span class="text-[9px] text-slate-500 font-bold uppercase">Memory Base</span>
+                            <span id="xgb-trained-count" class="text-[10px] font-mono text-slate-400">Analyzing...</span>
+                        </div>
                     </div>
 
                     <!-- Crash & Hedge Protection Section -->
@@ -1715,6 +1719,18 @@
                         } else {
                             xgbEl.className = "text-sm font-mono text-green-400";
                         }
+                    }
+                }
+                
+                // XGBoost Memory Base
+                const xgbTrainedCountEl = document.getElementById('xgb-trained-count');
+                if (xgbTrainedCountEl) {
+                    if (s.xgb_is_trained) {
+                        xgbTrainedCountEl.innerText = `${s.xgb_trained_count} Trades`;
+                        xgbTrainedCountEl.className = "text-[10px] font-mono text-green-400";
+                    } else {
+                        xgbTrainedCountEl.innerText = "STANDBY / LEARNING";
+                        xgbTrainedCountEl.className = "text-[10px] font-mono text-yellow-500 animate-pulse";
                     }
                 }
 

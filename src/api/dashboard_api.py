@@ -200,6 +200,11 @@ class DashboardAPI:
                     'hunger': getattr(self.bot.vault, 'hunger_state', 'NORMAL')
                 }
 
+            # Inject XGBoost info
+            if hasattr(self.bot, 'xgb_shield'):
+                self.bot.stats['xgb_is_trained'] = self.bot.xgb_shield.is_trained
+                self.bot.stats['xgb_trained_count'] = getattr(self.bot.xgb_shield, 'trained_count', 0)
+
             return jsonify({
                 'bot_stats': self.bot.stats,
                 'current_symbol': self.bot.symbol,

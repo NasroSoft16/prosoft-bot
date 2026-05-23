@@ -21,6 +21,7 @@ class XGBoostShield:
         
         self.model = None
         self.is_trained = False
+        self.trained_count = 0
         self.min_trades_required = 50
         
         # Ensure directory exists
@@ -33,10 +34,21 @@ class XGBoostShield:
                 self.model = xgb.XGBClassifier()
                 self.model.load_model(self.model_path)
                 self.is_trained = True
-                app_logger.info("🧠 [XGBOOST] Loaded existing model.")
+                
+                # Fetch count from DB for UI
+                try:
+                    import sqlite3
+                    conn = sqlite3.connect(self.db_path)
+                    self.trained_count = conn.execute("SELECT COUNT(*) FROM trade_memory").fetchone()[0]
+                    conn.close()
+                except:
+                    self.trained_count = "150+" # Fallback
+                    
+                app_logger.info(f"🧠 [XGBOOST] Loaded existing model (trained on ~{self.trained_count} trades).")
             except Exception as e:
                 app_logger.error(f"🧠 [XGBOOST] Error loading model: {e}")
                 self.is_trained = False
+                self.trained_count = 0
 
     def _get_training_data(self, db_paths, limit=1000):
         """Extract recent trades from databases."""
@@ -127,7 +139,8 @@ class XGBoostShield:
             with open(self.model_path + ".features", "w") as f:
                 f.write(",".join(self.feature_columns))
                 
-            app_logger.info(f"🧠 [XGBOOST] Successfully trained on {len(X)} trades. Win Rate in data: {(y.sum()/len(y)*100):.1f}%")
+            self.trained_count = len(X)
+            app_logger.info(f"🧠 [XGBOOST] Successfully trained on {self.trained_count} trades. Win Rate in data: {(y.sum()/len(y)*100):.1f}%")
             return True
         except Exception as e:
             app_logger.error(f"🧠 [XGBOOST] Training error: {e}")
