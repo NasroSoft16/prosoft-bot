@@ -939,6 +939,19 @@
                         </div>
                     </div>
 
+                    <!-- XGBoost Predictive Shield Section -->
+                    <div class="bg-green-900/5 p-4 rounded-xl border border-green-500/10">
+                        <p class="text-[9px] font-bold text-green-400 uppercase tracking-widest mb-3 flex items-center gap-2"
+                            data-hint-en="Local AI ML model trained on recent trades to predict and block Fakeouts."
+                            data-hint-ar="نموذج ذكاء اصطناعي محلي يتنبأ بالاختراقات الوهمية ويحظرها.">
+                            🧠 XGBoost Shield
+                        </p>
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase">Fakeout Risk</span>
+                            <span id="xgb-risk" class="text-sm font-mono text-green-400">0%</span>
+                        </div>
+                    </div>
+
                     <!-- Crash & Hedge Protection Section -->
                     <div class="bg-red-900/5 p-4 rounded-xl border border-red-500/10">
                         <div class="flex items-center justify-between mb-3">
@@ -1688,6 +1701,21 @@
                     document.getElementById('flow-pressure').innerText = `${s.order_flow.pressure_score || 0}%`;
                     document.getElementById('flow-bias').innerText = (s.order_flow.bias || 'NEUTRAL').replace('_', ' ');
                     document.getElementById('flow-spread').innerText = `${(s.order_flow.spread_pct || 0).toFixed(4)}%`;
+                }
+
+                // 4.5 XGBoost Shield Risk
+                if (s.xgb_risk !== undefined) {
+                    const xgbEl = document.getElementById('xgb-risk');
+                    if (xgbEl) {
+                        xgbEl.innerText = `${Number(s.xgb_risk).toFixed(1)}%`;
+                        if (s.xgb_risk > 75) {
+                            xgbEl.className = "text-sm font-mono text-red-500 font-bold animate-pulse";
+                        } else if (s.xgb_risk > 50) {
+                            xgbEl.className = "text-sm font-mono text-yellow-400";
+                        } else {
+                            xgbEl.className = "text-sm font-mono text-green-400";
+                        }
+                    }
                 }
 
                 // 5. Macro Guardian (Fear/Greed, etc)

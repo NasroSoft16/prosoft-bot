@@ -220,6 +220,10 @@ class TradingBot:
         self.healer = SelfHealingEngine(self)      # محرك التصحيح الذاتي
         self.voice = VoiceAlertSystem(enabled=os.getenv('VOICE_ALERTS', 'on') == 'on')  # التنبيهات الصوتية
 
+        # --- XGBOOST PREDICTIVE SHIELD (v16.0) ---
+        from src.xgboost_shield import XGBoostShield
+        self.xgb_shield = XGBoostShield()
+
         # --- NEW MODULES (v14.0 Improvements) ---
         self.circuit_breaker = CircuitBreaker(
             max_daily_loss_pct=float(os.getenv('CB_MAX_DAILY_LOSS_PCT', 7.5)),
@@ -527,6 +531,26 @@ class TradingBot:
         balance = self.api.get_account_balance('USDT')
         if balance < 10.10: # Extra safety buffer for Binance $10 limit
             return False, f"Critical Balance Floor: ${balance:.2f}"
+
+        # ── Gate 11: XGBoost Predictive Shield ──
+        if hasattr(self, 'xgb_shield') and self.xgb_shield.is_trained:
+            ai_conf_input = df.iloc[-1].get('AI_CONF', 50.0) if df is not None else 50.0
+            sentiment_input = self.stats.get('sentiment', 'NEUTRAL')
+            
+            prob_fakeout = self.xgb_shield.predict_fakeout(
+                ai_confidence=ai_conf_input,
+                market_health=market_health,
+                strategy_used="Squeeze" if not is_rocket_signal else "Rocket",
+                sentiment=sentiment_input
+            )
+            
+            # Record it in stats for the UI Dashboard
+            self.stats['xgb_risk'] = prob_fakeout * 100
+            
+            if prob_fakeout > 0.75:
+                msg = f"XGBOOST BLOCKED: Predicted {prob_fakeout*100:.1f}% probability of Fakeout."
+                app_logger.warning(f"🛡️ [XGBOOST SHIELD] {symbol} blocked: {prob_fakeout*100:.1f}% risk")
+                return False, msg
 
         return True, "All gates passed"
 
@@ -1027,6 +1051,11 @@ class TradingBot:
                 if self.stats['closed_trades'] % 10 == 0:
                     self.add_log("⚙️ System: Triggering strategy optimization cycle...")
                     self.strategy_optimizer.run_optimization_cycle(bot_instance=self)
+
+                if self.stats['closed_trades'] % 50 == 0 and hasattr(self, 'xgb_shield'):
+                    self.add_log("🧠 [XGBOOST] Auto-Retraining cycle initiated...")
+                    import threading
+                    threading.Thread(target=self.xgb_shield.train, daemon=True, name="XGB-Retrainer").start()
 
                 # Remove from trackers
                 if trade in self.active_trades:
