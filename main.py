@@ -1058,7 +1058,6 @@ class TradingBot:
 
                 if self.stats['closed_trades'] % 50 == 0 and hasattr(self, 'xgb_shield'):
                     self.add_log("🧠 [XGBOOST] Auto-Retraining cycle initiated...")
-                    import threading
                     threading.Thread(target=self.xgb_shield.train, daemon=True, name="XGB-Retrainer").start()
 
                 # Remove from trackers
