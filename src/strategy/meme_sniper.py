@@ -75,58 +75,72 @@ class MemeRocketSniper:
         # Previous candle volume also building?
         prev_vol_building = prev_volume > avg_volume * 1.5
 
+        # ── 🚀 Spike Exhaustion & Ignition Pre-Checks (v33.2) ──
+        # Previous price changes
+        prev_price_change = ((prev_close - prev_open) / prev_open) * 100 if prev_open > 0 else 0
+        prev2_open = float(prev2['open'])
+        three_candle_change = ((curr_close - prev2_open) / prev2_open) * 100 if prev2_open > 0 else 0
+
         # ── 🚀 EARLY IGNITION DETECTION (The New Logic) ──
         # Condition 1: Volume is surging but price hasn't moved much yet
-        volume_surging  = vol_ratio >= 1.6          # 160%+ volume - rocket fuel loading
-        early_move      = 0.20 <= curr_price_change <= 1.80  # Wider net to catch slightly faster ignitions
-        rsi_safe        = rsi < 82                  # Allowed slightly higher RSI for meme coins
-        body_ok         = body_strength >= 0.40     # Bullish body (less strict)
-        momentum_ok     = prev_close >= prev_open * 0.999 # Allow previous candle to be flat or slightly red
+        volume_surging      = vol_ratio >= 1.6          # 160%+ volume - rocket fuel loading
+        early_move          = 0.20 <= curr_price_change <= 1.80  # Fuel loading, not peak
+        rsi_safe            = rsi < 75                  # Strict RSI limit down from 82 to prevent overbought trap
+        body_ok             = body_strength >= 0.40     # Bullish body (less strict)
+        momentum_ok         = prev_close >= prev_open * 0.999 # Allow previous candle to be flat or slightly red
         
-        if volume_surging and early_move and rsi_safe and body_ok and momentum_ok:
+        # New Spike Exhaustion Filters:
+        prev_move_safe      = prev_price_change < 1.20   # If previous candle jumped >1.2%, ignition already passed
+        three_candle_safe   = three_candle_change < 3.00 # If aggregate 3 candles >3.0%, entry is exhausted/late
+        
+        if (volume_surging and early_move and rsi_safe and body_ok and momentum_ok 
+                and prev_move_safe and three_candle_safe):
             import time
             _now = time.time()
             _last = self._last_ignition_log.get(symbol + '_ignition', 0)
             if _now - _last >= self._spam_cooldown_sec:
                 app_logger.critical(
                     f"🚀 [EARLY IGNITION] {symbol}: "
-                    f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | RSI: {rsi:.0f} | "
-                    f"Rocket is LOADING - Entering NOW before launch!"
+                    f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | Prev: +{prev_price_change:.2f}% | "
+                    f"3-Candle: +{three_candle_change:.2f}% | RSI: {rsi:.0f} | Rocket loading - Entering NOW!"
                 )
                 self._last_ignition_log[symbol + '_ignition'] = _now
-            # Tight SL since we're catching early momentum (0.85% gives enough breathing room against noise)
-            # TP is set to 1.5x the current move since it has more room to run
             projected_tp_pct = max(1.5, curr_price_change * 2.5)
             return {
                 'signal': 'EARLY_IGNITION',
                 'entry_price': curr_close,
                 'target_profit': min(projected_tp_pct, 4.0),  # Cap at 4% TP
-                'emergency_sl': 0.85,   # Increased from 0.35% to prevent noise knockouts
+                'emergency_sl': 0.85,   # Capped risk protection
             }
 
         # ── 🔥 SECONDARY: MOMENTUM CONTINUATION (2nd leg up) ──
         # If the first leg already happened but a SECOND leg is forming:
         # - Prev candle was a big green candle (the first rocket)
         # - Current candle is starting a second push with volume still high
-        prev_big_move = ((prev_close - prev_open) / prev_open * 100) >= 1.0 if prev_open > 0 else False
-        second_leg    = vol_ratio >= 1.8 and 0.20 <= curr_price_change <= 0.80
+        # Cap the first leg: must be between 1.0% and 2.2% to be a healthy first leg, not a vertical blow-off top!
+        prev_big_move       = 1.00 <= prev_price_change <= 2.20
+        second_leg          = vol_ratio >= 1.8 and 0.20 <= curr_price_change <= 0.80
+        second_rsi_safe     = rsi < 78                  # Strict ceiling for 2nd leg to prevent buying at absolute top
+        second_3c_safe      = three_candle_change < 3.50 # Protects against exhausted pumps
         
-        if prev_big_move and prev_vol_building and second_leg and rsi_safe and body_ok:
+        if (prev_big_move and prev_vol_building and second_leg and second_rsi_safe and body_ok
+                and second_3c_safe):
             import time
             _now = time.time()
             _last = self._last_ignition_log.get(symbol + '_2ndleg', 0)
             if _now - _last >= self._spam_cooldown_sec:
                 app_logger.critical(
                     f"🔥 [2ND LEG] {symbol}: "
-                    f"First rocket confirmed. 2nd leg forming! "
-                    f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | RSI: {rsi:.0f}"
+                    f"First leg confirmed. 2nd leg forming! "
+                    f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | Prev: +{prev_price_change:.2f}% | "
+                    f"3-Candle: +{three_candle_change:.2f}% | RSI: {rsi:.0f}"
                 )
                 self._last_ignition_log[symbol + '_2ndleg'] = _now
             return {
                 'signal': 'SECOND_LEG',
                 'entry_price': curr_close,
-                'target_profit': 2.0,   # More modest TP for 2nd leg
-                'emergency_sl': 0.95,   # Slightly wider for 2nd leg volatility (increased from 0.40%)
+                'target_profit': 2.0,   # Modest TP
+                'emergency_sl': 0.95,   # Slightly wider risk protection
             }
 
         return None

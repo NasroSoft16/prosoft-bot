@@ -116,6 +116,13 @@ class TradingBot:
         self.execution_mode = os.getenv('EXECUTION_MODE', 'manual')
         self.voice_alerts = os.getenv('VOICE_ALERTS', 'on') == 'on'
         
+        # ── PROSOFT Capital Milestones Engine State (v33.3) ──
+        self.milestone_state = 'MICRO_ACCOUNT'
+        self.max_concurrent_trades = 1
+        self.is_arbitrage_enabled = False
+        self.is_yield_enabled = False
+        self.is_dynamic_sizing_enabled = False
+        
         # Modules
         self.api = BinanceClientWrapper(testnet=False)
         self.ta = TechnicalAnalysis()
@@ -303,16 +310,10 @@ class TradingBot:
             return False, f"GLOBAL BLACKLIST: {symbol} is a restricted asset."
             
         # ── Gate 0: Max Concurrent Trades Limit ──
-        # For micro-accounts (under $40), strictly allow ONLY 1 active trade.
         balance = self.api.get_account_balance('USDT')
         total_equity = self.stats.get('total_equity', balance)
         
-        max_trades = 1
-        if total_equity >= 80:
-            max_trades = 3
-        elif total_equity >= 40:
-            max_trades = 2
-            
+        max_trades = getattr(self, 'max_concurrent_trades', 1)
         if len(self.active_trades) >= max_trades:
             return False, f"Portfolio limits reached ({len(self.active_trades)}/{max_trades} active trades for ${total_equity:.2f} equity)"
 
@@ -419,10 +420,15 @@ class TradingBot:
             return False, f"ORDER FLOW VETO: Real selling pressure detected ({pressure:.0f}%). MTF ignored."
 
         # ── Gate 5: MTF Consensus ──
-        if hasattr(self, 'mtf') and not is_rocket_signal:
-            allowed, mtf_reason = self.mtf.is_entry_allowed(symbol)
-            if not allowed:
-                return False, mtf_reason
+        if hasattr(self, 'mtf'):
+            if is_rocket_signal:
+                mtf_sig = self.mtf.get_signal(symbol)
+                if mtf_sig.get('direction') == 'SELL':
+                    return False, "MTF says SELL — rocket signal rejected."
+            else:
+                allowed, mtf_reason = self.mtf.is_entry_allowed(symbol)
+                if not allowed:
+                    return False, mtf_reason
 
         # ── Gate 5B: 🕵️ Spike Exhaustion Detector ──
         # Institutional-grade filter: blocks entry when BOTH conditions are true:
@@ -522,6 +528,19 @@ class TradingBot:
         if time.time() < self.market_crash_gate:
             return False, "Global Market Pause: Systemic Crash detected recently (Pulse Guard ACTIVE)."
 
+        # ── [BTC Gravity Filter] ──
+        if symbol != 'BTCUSDT':
+            try:
+                btc_df = self.api.get_historical_klines('BTCUSDT', interval='1m', limit=3)
+                if btc_df is not None and len(btc_df) >= 2:
+                    last_btc_close = float(btc_df['close'].iloc[-1])
+                    prev_btc_close = float(btc_df['close'].iloc[-2])
+                    btc_drop_pct = (prev_btc_close - last_btc_close) / prev_btc_close * 100
+                    if btc_drop_pct > 0.08: # BTC dropped more than 0.08% in 1 min
+                        return False, f"BTC Gravity is dropping (-{btc_drop_pct:.2f}%/m)."
+            except Exception:
+                pass
+
         # ── Gate 9: Liquidity & Spread Guard (Smart Filter) ──
         # Instead of banning symbols, we check the actual market health (Orderbook)
         ob = self.api.get_order_book(symbol)
@@ -530,6 +549,15 @@ class TradingBot:
             spread = (ob['asks'][0][0] - ob['bids'][0][0]) / ob['asks'][0][0]
             if spread > 0.005:  # Allowed up to 0.5% spread for high-volatility moves
                 return False, f"Gap too wide: Spread {spread:.2%} exceeds 0.5% limit"
+
+            # --- Gate 9.5: Order Book Imbalance (Sell walls 3x bigger) ---
+            try:
+                bids = sum([float(b[0]) * float(b[1]) for b in ob['bids'][:20]])
+                asks = sum([float(a[0]) * float(a[1]) for a in ob['asks'][:20]])
+                if bids > 0 and asks > (bids * 3.0):
+                    return False, f"Huge Sell Wall detected! Asks(${asks:,.0f}) > 3x Bids. Fake breakout trapped."
+            except Exception:
+                pass
 
         # ── Gate 10: Micro-Account Balance Floor ──
         balance = self.api.get_account_balance('USDT')
@@ -1692,6 +1720,9 @@ class TradingBot:
             loop_count = 0
             while True:
                 loop_count += 1
+                # ── PROSOFT Capital Milestones Auto-Evaluation (v33.3) ──
+                self.evaluate_milestones()
+                
                 try:
                     # ── Phase 14.1: Bulk Intelligence Sync ──
                     # Load ALL prices in one call to avoid latency in multi-trade monitoring
@@ -1769,7 +1800,8 @@ class TradingBot:
                     if not self.active_trades and loop_count % 15 == 0:
                         # v2.0: YieldFarmer now has built-in war chest + cooldown guards
                         # Only farms surplus above $13 war chest, and only for accounts > $50
-                        await self.farmer.check_and_farm(threshold_usdt=50.0)
+                        if getattr(self, 'is_yield_enabled', False):
+                            await self.farmer.check_and_farm(threshold_usdt=50.0)
                         self.stats['yield_status'] = "FARMING" if self.farmer.is_farming else "IDLE"
                     
                     if loop_count % 18 == 0:
@@ -1990,110 +2022,23 @@ class TradingBot:
 
                         rocket = self.rocket_sniper.detect_rocket(df, self.symbol)
                         if rocket and self.execution_mode == 'auto' and not self.active_trades:
-                            # ═══════════════════════════════════════════════════
-                            # 🔒 ROCKET SAFETY GATES (Fixed: was bypassing ALL gates!)
-                            # ═══════════════════════════════════════════════════
-                            
-                            # Gate 00: Global Pulse Guard
-                            if time.time() < self.market_crash_gate:
-                                self.add_log(f"⛔ [ROCKET BLOCKED] Pulse Guard active — systemic crash protection.")
-                                continue
-
-                            # Gate 1: Circuit Breaker
-                            if hasattr(self, 'circuit_breaker') and self.circuit_breaker.is_tripped:
-                                self.add_log(f"⛔ [ROCKET BLOCKED] Circuit Breaker tripped: {self.circuit_breaker.trip_reason}")
-                                continue
-
-                            # Gate 2: Risk Manager daily limits
-                            if not self.risk_manager.can_trade():
-                                self.add_log(f"⛔ [ROCKET BLOCKED] Daily risk limit reached.")
-                                continue
-
-                            # ⏳ Gate 3: ADAPTIVE MARKET HEALTH GATE (Bypassed for Rockets)
+                            # ── CENTRALIZED SECURITY INTEGRATION (v33.2) ──
                             current_health = self.stats.get('market_health', 50)
-                            
-                            # Calculate Adaptive Health requirement
-                            # Base: 45% (Conservative)
-                            base_health_req = 45.0
-                            
-                            # Loosen if performing well
-                            if self.stats.get('ai_accuracy', 50) >= 65: base_health_req -= 5
-                            if int(self.stats.get('consecutive_wins', 0)) >= 2: base_health_req -= 5
-                            
-                            # Harden if performing poorly
-                            if int(self.stats.get('consecutive_losses', 0)) >= 1: base_health_req += 5
-                            if int(self.stats.get('consecutive_losses', 0)) >= 3: base_health_req += 10
-                            
-                            # Clamp within safe limits [35% - 60%]
-                            adaptive_min_health = max(35.0, min(60.0, base_health_req))
-                            
-                            # 🛡️ [HARD FLOOR] Absolute panic protection — NO bypass allowed when market is in free-fall
-                            HARD_FLOOR_HEALTH = 28.0  # Below this = market panic → all rockets are fake traps
-                            if current_health < HARD_FLOOR_HEALTH:
-                                # 🔇 SPAM GUARD: Only log this once per 60 seconds per symbol to save CPU & logs
-                                _floor_key = f'_hard_floor_logged_{self.symbol}'
-                                _last_logged = getattr(self, _floor_key, 0)
-                                if time.time() - _last_logged >= 60:
-                                    self.add_log(f"🛑 [HARD FLOOR] Market health {current_health:.1f}% < PANIC FLOOR {HARD_FLOOR_HEALTH:.0f}%. ALL entries blocked. Capital preserved.")
-                                    setattr(self, _floor_key, time.time())
+                            fgi = self.stats.get('fear_greed_index', 50)
+                            allowed, reason = await self._check_entry_conditions(
+                                self.symbol, df, current_health, fgi, is_rocket_signal=True
+                            )
+                            if not allowed:
+                                # Log safety block
+                                _block_key = f'_blocked_logged_{self.symbol}'
+                                _last_b_logged = getattr(self, _block_key, 0)
+                                if time.time() - _last_b_logged >= 60:
+                                    self.add_log(f"⛔ [ROCKET BLOCKED] {self.symbol} purchase blocked: {reason}")
+                                    setattr(self, _block_key, time.time())
                                 continue
-
-                            if current_health < adaptive_min_health:
-                                _bypass_key = f'_bypass_logged_{self.symbol}'
-                                _last_bypass = getattr(self, _bypass_key, 0)
-                                if time.time() - _last_bypass >= 60:
-                                    self.add_log(f"⚡ [ROCKET BYPASS] Health {current_health:.1f}% < Req {adaptive_min_health:.1f}%. BUT this is an explosive rocket. BYPASSING HEALTH GATE!")
-                                    setattr(self, _bypass_key, time.time())
-                                # WE DO NOT CONTINUE. We allow the rocket to bypass health.
-
-                            # Gate 4: Blacklist Check
-                            if self.symbol in self.blacklisted_symbols:
-                                expiry = self.blacklisted_symbols[self.symbol]
-                                if time.time() < expiry:
-                                    _block_key = f'_blocked_logged_{self.symbol}'
-                                    _last_b_logged = getattr(self, _block_key, 0)
-                                    if time.time() - _last_b_logged >= 60:
-                                        self.add_log(f"⛔ [ROCKET BLOCKED] {self.symbol} is in isolation (recent loss).")
-                                        setattr(self, _block_key, time.time())
-                                    continue
-                                else:
-                                    del self.blacklisted_symbols[self.symbol]
-                                    self._save_blacklist()
-
-                            # Gate 4.5: BTC Gravity Filter (Don't buy altcoins if BTC is dumping)
-                            if self.symbol != 'BTCUSDT':
-                                try:
-                                    btc_df = self.api.get_historical_klines('BTCUSDT', interval='1m', limit=3)
-                                    if btc_df is not None and len(btc_df) >= 2:
-                                        last_btc_close = float(btc_df['close'].iloc[-1])
-                                        prev_btc_close = float(btc_df['close'].iloc[-2])
-                                        btc_drop_pct = (prev_btc_close - last_btc_close) / prev_btc_close * 100
-                                        if btc_drop_pct > 0.08: # BTC dropped more than 0.08% in 1 min
-                                            self.add_log(f"⛔ [ROCKET BLOCKED] BTC Gravity is dropping (-{btc_drop_pct:.2f}%/m). {self.symbol} purchase blocked.")
-                                            continue
-                                except Exception as e:
-                                    pass # Ignore error and proceed
-
-                            # Gate 4.6: Order Book Imbalance (Fake Breakout / Wall Trap Detector)
-                            try:
-                                depth = self.api.client.get_order_book(symbol=self.symbol, limit=20)
-                                bids = sum([float(b[0]) * float(b[1]) for b in depth['bids']])
-                                asks = sum([float(a[0]) * float(a[1]) for a in depth['asks']])
-                                if bids > 0 and asks > (bids * 3.0): # Sell walls are 3x bigger than buy walls
-                                    self.add_log(f"⛔ [ROCKET BLOCKED] Huge Sell Wall detected! Asks(${asks:,.0f}) > 3x Bids. Fake breakout trapped.")
-                                    continue
-                            except Exception as e:
-                                pass # Ignore error and proceed
-
-                            # Gate 5: MTF basic consensus (at least 50% buy signal for rockets)
-                            if hasattr(self, 'mtf'):
-                                mtf_sig = self.mtf.get_signal(self.symbol)
-                                if mtf_sig.get('direction') == 'SELL':
-                                    self.add_log(f"⛔ [ROCKET BLOCKED] MTF says SELL — rocket signal rejected.")
-                                    continue
 
                             # ═══ ALL GATES PASSED → LAUNCH! ═══
-                            self.add_log(f"🚀 MEME ROCKET ENGAGED: Executing scalp on {self.symbol} (Health: {current_health:.0f}%)")
+                            self.add_log(f"🚀 MEME ROCKET ENGAGED: Executing scalp on {self.symbol} (Health: {current_health:.1f}%)")
                             balance = self.api.get_account_balance('USDT')
                             # Safety cap: use 90% of balance if $20 is too much, but stay above $10.1
                             trade_amount = min(20.0, balance * 0.95)
@@ -2191,9 +2136,10 @@ class TradingBot:
                             if self.stats['total_equity'] > 0:
                                 if not self.active_trades and self.execution_mode == 'auto':
                                     # v2.0: War chest guard built into YieldFarmer — safe to call
-                                    await self.farmer.check_and_farm(threshold_usdt=50.0)
-                                    if self.stats['balance'] > 50:
-                                        await self.pool_hunter.auto_stake_for_farming(amount_usdt=20.0)
+                                    if getattr(self, 'is_yield_enabled', False):
+                                        await self.farmer.check_and_farm(threshold_usdt=50.0)
+                                        if self.stats['balance'] > 50:
+                                            await self.pool_hunter.auto_stake_for_farming(amount_usdt=20.0)
                                     
                                 self.add_log(f"Portfolio Sync: Equity verified at ${self.stats['total_equity']:,.2f}")
                                 
@@ -2352,25 +2298,26 @@ class TradingBot:
 
                     if loop_count == 1 or (loop_count > 0 and loop_count % 20 == 0):
                         try:
-                            arb_opps = self.arbitrage.scan_opportunities()
-                            self.stats['arb_opportunities'] = arb_opps
-                            if arb_opps:
-                                best = arb_opps[0]
-                                liquidity_status = "✅ SECURE" if best.get('is_high_liquidity') else "⚠️ LOW DEPTH"
-                                # 🔇 SPAM GUARD: Only log arbitrage if profit is decent
-                                if best['profit_pct'] > 0.2:
-                                    self.add_log(f"🔺 [ARBITRAGE] Best: {best['route_name']} ({best['direction']}) +{best['profit_pct']}% | {liquidity_status}")
-                                
-                                if best['profit_pct'] > 0.3:
-                                    now = datetime.now().strftime("%H:%M:%S")
-                                    arb_msg = (f"🔺 *ARBITRAGE ALERT / تنبيه مراجحة* 🔺\n"
-                                             f"⏰ *Time:* {now}\n"
-                                             f"Route: {best['route_name']}\n"
-                                             f"Direction: {best['direction']}\n"
-                                             f"Profit: +{best['profit_pct']}%\n"
-                                             f"Liquidity: {liquidity_status}\n"
-                                             f"Est. per $1000: ${best['estimated_profit_1k']}")
-                                    await self.telegram.send_message(arb_msg)
+                            if getattr(self, 'is_arbitrage_enabled', False):
+                                arb_opps = self.arbitrage.scan_opportunities()
+                                self.stats['arb_opportunities'] = arb_opps
+                                if arb_opps:
+                                    best = arb_opps[0]
+                                    liquidity_status = "✅ SECURE" if best.get('is_high_liquidity') else "⚠️ LOW DEPTH"
+                                    # 🔇 SPAM GUARD: Only log arbitrage if profit is decent
+                                    if best['profit_pct'] > 0.2:
+                                        self.add_log(f"🔺 [ARBITRAGE] Best: {best['route_name']} ({best['direction']}) +{best['profit_pct']}% | {liquidity_status}")
+                                    
+                                    if best['profit_pct'] > 0.3:
+                                        now = datetime.now().strftime("%H:%M:%S")
+                                        arb_msg = (f"🔺 *ARBITRAGE ALERT / تنبيه مراجحة* 🔺\n"
+                                                 f"⏰ *Time:* {now}\n"
+                                                 f"Route: {best['route_name']}\n"
+                                                 f"Direction: {best['direction']}\n"
+                                                 f"Profit: +{best['profit_pct']}%\n"
+                                                 f"Liquidity: {liquidity_status}\n"
+                                                 f"Est. per $1000: ${best['estimated_profit_1k']}")
+                                        await self.telegram.send_message(arb_msg)
                             else:
                                 self.stats['arb_opportunities'] = []
 
@@ -2708,10 +2655,78 @@ class TradingBot:
         if hasattr(self, 'live_instance') and self.live_instance:
             self.live_instance.update(self.ui.update_ui(self.symbol, self.timeframe, self.stats, self.logs))
 
+    def evaluate_milestones(self):
+        """
+        PROSOFT Capital Milestones Engine (v33.3)
+        Automatically adjusts strategy weights, max concurrent trades, 
+        and enables/disables background engines based on total equity.
+        """
+        try:
+            # Fetch available balance as fallback if total equity is not computed yet
+            usdt_balance = self.api.get_account_balance('USDT')
+            equity = self.stats.get('total_equity', usdt_balance)
+            if equity <= 0:
+                equity = usdt_balance
+                
+            old_state = getattr(self, 'milestone_state', 'MICRO_ACCOUNT')
+            
+            if equity < 150.0:
+                # ── Phase 1: Micro-Account ──
+                self.milestone_state = 'MICRO_ACCOUNT'
+                self.max_concurrent_trades = 1
+                self.is_arbitrage_enabled = False
+                self.is_yield_enabled = False
+                self.is_dynamic_sizing_enabled = False
+            elif equity < 500.0:
+                # ── Phase 2: Growth Phase ──
+                self.milestone_state = 'GROWTH_PHASE'
+                self.max_concurrent_trades = 2
+                self.is_arbitrage_enabled = False
+                self.is_yield_enabled = True
+                self.is_dynamic_sizing_enabled = True
+            else:
+                # ── Phase 3: Sovereign Hedge ──
+                self.milestone_state = 'SOVEREIGN_HEDGE'
+                self.max_concurrent_trades = 3
+                self.is_arbitrage_enabled = True
+                self.is_yield_enabled = True
+                self.is_dynamic_sizing_enabled = True
+                
+            # Log transition to Telegram & logs if milestone changes
+            if self.milestone_state != old_state:
+                milestone_names = {
+                    'MICRO_ACCOUNT': '🟢 PHASE 1: MICRO-ACCOUNT / الحساب الميكروي',
+                    'GROWTH_PHASE': '🟡 PHASE 2: GROWTH PHASE / مرحلة نمو الأرباح',
+                    'SOVEREIGN_HEDGE': '🔵 PHASE 3: SOVEREIGN HEDGE / الصندوق السيادي'
+                }
+                msg = (
+                    f"🏆 *PROSOFT CAPITAL MILESTONE TRANSITION* 🏆\n"
+                    f"Account evolved to: *{milestone_names[self.milestone_state]}*\n"
+                    f"Total Equity: `${equity:,.2f}`\n"
+                    f"⚙️ Auto-Tuned Settings:\n"
+                    f"  - Max Concurrent Trades: `{self.max_concurrent_trades}`\n"
+                    f"  - Arbitrage Engine: `{'ENABLED' if self.is_arbitrage_enabled else 'DISABLED (Capital Safeguard)'}`\n"
+                    f"  - Yield Farming Engine: `{'ENABLED' if self.is_yield_enabled else 'DISABLED (Capital Safeguard)'}`\n"
+                    f"  - Dynamic Risk Sizing: `{'ENABLED' if self.is_dynamic_sizing_enabled else 'DISABLED (Capital Safeguard)'}`"
+                )
+                self.add_log(f"🏆 [MILESTONE] Evolved to {self.milestone_state} (Equity: ${equity:.2f})")
+                try:
+                    import asyncio
+                    asyncio.create_task(self.telegram.send_message(msg))
+                except Exception:
+                    pass
+                    
+            # Put state into stats so it displays on UI/Logs
+            self.stats['milestone_state'] = self.milestone_state
+            
+        except Exception as e:
+            app_logger.error(f"Milestones evaluation error: {e}")
+
     async def execute_trade(self, symbol, side, qty, price, sl, tp, conf, strategy_name='QUANTUM_ALPHA'):
         async with self.trade_lock:
             # 🛡️ Anti-Duplicate Race Condition Guard
-            if len(self.active_trades) >= int(os.getenv('MAX_CONCURRENT_TRADES', 3)):
+            max_trades = getattr(self, 'max_concurrent_trades', 1)
+            if len(self.active_trades) >= max_trades:
                 return False
 
             self.add_log(f"CORE EXECUTION: {side} {symbol} @ {price} [{strategy_name}]")
