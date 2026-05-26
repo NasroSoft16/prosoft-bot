@@ -1356,6 +1356,18 @@ class TradingBot:
                         self.add_log(f"🕸️ [GHOST-NET DEPLOYED] {sym}: Intercepted scalp ({signal['reason']}). Trailing to catch the absolute bottom...")
                     continue # Bypass immediate execution, Ghost-Net will handle it
 
+                # ── CENTRALIZED SECURITY INTEGRATION FOR SCALPER (v33.3) ──
+                allowed, reason = await self._check_entry_conditions(
+                    symbol=sym,
+                    df=df,
+                    market_health=market_health,
+                    fgi=self.stats.get('fear_greed_index', self.stats.get('fgi', 50)),
+                    is_rocket_signal=False
+                )
+                if not allowed:
+                    app_logger.debug(f"[SCALPER GATES] Blocked {sym}: {reason}")
+                    continue
+
                 self.add_log(
                     f"⚡ SCALP SIGNAL: {sym} | {signal['reason']} | "
                     f"conf={signal['confidence']:.2f}"
@@ -1373,7 +1385,7 @@ class TradingBot:
                     },
                     ai_conf       = signal['confidence'],
                     market_health = market_health,
-                    fgi           = self.stats.get('fgi', 50),
+                    fgi           = self.stats.get('fear_greed_index', self.stats.get('fgi', 50)),
                 )
                 if trade:
                     self.active_trades.append(trade)
@@ -1559,14 +1571,14 @@ class TradingBot:
                 except Exception:
                     continue
 
-                rocket = self.rocket_sniper.detect_rocket(df_sym, sym)
+                fgi = self.stats.get('fear_greed_index', 50)
+                rocket = self.rocket_sniper.detect_rocket(df_sym, sym, fgi=fgi)
                 if not rocket:
                     continue
 
                 # ── UNIVERSAL HEALTH GATE (Prosoft Fix) ──
                 # Ensure MemeRocket doesn't bypass Anti-Duplicate, Name Shield, or Health limits
                 current_health = self.stats.get('market_health', 50)
-                fgi = self.stats.get('fear_greed_index', 50)
                 allowed, reason = await self._check_entry_conditions(
                     sym, df_sym, current_health, fgi, is_rocket_signal=True
                 )
@@ -2020,11 +2032,11 @@ class TradingBot:
                         self.stats['prediction'] = f"{pred['direction']} ({pred['change_pct']:+.1f}%)" if pred else "N/A"
                         self.last_df = df 
 
-                        rocket = self.rocket_sniper.detect_rocket(df, self.symbol)
+                        fgi = self.stats.get('fear_greed_index', 50)
+                        rocket = self.rocket_sniper.detect_rocket(df, self.symbol, fgi=fgi)
                         if rocket and self.execution_mode == 'auto' and not self.active_trades:
                             # ── CENTRALIZED SECURITY INTEGRATION (v33.2) ──
                             current_health = self.stats.get('market_health', 50)
-                            fgi = self.stats.get('fear_greed_index', 50)
                             allowed, reason = await self._check_entry_conditions(
                                 self.symbol, df, current_health, fgi, is_rocket_signal=True
                             )
@@ -2509,12 +2521,25 @@ class TradingBot:
                             
                             if curr_p >= trigger_price or curr_p >= fomo_price:
                                 reason = "CAUGHT THE DIP 🐊" if curr_p < pool['activation_price'] else "FOMO BREAKOUT 🚀"
-                                self.add_log(f"💥 [GHOST-NET EXECUTED] {self.symbol}: {reason} @ {curr_p:.6f}")
-                                trade = await self._execute_entry(self.symbol, pool['signal'], pool['ai_conf'], pool['mkt_health'], fgi=pool['fgi_val'])
-                                if trade:
-                                    self.active_trades.append(trade)
-                                    self.healer.save_trade_state(self.active_trades)
-                                    self.stats['active_count'] = len(self.active_trades)
+                                self.add_log(f"💥 [GHOST-NET TRIGGERED] {self.symbol}: {reason} @ {curr_p:.6f}")
+                                
+                                # ── CENTRALIZED SECURITY INTEGRATION FOR GHOST-NET (v33.3) ──
+                                allowed, block_reason = await self._check_entry_conditions(
+                                    symbol=self.symbol,
+                                    df=df,
+                                    market_health=mkt_health,
+                                    fgi=pool['fgi_val'],
+                                    is_rocket_signal=False
+                                )
+                                if allowed:
+                                    trade = await self._execute_entry(self.symbol, pool['signal'], pool['ai_conf'], pool['mkt_health'], fgi=pool['fgi_val'])
+                                    if trade:
+                                        self.active_trades.append(trade)
+                                        self.healer.save_trade_state(self.active_trades)
+                                        self.stats['active_count'] = len(self.active_trades)
+                                else:
+                                    self.add_log(f"🚫 [GHOST-NET SHIELD] Blocked entry on {self.symbol}: {block_reason}")
+                                
                                 del self.trailing_buys_pool[self.symbol]
                         
                         # 2. Run Scalper Cycle

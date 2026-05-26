@@ -25,10 +25,11 @@ class MemeRocketSniper:
         self._last_ignition_log = {}  # symbol -> timestamp
         self._spam_cooldown_sec = 60  # Only log once per minute per symbol
         
-    def detect_rocket(self, df, symbol):
+    def detect_rocket(self, df, symbol, fgi=50):
         """
         Detects EARLY signs of a rocket BEFORE it fully launches.
         Catches the ignition phase, not the peak.
+        Supports FGI (Fear & Greed Index) for the Fear Market Momentum Shield.
         """
         if df is None or len(df) < 25:
             return None
@@ -81,11 +82,17 @@ class MemeRocketSniper:
         prev2_open = float(prev2['open'])
         three_candle_change = ((curr_close - prev2_open) / prev2_open) * 100 if prev2_open > 0 else 0
 
+        # ── 🛡️ Fear Market Momentum Shield Parameters ──
+        is_fear_regime = (fgi < 40)
+        vol_threshold = 2.2 if is_fear_regime else 1.6
+        max_price_change = 1.00 if is_fear_regime else 1.80
+        max_rsi = 70.0 if is_fear_regime else 75.0
+
         # ── 🚀 EARLY IGNITION DETECTION (The New Logic) ──
         # Condition 1: Volume is surging but price hasn't moved much yet
-        volume_surging      = vol_ratio >= 1.6          # 160%+ volume - rocket fuel loading
-        early_move          = 0.20 <= curr_price_change <= 1.80  # Fuel loading, not peak
-        rsi_safe            = rsi < 75                  # Strict RSI limit down from 82 to prevent overbought trap
+        volume_surging      = vol_ratio >= vol_threshold
+        early_move          = 0.20 <= curr_price_change <= max_price_change
+        rsi_safe            = rsi < max_rsi
         body_ok             = body_strength >= 0.40     # Bullish body (less strict)
         momentum_ok         = prev_close >= prev_open * 0.999 # Allow previous candle to be flat or slightly red
         
@@ -102,7 +109,7 @@ class MemeRocketSniper:
                 app_logger.critical(
                     f"🚀 [EARLY IGNITION] {symbol}: "
                     f"Vol ×{vol_ratio:.1f} | Move: +{curr_price_change:.2f}% | Prev: +{prev_price_change:.2f}% | "
-                    f"3-Candle: +{three_candle_change:.2f}% | RSI: {rsi:.0f} | Rocket loading - Entering NOW!"
+                    f"3-Candle: +{three_candle_change:.2f}% | RSI: {rsi:.0f} | Rocket loading - Entering NOW! (FEAR regime = {is_fear_regime})"
                 )
                 self._last_ignition_log[symbol + '_ignition'] = _now
             projected_tp_pct = max(1.5, curr_price_change * 2.5)
@@ -114,6 +121,10 @@ class MemeRocketSniper:
             }
 
         # ── 🔥 SECONDARY: MOMENTUM CONTINUATION (2nd leg up) ──
+        # FEAR SHIELD: Disable SECOND_LEG completely in Fear regimes to avoid bull traps
+        if is_fear_regime:
+            return None
+
         # If the first leg already happened but a SECOND leg is forming:
         # - Prev candle was a big green candle (the first rocket)
         # - Current candle is starting a second push with volume still high
