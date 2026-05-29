@@ -1,0 +1,19 @@
+{
+    "last_trade_time": 1780071162.8933022,
+    "vault_trades": [
+        {
+            "symbol": "TRXUSDT",
+            "side": "BUY",
+            "qty": 49.4,
+            "entry_price": 0.3477,
+            "sl": 0.330315,
+            "tp": 0.38247,
+            "trailing_sl": 0.330315,
+            "highest_price": 0.3477,
+            "pnl_pct": 0.0,
+            "time": "15:35:27",
+            "trade_type": "SWING",
+            "order_id": "RECOVERED_SWING"
+        }
+    ]
+}
