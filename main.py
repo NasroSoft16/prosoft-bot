@@ -304,6 +304,15 @@ class TradingBot:
         Returns (allowed: bool, reason: str).
         All gates must pass before entering a trade.
         """
+        # Safe FGI parsing
+        try:
+            if fgi is None or fgi == "N/A":
+                fgi_parsed = 50
+            else:
+                fgi_parsed = int(fgi)
+        except Exception:
+            fgi_parsed = 50
+        fgi = fgi_parsed
         # ── Gate 0: Global Blacklist Gate ──
         # Check if symbol is in scanner's blacklist (Stablecoins, Gold, etc.)
         if hasattr(self, 'market_scanner') and any(blocked in symbol for blocked in self.market_scanner.blacklist):
@@ -1841,7 +1850,13 @@ class TradingBot:
                         _c_wins   = int(self.stats.get('consecutive_wins', 0))
                         _c_loss   = int(self.stats.get('consecutive_losses', 0))
                         _last_t   = float(self.stats.get('last_trade_time', 0))
-                        _fgi      = int(self.stats.get('fear_greed_index', 50))
+                        
+                        try:
+                            _fgi_raw = self.stats.get('fear_greed_index', 50)
+                            _fgi = int(_fgi_raw) if _fgi_raw is not None and _fgi_raw != "N/A" else 50
+                        except Exception:
+                            _fgi = 50
+                            
                         self.mtf.update_performance(
                             win_rate=_win_rate,
                             consecutive_wins=_c_wins,
@@ -1852,7 +1867,12 @@ class TradingBot:
                         
                         # 🧠 MASTER ADAPTIVE PULSE (MAP) - FULLY DYNAMIC & SMART EQUATION
                         acc_val = float(self.stats.get('ai_accuracy', 50.0))
-                        fgi = float(self.stats.get('fear_greed_index', 50.0))
+                        
+                        try:
+                            _fgi_raw2 = self.stats.get('fear_greed_index', 50.0)
+                            fgi = float(_fgi_raw2) if _fgi_raw2 is not None and _fgi_raw2 != "N/A" else 50.0
+                        except Exception:
+                            fgi = 50.0
                         
                         # 1. Base Threshold (Strict start)
                         base_threshold = 0.70
@@ -2767,7 +2787,12 @@ class TradingBot:
                         )
                         return False
                     
-                    fgi_value = int(self.stats.get('fear_greed_index', 50))
+                    try:
+                        _fgi_raw = self.stats.get('fear_greed_index', 50)
+                        fgi_value = int(_fgi_raw) if _fgi_raw is not None and _fgi_raw != "N/A" else 50
+                    except Exception:
+                        fgi_value = 50
+                        
                     FGI_MIN_NORMAL   = 40
                     FGI_MIN_ROCKET   = 35
                     is_rocket = 'ROCKET' in strategy_name or 'IGNITION' in strategy_name or 'VSHAPE' in strategy_name
