@@ -103,6 +103,15 @@ from src.strategy.divergence_scanner         import RSIDivergenceScanner
 from src.strategy.swing_vault              import SwingVault
 from src.strategy.grid_scout                 import GridScout
 
+# PROSOFT REVOLUTIONARY SWARM IMPORTS
+from src.execution.multi_agent.shared_state import GlobalSharedState
+from src.execution.multi_agent.sentinel import SentinelAgent
+from src.execution.multi_agent.risk_warden import RiskWardenAgent
+from src.execution.multi_agent.executioner import ExecutionerAgent
+from src.execution.multi_agent.self_tuner import SelfTunerAgent
+from src.strategy.solana_sniper import SolanaDexSniper
+from src.execution.hft_engine import HftDepthEngine
+
 load_dotenv()
 
 class TradingBot:
@@ -230,6 +239,15 @@ class TradingBot:
         # --- XGBOOST PREDICTIVE SHIELD (v16.0) ---
         from src.xgboost_shield import XGBoostShield
         self.xgb_shield = XGBoostShield()
+        
+        # --- PROSOFT REVOLUTIONARY MULTI-AGENT SWARM & HFT (v40.0) ---
+        self.shared_state = GlobalSharedState()
+        self.sentinel = SentinelAgent(self, self.shared_state)
+        self.risk_warden = RiskWardenAgent(self, self.shared_state)
+        self.executioner = ExecutionerAgent(self, self.shared_state, self.risk_warden)
+        self.self_tuner = SelfTunerAgent(self, self.shared_state)
+        self.solana_sniper = SolanaDexSniper(self, self.shared_state)
+        self.hft_depth = HftDepthEngine(self, self.shared_state)
         
         # Train on boot if not trained
         if not self.xgb_shield.is_trained:
@@ -410,8 +428,24 @@ class TradingBot:
 
         # Layer 3 — SOFT GATE: Dynamic threshold (default 45%, managed by Optimizer)
         # Only rocket breakout signals can bypass this layer.
-        if market_health < self.min_market_health and not is_rocket_signal:
-            return False, f"Market health too low ({market_health:.1f}% < {self.min_market_health:.0f}%)"
+        # Modified for Macro Intelligence adjustments (v41.0)
+        vix_val = getattr(self.shared_state, 'vix', 18.0)
+        dxy_chg = getattr(self.shared_state, 'dxy_change', 0.0)
+        ndq_chg = getattr(self.shared_state, 'ndq_change', 0.0)
+        
+        required_health = self.min_market_health
+        adjustments = []
+        
+        if dxy_chg > 0.0:
+            required_health += 5.0
+            adjustments.append(f"DXY +{dxy_chg:.2f}% (+5% health req)")
+        if ndq_chg > 0.0:
+            required_health -= 3.0
+            adjustments.append(f"NDQ +{ndq_chg:.2f}% (-3% health req)")
+            
+        if market_health < required_health and not is_rocket_signal:
+            adj_str = " | ".join(adjustments) if adjustments else "no macro overrides"
+            return False, f"Market health too low ({market_health:.1f}% < {required_health:.1f}% due to macro: {adj_str})"
 
         # ── Gate 4: Manipulation Shield ──
         order_flow = None
@@ -605,14 +639,53 @@ class TradingBot:
             self.add_log(f"⚠️ Balance too low: ${balance:.2f}")
             return None
 
-        # ── Position size with FGI + AI conf ──
-        position_size = self.risk_manager.calculate_position_size(
-            balance    = balance,
-            price      = signal['entry_price'],
-            stop_loss  = signal['stop_loss'],
-            ai_conf    = ai_conf,
-            fgi        = fgi,
-        )
+        # ── Quantum Dual-Engine Sizing Core-Satellite (v41.0) ──
+        strategy_tag = signal.get('indicators', {}).get('Strategy', signal.get('strategy', 'Unknown'))
+        is_scalp = any(k in str(strategy_tag) for k in ['Scalp', 'Meme', 'Rocket'])
+        
+        if self.is_dynamic_sizing_enabled:
+            equity = self.stats.get('total_equity', balance)
+            if equity <= 0:
+                equity = balance
+                
+            if equity < 50.0:
+                # ── Micro-Capital Hybrid Mode: 100% Scalping for faster compounding ──
+                allocated_usdt = balance * 0.95  # 95% safety cap
+                position_size = allocated_usdt / signal['entry_price']
+                self.add_log(
+                    f"⚖️ [QUANTUM SIZING] Micro-Capital Hybrid Mode: "
+                    f"Prioritizing Scalping (100% available: ${allocated_usdt:.2f}) | "
+                    f"Qty: {position_size:.6f}"
+                )
+            else:
+                # ── Core-Satellite Dual-Engine Sizing ──
+                allocation_pct = 0.40 if is_scalp else 0.60
+                allocated_usdt = balance * allocation_pct
+                allocated_usdt = min(allocated_usdt, balance * 0.95)
+                position_size = allocated_usdt / signal['entry_price']
+                self.add_log(
+                    f"⚖️ [QUANTUM SIZING] Core-Satellite Split: "
+                    f"{'Scalp (40%)' if is_scalp else 'Swing (60%)'} -> ${allocated_usdt:.2f} of ${balance:.2f} | "
+                    f"Qty: {position_size:.6f}"
+                )
+                
+            # Ensure Binance minimum size rule ($10.50)
+            min_qty = 10.50 / signal['entry_price']
+            if balance >= 10.50 and position_size < min_qty:
+                position_size = min_qty
+                
+            # Check maximum safety bounds
+            if position_size * signal['entry_price'] > balance * 0.95:
+                position_size = (balance * 0.95) / signal['entry_price']
+        else:
+            # ── Fallback to standard risk-based sizing ──
+            position_size = self.risk_manager.calculate_position_size(
+                balance    = balance,
+                price      = signal['entry_price'],
+                stop_loss  = signal['stop_loss'],
+                ai_conf    = ai_conf,
+                fgi        = fgi,
+            )
 
         if position_size <= 0:
             self.add_log("⚠️ Position size = 0. Trade skipped.")
@@ -1462,6 +1535,14 @@ class TradingBot:
         self.symbol = new_symbol
         self.add_log(f"⭐ STRATEGIC SWITCHOVER: {old_symbol} -> {self.symbol}")
         
+        # Dynamically switch WebSocket depth streams
+        if hasattr(self, 'hft_depth'):
+            try:
+                import asyncio
+                asyncio.create_task(self.hft_depth.switch_symbol(new_symbol))
+            except Exception:
+                pass
+                
         self.stats['rsi'] = 0
         self.stats['ai_conf'] = 0
         
@@ -1732,6 +1813,14 @@ class TradingBot:
 
     async def run(self):
         await self.perform_diagnostics()
+        
+        # Start Swarm Agents & HFT depth stream (v40.0)
+        await self.sentinel.start()
+        await self.risk_warden.start()
+        await self.executioner.start()
+        await self.self_tuner.start()
+        await self.solana_sniper.start()
+        await self.hft_depth.start(self.symbol)
         
         # 🔥 Launch independent trade watcher on a 1-second heartbeat
         asyncio.ensure_future(self._trade_watcher_loop())
@@ -2603,6 +2692,12 @@ class TradingBot:
                         else:
                             # 4. Execute Signal (Prioritize QuantumAlpha with Macro Context)
                             m_context = self.stats.get('macro_context', {})
+                            if not isinstance(m_context, dict):
+                                m_context = {}
+                            m_context['vix'] = getattr(self.shared_state, 'vix', 18.0)
+                            m_context['dxy_change'] = getattr(self.shared_state, 'dxy_change', 0.0)
+                            m_context['ndq_change'] = getattr(self.shared_state, 'ndq_change', 0.0)
+                            
                             signal = self.quantum_alpha.check_entry_signal(df, symbol=self.symbol, macro_context=m_context)
                             
                             if signal['signal'] == 'WAIT':
@@ -2646,7 +2741,14 @@ class TradingBot:
                                 # Calculate final confidence
                                 ai_conf = signal.get('confidence', self.ai.calculate_confidence(df.iloc[-1]))
                                 
-                                if ai_conf >= self.ai_confidence_threshold:
+                                # Apply VIX high-volatility shield (v41.0)
+                                required_conf = self.ai_confidence_threshold
+                                vix_val = getattr(self.shared_state, 'vix', 18.0)
+                                if vix_val > 25.0:
+                                    required_conf = max(required_conf, 0.90)
+                                    self.add_log(f"⚠️ [MACRO VIX SHIELD] High VIX detected ({vix_val:.2f} > 25.0). Required AI confidence raised to 90%.")
+                                    
+                                if ai_conf >= required_conf:
                                     if not hasattr(self, 'trailing_buys_pool'):
                                         self.trailing_buys_pool = {}
                                         
@@ -2715,15 +2817,22 @@ class TradingBot:
                 
             old_state = getattr(self, 'milestone_state', 'MICRO_ACCOUNT')
             
-            if equity < 150.0:
+            if equity < 30.0:
                 # ── Phase 1: Micro-Account ──
                 self.milestone_state = 'MICRO_ACCOUNT'
                 self.max_concurrent_trades = 1
                 self.is_arbitrage_enabled = False
                 self.is_yield_enabled = False
                 self.is_dynamic_sizing_enabled = False
+            elif equity < 150.0:
+                # ── Phase 2: Growth Phase (Tuned for Micro-Growth) ──
+                self.milestone_state = 'GROWTH_PHASE'
+                self.max_concurrent_trades = 1
+                self.is_arbitrage_enabled = False
+                self.is_yield_enabled = False
+                self.is_dynamic_sizing_enabled = True
             elif equity < 500.0:
-                # ── Phase 2: Growth Phase ──
+                # ── Phase 2.5: Growth Phase (Standard) ──
                 self.milestone_state = 'GROWTH_PHASE'
                 self.max_concurrent_trades = 2
                 self.is_arbitrage_enabled = False
