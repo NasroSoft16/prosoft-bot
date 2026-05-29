@@ -416,7 +416,7 @@ class NeuralMemory:
         try:
             conn = sqlite3.connect(self.db_path)
             df   = pd.read_sql_query(
-                f"SELECT * FROM trade_memory ORDER BY id DESC LIMIT {limit}", conn
+                f"SELECT * FROM trade_memory WHERE strategy_used != 'SOLANA_DEX' ORDER BY id DESC LIMIT {limit}", conn
             )
             conn.close()
             return df.replace({np.nan: None, np.inf: None, -np.inf: None}).to_dict('records')

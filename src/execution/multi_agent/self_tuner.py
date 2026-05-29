@@ -32,7 +32,7 @@ class SelfTunerAgent:
                 cursor = conn.cursor()
                 
                 # Fetch recent trades count and winrate
-                cursor.execute("SELECT COUNT(*), SUM(CASE WHEN profit_loss > 0 THEN 1 ELSE 0 END) FROM trade_memory;")
+                cursor.execute("SELECT COUNT(*), SUM(CASE WHEN profit_loss > 0 THEN 1 ELSE 0 END) FROM trade_memory WHERE strategy_used != 'SOLANA_DEX';")
                 row = cursor.fetchone()
                 
                 if row and row[0] >= 10:

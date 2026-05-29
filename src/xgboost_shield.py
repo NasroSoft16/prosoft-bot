@@ -39,7 +39,7 @@ class XGBoostShield:
                 try:
                     import sqlite3
                     conn = sqlite3.connect(self.db_path)
-                    self.trained_count = conn.execute("SELECT COUNT(*) FROM trade_memory").fetchone()[0]
+                    self.trained_count = conn.execute("SELECT COUNT(*) FROM trade_memory WHERE strategy_used != 'SOLANA_DEX'").fetchone()[0]
                     conn.close()
                 except:
                     self.trained_count = "150+" # Fallback
@@ -58,7 +58,7 @@ class XGBoostShield:
                 continue
             try:
                 conn = sqlite3.connect(db_path)
-                query = "SELECT profit_loss, ai_confidence, market_health, strategy_used, sentiment FROM trade_memory"
+                query = "SELECT profit_loss, ai_confidence, market_health, strategy_used, sentiment FROM trade_memory WHERE strategy_used != 'SOLANA_DEX'"
                 df = pd.read_sql_query(query, conn)
                 dfs.append(df)
             except Exception as e:

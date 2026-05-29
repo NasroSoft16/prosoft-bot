@@ -780,7 +780,7 @@ class DashboardAPI:
                 import sqlite3
                 import pandas as pd
                 conn = sqlite3.connect(self.bot.memory.db_path)
-                df = pd.read_sql_query("SELECT exit_time, profit_loss FROM trade_memory ORDER BY id DESC LIMIT 100", conn)
+                df = pd.read_sql_query("SELECT exit_time, profit_loss FROM trade_memory WHERE strategy_used != 'SOLANA_DEX' ORDER BY id DESC LIMIT 100", conn)
                 conn.close()
                 
                 if df.empty:
