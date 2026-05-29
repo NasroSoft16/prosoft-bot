@@ -1823,7 +1823,10 @@ class TradingBot:
         await self.risk_warden.start()
         await self.executioner.start()
         await self.self_tuner.start()
-        await self.solana_sniper.start()
+        if os.getenv('ENABLE_SOLANA_SNIPER', 'false').lower() == 'true':
+            await self.solana_sniper.start()
+        else:
+            self.add_log("🐊 [SOLANA SNIPER] Disabled via .env configuration.")
         await self.hft_depth.start(self.symbol)
         
         # 🔥 Launch independent trade watcher on a 1-second heartbeat

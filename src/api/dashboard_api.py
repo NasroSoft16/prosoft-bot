@@ -415,7 +415,8 @@ class DashboardAPI:
                 f"TIMEFRAME={self.bot.timeframe}",
                 f"AI_CONFIDENCE_THRESHOLD={self.bot.ai_threshold}",
                 f"EXECUTION_MODE={self.bot.execution_mode}",
-                f"VOICE_ALERTS={'on' if self.bot.voice_alerts else 'off'}"
+                f"VOICE_ALERTS={'on' if self.bot.voice_alerts else 'off'}",
+                f"ENABLE_SOLANA_SNIPER={os.getenv('ENABLE_SOLANA_SNIPER', 'false')}"
             ]
             with open(".env", "w") as f:
                 f.write("\n".join(env_content) + "\n")
