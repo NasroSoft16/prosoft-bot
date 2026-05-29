@@ -33,7 +33,7 @@ class StrategyOptimizer:
         try:
             conn = sqlite3.connect(self.db_path)
             df   = pd.read_sql_query(
-                "SELECT * FROM trade_memory ORDER BY id DESC LIMIT 100", conn
+                "SELECT * FROM trade_memory WHERE strategy_used != 'SOLANA_DEX' ORDER BY id DESC LIMIT 100", conn
             )
             conn.close()
         except Exception as e:
@@ -256,7 +256,7 @@ class StrategyOptimizer:
         try:
             conn = sqlite3.connect(self.db_path)
             df   = pd.read_sql_query(
-                "SELECT symbol, profit_loss FROM trade_memory ORDER BY id DESC LIMIT 500",
+                "SELECT symbol, profit_loss FROM trade_memory WHERE strategy_used != 'SOLANA_DEX' ORDER BY id DESC LIMIT 500",
                 conn
             )
             conn.close()
