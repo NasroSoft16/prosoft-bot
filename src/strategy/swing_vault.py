@@ -19,7 +19,14 @@ class SwingVault:
         self.last_scan_time = 0
         self.scan_interval = 900  # Scan every 15 minutes for 4H trends
         
-        self.state_file = "vault_state.json"
+        # Determine the persistent directory from the DB path if available
+        import os
+        db_dir = os.path.dirname(self.memory.db_path) if (self.memory and hasattr(self.memory, 'db_path')) else ""
+        if db_dir:
+            self.state_file = os.path.join(db_dir, "vault_state.json")
+        else:
+            self.state_file = "vault_state.json"
+            
         self.last_trade_time = self._load_state()
         self.current_rsi_target = 35 # Default
         self.hunger_state = "NORMAL"
@@ -27,9 +34,22 @@ class SwingVault:
     def _load_state(self):
         import json, os
         last_time = time.time() - (86400 * 3)
-        if os.path.exists(self.state_file):
+        
+        # Migrating from local file if it exists but the persistent one does not
+        local_file = "vault_state.json"
+        target_file = self.state_file
+        
+        if target_file != local_file and not os.path.exists(target_file) and os.path.exists(local_file):
             try:
-                with open(self.state_file, 'r') as f:
+                import shutil
+                shutil.copy(local_file, target_file)
+                self.add_log(f"🚚 Migrated state file from {local_file} to persistent {target_file}")
+            except Exception as e:
+                self.add_log(f"⚠️ Failed to migrate state file: {e}")
+                
+        if os.path.exists(target_file):
+            try:
+                with open(target_file, 'r') as f:
                     data = json.load(f)
                     self.vault_trades = data.get('vault_trades', [])
                     return data.get('last_trade_time', last_time)
