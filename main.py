@@ -1110,6 +1110,7 @@ class TradingBot:
                 # ── [GHOST DUST GUARD] Skip all accounting for recovered dust ──
                 if trade.get('is_dust_recovery'):
                     self.active_trades = [t for t in self.active_trades if t is not trade]
+                    self.healer.save_trade_state(self.active_trades)
                     self.add_log(f"🧹 [DUST SWEEP] {trade['symbol']} dust liquidated silently. No PnL impact.")
                     return
 
@@ -3053,6 +3054,7 @@ class TradingBot:
         # ── [GHOST DUST GUARD] Skip all accounting for recovered dust ──
         if trade.get('is_dust_recovery'):
             self.active_trades = [t for t in self.active_trades if t is not trade]
+            self.healer.save_trade_state(self.active_trades)
             self.add_log(f"🧹 [DUST SWEEP] {trade['symbol']} dust swept silently via close_trade_by_symbol. No PnL impact.")
             return
     
