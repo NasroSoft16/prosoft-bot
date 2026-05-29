@@ -228,3 +228,34 @@ class BinanceClientWrapper:
         except Exception as e:
             app_logger.error(f"Simple Earn Redeem Error: {e}")
             return False
+
+    def place_market_order(self, symbol, side, quantity):
+        """Places a market order (BUY or SELL) with automatic LOT_SIZE formatting."""
+        if not self.client: return None
+        try:
+            info = self.client.get_symbol_info(symbol)
+            formatted_qty = quantity
+            if info and 'filters' in info:
+                for f in info['filters']:
+                    if f['filterType'] == 'LOT_SIZE':
+                        step_size = float(f['stepSize'])
+                        if step_size > 0:
+                            import math
+                            precision = int(round(-math.log10(step_size), 0)) if step_size < 1 else 0
+                            factor = 10 ** precision
+                            formatted_qty = math.floor(quantity * factor + 1e-10) / factor
+                            break
+            
+            formatted_qty = float(f"{formatted_qty:.6f}")
+            
+            order = self.client.create_order(
+                symbol=symbol,
+                side=side,
+                type='MARKET',
+                quantity=formatted_qty
+            )
+            app_logger.info(f"✨ [MARKET ORDER] {side} placed for {symbol}: id={order.get('orderId')} qty={formatted_qty}")
+            return order
+        except Exception as e:
+            app_logger.error(f"❌ [MARKET ORDER FAIL] for {symbol} ({side}): {e}")
+            return None

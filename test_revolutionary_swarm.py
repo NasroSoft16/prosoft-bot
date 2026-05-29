@@ -59,12 +59,18 @@ async def run_swarm_tests():
     
     # Force mock a new Raydium liquidity pool event
     print("Simulating new Raydium pool creation for virtual token...")
-    # Overwrite the scanner simulation list
-    original_scan = sniper._scan_raydium_pools
     
-    # We call the scan function
-    await sniper._scan_raydium_pools()
+    # Stub random.random to bypass the 75% discard chance and audit random vetoes
+    import random as _rand
+    original_random = _rand.random
+    _rand.random = lambda: 0.0
     
+    try:
+        # We call the scan function
+        await sniper._scan_raydium_pools()
+    finally:
+        _rand.random = original_random
+        
     # Verify that a virtual trade was recorded
     assert len(sniper.virtual_trades) >= 1, "Failed: DEX Sniper did not capture virtual trade"
     trade = sniper.virtual_trades[0]
