@@ -3,10 +3,11 @@ import time
 from datetime import datetime
 
 class SwingVault:
-    def __init__(self, api_client, telegram_bot, memory):
+    def __init__(self, api_client, telegram_bot, memory, main_bot=None):
         self.api = api_client
         self.telegram = telegram_bot
         self.memory = memory
+        self.main_bot = main_bot
         self.vault_trades = []
         
         # Elite coins only
@@ -115,6 +116,11 @@ class SwingVault:
             await self._execute_vault_entry(best_coin, budget)
 
     async def _execute_vault_entry(self, symbol, usdt_budget):
+        if self.main_bot and hasattr(self.main_bot, 'active_trades'):
+            if any(t.get('symbol') == symbol for t in self.main_bot.active_trades):
+                self.add_log(f"⚠️ [SWING VAULT] {symbol} is already active in Scalp/Main bot. Skipping Swing Entry.")
+                return
+                
         async with self.trade_lock:
             try:
                 current_price = float(self.api.get_symbol_ticker(symbol))

@@ -227,7 +227,7 @@ class TradingBot:
         self.quantum_alpha      = QuantumAlphaStrategy()
         self.squeeze_scanner    = VolatilitySqueezeScanner(self.api, self.ta)
         self.divergence_scanner = RSIDivergenceScanner(self.api)
-        self.vault = SwingVault(self.api, self.telegram, self.memory)
+        self.vault = SwingVault(self.api, self.telegram, self.memory, main_bot=self)
         self.grid_scout = GridScout(self.api, self.telegram, self.memory)
         
         # --- NEW MODULES (v12.0) ---
@@ -345,10 +345,14 @@ class TradingBot:
             return False, f"Portfolio limits reached ({len(self.active_trades)}/{max_trades} active trades for ${total_equity:.2f} equity)"
 
         # ── Gate 0.1: Anti-Duplicate Lock ──
-        # Prevent opening another trade for a symbol that is already active
-        for t in self.active_trades:
-            if t.get('symbol') == symbol:
-                return False, f"Anti-Duplicate Lock: Already holding active trade for {symbol}"
+        # Prevent opening another trade for a symbol that is already active in Scalp or Swing Vault
+        is_active_main = any(t.get('symbol') == symbol for t in self.active_trades)
+        is_active_vault = False
+        if hasattr(self, 'vault') and hasattr(self.vault, 'vault_trades'):
+            is_active_vault = any(t.get('symbol') == symbol for t in self.vault.vault_trades)
+            
+        if is_active_main or is_active_vault:
+            return False, f"Anti-Duplicate Lock: Already holding active trade for {symbol} (Main={is_active_main}, Vault={is_active_vault})"
 
         # ── Gate 0.15: Smart Re-Entry Gate ──
         # After a WIN on this symbol, enforce strict conditions for 5 minutes.
@@ -3279,7 +3283,12 @@ class TradingBot:
                 # Lower threshold to 0.3 USDT to catch assets even in micro-accounts
                 if not ticker or (qty * ticker < 0.3): continue
                 
-                if not any(t['symbol'] == symbol for t in self.active_trades):
+                is_active_main = any(t['symbol'] == symbol for t in self.active_trades)
+                is_active_vault = False
+                if hasattr(self, 'vault') and hasattr(self.vault, 'vault_trades'):
+                    is_active_vault = any(t['symbol'] == symbol for t in self.vault.vault_trades)
+                
+                if not is_active_main and not is_active_vault:
                     # ── [RACE CONDITION GUARD] Don't pick up symbols closed in the last 90s ──
                     if not hasattr(self, '_recently_closed'): self._recently_closed = {}
                     recently_closed_until = self._recently_closed.get(symbol, 0)
