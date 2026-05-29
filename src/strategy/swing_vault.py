@@ -26,20 +26,25 @@ class SwingVault:
 
     def _load_state(self):
         import json, os
+        last_time = time.time() - (86400 * 3)
         if os.path.exists(self.state_file):
             try:
                 with open(self.state_file, 'r') as f:
                     data = json.load(f)
-                    return data.get('last_trade_time', time.time() - (86400 * 3)) # Default 3 days hungry
+                    self.vault_trades = data.get('vault_trades', [])
+                    return data.get('last_trade_time', last_time)
             except:
                 pass
-        return time.time() - (86400 * 3)
+        return last_time
         
     def _save_state(self):
         import json
         try:
             with open(self.state_file, 'w') as f:
-                json.dump({'last_trade_time': self.last_trade_time}, f)
+                json.dump({
+                    'last_trade_time': self.last_trade_time,
+                    'vault_trades': self.vault_trades
+                }, f)
         except:
             pass
 
@@ -267,3 +272,4 @@ class SwingVault:
                             )
                 except Exception as e:
                     self.add_log(f"Error managing vault trade {trade.get('symbol')}: {e}")
+            self._save_state()
