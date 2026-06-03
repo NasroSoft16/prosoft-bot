@@ -172,6 +172,7 @@ class SwingVault:
                         'highest_price': fill_price,
                         'pnl_pct': 0.0,
                         'time': datetime.now().strftime("%H:%M:%S"),
+                        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         'trade_type': 'SWING',
                         'order_id': order['orderId']
                     })
@@ -270,17 +271,20 @@ class SwingVault:
                             
                             # Save to diagnostic snapshot & memory DB
                             try:
-                                self.memory.save_trade({
-                                    'symbol': symbol,
-                                    'side': 'BUY',
-                                    'entry_price': entry_p,
-                                    'exit_price': current_price,
-                                    'peak_price': trade.get('highest_price', current_price),
-                                    'pnl_usd': (current_price - entry_p) * trade['qty'],
-                                    'duration': 0,
-                                    'ai_conf': 0.99,
-                                    'macro_fgi': 0
-                                })
+                                self.memory.log_trade(
+                                    symbol=symbol,
+                                    side='BUY',
+                                    entry=entry_p,
+                                    exit_p=current_price,
+                                    entry_t=trade.get('timestamp', datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                                    exit_t=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    pnl=net_profit,
+                                    conf=0.99,
+                                    health=self.main_bot.stats.get('market_health', 50) if self.main_bot else 50,
+                                    sentiment=self.main_bot.stats.get('sentiment', 'NEUTRAL') if self.main_bot else 'NEUTRAL',
+                                    strategy_used='SWING_VAULT',
+                                    highest_peak=trade.get('highest_price', current_price)
+                                )
                             except Exception as mem_e:
                                 self.add_log(f"Memory save error: {mem_e}")
                                 
@@ -293,3 +297,59 @@ class SwingVault:
                 except Exception as e:
                     self.add_log(f"Error managing vault trade {trade.get('symbol')}: {e}")
             self._save_state()
+
+    async def exit_vault_trade_by_symbol(self, symbol, reason="MANUAL EXIT"):
+        """Manually exit a swing vault trade."""
+        async with self.trade_lock:
+            trade = next((t for t in self.vault_trades if t['symbol'] == symbol), None)
+            if not trade:
+                self.add_log(f"Manual Vault Close Error: No active swing trade found for {symbol}")
+                return False
+            
+            try:
+                current_price = float(self.api.get_symbol_ticker(symbol))
+                if not current_price:
+                    current_price = trade['entry_price']
+                
+                # Execute Market Sell
+                close_order = self.api.place_market_order(symbol, 'SELL', trade['qty'])
+                if close_order and close_order.get('status') == 'FILLED':
+                    self.vault_trades.remove(trade)
+                    self._save_state()
+                    
+                    entry_p = trade['entry_price']
+                    net_profit = (current_price - entry_p) / entry_p * 100
+                    
+                    # Save to diagnostic snapshot & memory DB
+                    try:
+                        self.memory.log_trade(
+                            symbol=symbol,
+                            side='BUY',
+                            entry=entry_p,
+                            exit_p=current_price,
+                            entry_t=trade.get('timestamp', datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                            exit_t=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            pnl=net_profit,
+                            conf=0.99,
+                            health=self.main_bot.stats.get('market_health', 50) if self.main_bot else 50,
+                            sentiment=self.main_bot.stats.get('sentiment', 'NEUTRAL') if self.main_bot else 'NEUTRAL',
+                            strategy_used='SWING_VAULT',
+                            highest_peak=trade.get('highest_price', current_price)
+                        )
+                    except Exception as mem_e:
+                        self.add_log(f"Memory save error: {mem_e}")
+                    
+                    # Notify Telegram
+                    await self.telegram.send_message(
+                        f"🔓 *SWING VAULT MANUAL EXIT / إغلاق صفقة الاستثمار يدوياً*\n"
+                        f"Asset: `{symbol}`\n"
+                        f"Exit Price: `${current_price:.4f}`\n"
+                        f"Net PNL: `{net_profit:+.2f}%`"
+                    )
+                    return True
+                else:
+                    self.add_log(f"Manual Vault Close Error: Order placement failed on Binance for {symbol}")
+                    return False
+            except Exception as e:
+                self.add_log(f"Manual Vault Close Exception for {symbol}: {e}")
+                return False

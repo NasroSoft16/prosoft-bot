@@ -3268,9 +3268,21 @@ class TradingBot:
             self.add_log(f"Briefing Error: {e}")
 
     async def close_trade(self, side, price, reason, symbol=None):
+        # 1. Close from active scalp trades if symbol matches
         if self.active_trades:
             target_symbol = symbol if symbol else self.active_trades[0]['symbol']
-            await self.close_trade_by_symbol(target_symbol, side, price, reason)
+            trade = next((t for t in self.active_trades if t['symbol'] == target_symbol), None)
+            if trade:
+                await self.close_trade_by_symbol(target_symbol, side, price, reason)
+                return
+                
+        # 2. Fall back to close from Swing Vault trades if symbol matches
+        if hasattr(self, 'vault') and hasattr(self.vault, 'vault_trades'):
+            target_symbol = symbol if symbol else (self.vault.vault_trades[0]['symbol'] if self.vault.vault_trades else None)
+            if target_symbol:
+                trade = next((t for t in self.vault.vault_trades if t['symbol'] == target_symbol), None)
+                if trade:
+                    await self.vault.exit_vault_trade_by_symbol(target_symbol, reason=reason)
 
     async def sync_from_binance(self):
         try:

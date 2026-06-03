@@ -462,7 +462,10 @@ class DashboardAPI:
 
         @self.app.route('/api/close_trade', methods=['POST'])
         def close_trade():
-            if not self.bot.active_trades:
+            has_active_main = len(self.bot.active_trades) > 0
+            has_active_vault = hasattr(self.bot, 'vault') and hasattr(self.bot.vault, 'vault_trades') and len(self.bot.vault.vault_trades) > 0
+            
+            if not has_active_main and not has_active_vault:
                 return jsonify({'status': 'error', 'message': 'No active trade to close.'}), 400
             
             data = request.json or {}
