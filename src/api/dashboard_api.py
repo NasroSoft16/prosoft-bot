@@ -571,8 +571,8 @@ class DashboardAPI:
                             # Use OrderManager to sell
                             from src.execution.order_manager import OrderManager
                             om = OrderManager(self.bot.api)
-                            res = om.create_market_order(f"{asset}USDT", "SELL", qty)
-                            if res: liquidated_count += 1
+                            res = om.place_market_sell(f"{asset}USDT", qty)
+                            if res and res != "NOTIONAL_ERROR": liquidated_count += 1
                         except Exception as sell_err:
                             errors.append(f"Sell {asset}: {str(sell_err)}")
                     
