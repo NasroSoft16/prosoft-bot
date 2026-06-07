@@ -708,6 +708,10 @@ class TradingBot:
         order = self.order_manager.place_market_buy(symbol, position_size)
         if not order:
             return None
+            
+        if not hasattr(self, 'recently_bought'):
+            self.recently_bought = {}
+        self.recently_bought[symbol] = time.time()
 
         # ── Build trade record ──
         trade = {
@@ -2239,7 +2243,8 @@ class TradingBot:
                                     if hasattr(self, 'vault') and hasattr(self.vault, 'vault_trades'):
                                         is_tracked = is_tracked or any(t['symbol'] == symbol for t in self.vault.vault_trades)
                                         
-                                    if not is_tracked:
+                                    is_recent = (time.time() - getattr(self, 'recently_bought', {}).get(symbol, 0)) < 15
+                                    if not is_tracked and not is_recent:
                                         self.add_log(f"🧠 SYNC: Detected significant untracked manual asset {symbol} (${val:.2f}). Adding to tracker.")
                                         # Use cached price if available
                                         price_raw = self.stats.get('tickers', {}).get(symbol)
@@ -3001,6 +3006,9 @@ class TradingBot:
                 'order_id': order_res.get('orderId', 'SIMULATED'),
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
+            if not hasattr(self, 'recently_bought'):
+                self.recently_bought = {}
+            self.recently_bought[symbol] = time.time()
             self.active_trades.append(trade_obj)
             self.healer.save_trade_state(self.active_trades) 
             self.stats['active_count'] = len(self.active_trades)
